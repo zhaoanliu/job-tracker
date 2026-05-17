@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --nav-height: 56px;
+    --stats-height: 60px;
+    --filter-height: 52px;
+    --board-offset: calc(var(--nav-height) + var(--stats-height) + var(--filter-height));
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .kanban-column-body {
+    height: calc(100vh - var(--board-offset) - 6rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+
+  .kanban-column-body::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .kanban-column-body::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 2px;
+  }
+
+  .drag-over {
+    @apply ring-2 ring-brand-500 ring-offset-1;
+  }
+
+  .dragging {
+    @apply opacity-40;
+  }
+}
