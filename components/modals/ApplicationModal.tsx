@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import {
   Application,
   ApplicationFormData,
@@ -105,6 +106,7 @@ export default function ApplicationModal({
     try {
       await onSave(form)
     } catch (err: unknown) {
+      Sentry.captureException(err)
       setError(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(false)
