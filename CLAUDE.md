@@ -71,6 +71,15 @@ Unit tests use **Vitest + jsdom + Testing Library**. E2E uses **Playwright**.
 
 **Every fix or code change must include a corresponding test update.** If you add a function, add a unit test. If you fix a bug, add a test that would have caught it. If you change behaviour, update the existing test to reflect the new expectation.
 
+**When making any fix, explicitly ask: what is the earliest layer that could have caught this?** Work through the layers in order and add a guard at the earliest one that applies:
+1. **TypeScript type** — can a stricter type or removing a cast prevent this class of bug entirely?
+2. **Unit test** — can a fast, local test catch a regression before it reaches CI?
+3. **Lint / actionlint rule** — is there a static analysis rule that covers this pattern?
+4. **CI check** — does this need a new step in `lint.yml` to catch it on every PR?
+5. **CLAUDE.md note** — if none of the above are feasible, document the gotcha so it isn't rediscovered.
+
+The goal is to shift failures left: a TypeScript error beats a unit test failure, which beats a CI failure, which beats a production Sentry event.
+
 Coverage thresholds (enforced in `vitest.config.ts`):
 
 | Metric | Threshold | Why |
