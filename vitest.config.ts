@@ -12,20 +12,20 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: ['lib/**', 'components/**'],
+      include: ['lib/**', 'components/**', 'app/api/**'],
       exclude: [
         'lib/supabase/**',
         '**/*.d.ts',
-        // KanbanBoard and KanbanColumn require DnD context; covered by E2E tests
+        // These require a real DnD context; covered by E2E tests
         'components/board/KanbanBoard.tsx',
         'components/board/KanbanColumn.tsx',
-        'components/board/KanbanOverlayCard.tsx',
+        'components/board/DragOverlayCard.tsx',
       ],
       thresholds: {
-        lines: 80,
+        lines: 85,
         functions: 65,
-        branches: 75,
-        statements: 80,
+        branches: 80,
+        statements: 85,
       },
     },
   },
