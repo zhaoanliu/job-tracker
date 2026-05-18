@@ -57,13 +57,13 @@ jobs:
             # https://org.sentry.io/issues/1234/
             SENTRY_ID=$(echo "${SENTRY_URL}" | grep -oE '[0-9]{7,}')
             echo "sentry_id=${SENTRY_ID}" >> "$GITHUB_OUTPUT"
-            # Wait for GitHub search to index any issue just created by sentry[bot]
-            sleep 15
+            # Use list API (not search) to avoid search-index lag on freshly-created issues
             EXISTING=$(gh issue list \
-              --search "${SENTRY_ID}" \
               --state all \
-              --json number,state \
-              --jq '.[0] // empty')
+              --limit 50 \
+              --json number,state,title | \
+              jq --arg title "${SENTRY_TITLE}" \
+                '[.[] | select(.title == $title)] | .[0] // empty')
 
             if [[ -n "$EXISTING" ]]; then
               NUMBER=$(echo "$EXISTING" | jq -r '.number')
