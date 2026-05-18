@@ -83,9 +83,12 @@ jobs:
           fi
 
       - name: Fetch Sentry details
+        id: sentry_details
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ID: ${{ steps.issue.outputs.sentry_id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           if [[ -z "${SENTRY_ID}" || -z "${SENTRY_AUTH_TOKEN}" ]]; then
             printf '' > /tmp/sentry_details.txt
@@ -95,6 +98,17 @@ jobs:
           ISSUE_JSON=$(curl -sf \
             -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
             "https://sentry.io/api/0/issues/${SENTRY_ID}/" || echo '{}')
+
+          # replay_hydration_error (type 5003) has no stack trace and is never fixable
+          # in application code — typically caused by browser extensions.
+          ISSUE_TYPE=$(printf '%s' "$ISSUE_JSON" | jq -r '.issueType // ""')
+          if [[ "$ISSUE_TYPE" == "replay_hydration_error" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "Skipping auto-fix: Sentry issued this as \`replay_hydration_error\` — no stack trace is available. These are typically caused by browser extensions modifying the DOM and are not fixable in application code."
+            gh issue close "${ISSUE_NUMBER}"
+            exit 0
+          fi
 
           EVENT_JSON=$(curl -sf \
             -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
@@ -128,6 +142,7 @@ jobs:
           cat /tmp/sentry_details.txt
 
       - name: Write prompt file
+        if: steps.sentry_details.outputs.skip != 'true'
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
@@ -163,6 +178,7 @@ jobs:
           EOF
 
       - name: Run Claude Code
+        if: steps.sentry_details.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -185,6 +201,7 @@ jobs:
           done
 
       - name: Merge or open PR
+        if: steps.sentry_details.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
