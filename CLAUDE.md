@@ -172,6 +172,8 @@ The "user-facing" bar is intentionally low — ops and setup changes count too. 
 
 Bundle related changes — code and the documentation that explains them — into a single commit. A separate "docs:" commit for a CLAUDE.md note or README update that accompanies a code change adds noise to history and implies independence that isn't there. Only split into separate commits when the changes are genuinely independent.
 
+When doing a doc review that produces multiple small fixes across README and CLAUDE.md, bundle them all into one commit (e.g. "docs: end-of-session review fixes") rather than a separate commit per file or per fix.
+
 ## Code conventions
 
 - No comments unless the WHY is non-obvious
