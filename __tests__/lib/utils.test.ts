@@ -136,6 +136,15 @@ describe('sortApplications', () => {
     sortApplications(apps, 'company')
     expect(apps.map(a => a.id)).toEqual(original.map(a => a.id))
   })
+
+  it('does not throw when sorting by company with null/undefined values', () => {
+    const appsWithNullCompany = [
+      makeApp({ id: 'x', company: null as unknown as string }),
+      makeApp({ id: 'y', company: 'Alpha' }),
+      makeApp({ id: 'z', company: undefined as unknown as string }),
+    ]
+    expect(() => sortApplications(appsWithNullCompany, 'company')).not.toThrow()
+  })
 })
 
 // ─── computeStats ────────────────────────────────────────────────────────────

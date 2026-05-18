@@ -27,7 +27,7 @@ export function sortApplications(apps: Application[], sortBy: SortField): Applic
         if (!b.date) return -1
         return b.date.localeCompare(a.date)
       case 'company':
-        return a.company.localeCompare(b.company)
+        return (a.company ?? '').localeCompare(b.company ?? '')
       case 'priority':
         return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
       default:
