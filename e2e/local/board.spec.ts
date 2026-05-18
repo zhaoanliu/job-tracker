@@ -58,6 +58,7 @@ test('edits an existing application', async ({ page }) => {
 
 test('deletes an application after confirmation', async ({ page }) => {
   await loginViaUI(page)
+  await expect(page.locator(addToFuture)).toBeVisible({ timeout: 5_000 })
   await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Delete Me Corp')
   await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
@@ -72,9 +73,10 @@ test('deletes an application after confirmation', async ({ page }) => {
 
 test('stats bar reflects the correct total count', async ({ page }) => {
   await loginViaUI(page)
-  // StatsBar renders a value span next to each label; verify total is 0 for a fresh board
-  const totalStat = page.locator('div').filter({ has: page.getByText('Total Applications') })
-  await expect(totalStat.locator('span').first()).toHaveText('0')
+  // Navigate from the label span to its immediately preceding sibling (the count value)
+  await expect(
+    page.getByText('Total Applications', { exact: true }).locator('xpath=preceding-sibling::span[1]')
+  ).toHaveText('0')
 })
 
 test('filter chips narrow visible cards', async ({ page }) => {
