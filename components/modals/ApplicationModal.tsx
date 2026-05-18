@@ -51,7 +51,7 @@ export default function ApplicationModal({
   const [form, setForm] = useState<ApplicationFormData>(
     application
       ? {
-          company: application.company,
+          company: application.company ?? '',
           role: application.role,
           status: application.status,
           type: application.type,
@@ -96,7 +96,7 @@ export default function ApplicationModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.company.trim()) {
+    if (!form.company?.trim()) {
       setError('Company is required')
       return
     }
