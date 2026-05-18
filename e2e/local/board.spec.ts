@@ -72,7 +72,9 @@ test('deletes an application after confirmation', async ({ page }) => {
 
 test('stats bar reflects the correct total count', async ({ page }) => {
   await loginViaUI(page)
-  await expect(page.locator('[data-testid="stat-total"], .stat-total').or(page.locator('text=/^0$/'))).toBeVisible()
+  // StatsBar renders a value span next to each label; verify total is 0 for a fresh board
+  const totalStat = page.locator('div').filter({ has: page.getByText('Total Applications') })
+  await expect(totalStat.locator('span').first()).toHaveText('0')
 })
 
 test('filter chips narrow visible cards', async ({ page }) => {
