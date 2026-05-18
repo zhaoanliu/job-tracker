@@ -9,7 +9,7 @@ export default function StatsBar({ applications }: StatsBarProps) {
   const { total, active, interviewing, offers } = computeStats(applications)
 
   const stats = [
-    { label: 'Total', value: total, color: 'text-slate-700' },
+    { label: 'Total Applications', value: total, color: 'text-slate-700' },
     { label: 'Active', value: active, color: 'text-indigo-600' },
     { label: 'Interviewing', value: interviewing, color: 'text-amber-600' },
     { label: 'Offers', value: offers, color: 'text-emerald-600' },
