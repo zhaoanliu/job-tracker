@@ -18,12 +18,16 @@ test.afterAll(async () => {
   await deleteTestUser(userId)
 })
 
+// Export button uses title="Export to CSV"; add button uses title="Add to Future"
+const exportBtn = '[title="Export to CSV"]'
+const addToFuture = '[title="Add to Future"]'
+
 test('exports CSV with correct headers when board is empty', async ({ page }) => {
   await loginViaUI(page)
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.locator('button:has-text("Export"), a:has-text("Export")').first().click(),
+    page.locator(exportBtn).click(),
   ])
 
   const filePath = path.join(os.tmpdir(), `export-${Date.now()}.csv`)
@@ -40,16 +44,14 @@ test('exports CSV with correct headers when board is empty', async ({ page }) =>
 test('exports CSV containing added applications', async ({ page }) => {
   await loginViaUI(page)
 
-  // Add an application first
-  const columnAdd = page.locator('.kanban-column').filter({ hasText: 'Future' }).locator('button').first()
-  await columnAdd.click()
+  await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'CSV Export Corp')
   await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
   await expect(page.locator('text=CSV Export Corp')).toBeVisible({ timeout: 8_000 })
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.locator('button:has-text("Export"), a:has-text("Export")').first().click(),
+    page.locator(exportBtn).click(),
   ])
 
   const filePath = path.join(os.tmpdir(), `export-${Date.now()}.csv`)
@@ -64,7 +66,6 @@ test('exports CSV containing added applications', async ({ page }) => {
 test('imports CSV and shows cards on the board', async ({ page }) => {
   await loginViaUI(page)
 
-  // Create a minimal CSV file
   const csvContent = [
     'company,role,status,type,priority,location,workmode,date,link,source,referrer,notes,next_step',
     'Import Test Co,Engineer,future,Full-Time,High,Remote,Remote,2026-05-01,,,,,',
@@ -73,7 +74,6 @@ test('imports CSV and shows cards on the board', async ({ page }) => {
   const tmpFile = path.join(os.tmpdir(), `import-test-${Date.now()}.csv`)
   fs.writeFileSync(tmpFile, csvContent)
 
-  // Find file input for import (may be hidden)
   const fileInput = page.locator('input[type="file"]')
   await fileInput.setInputFiles(tmpFile)
 
@@ -85,24 +85,20 @@ test('imports CSV and shows cards on the board', async ({ page }) => {
 test('round-trips: export then re-import preserves company names', async ({ page }) => {
   await loginViaUI(page)
 
-  // Add two applications
   for (const name of ['Roundtrip Alpha', 'Roundtrip Beta']) {
-    const columnAdd = page.locator('.kanban-column').filter({ hasText: 'Future' }).locator('button').first()
-    await columnAdd.click()
+    await page.locator(addToFuture).click()
     await page.fill('input[placeholder="e.g. Acme Corp"]', name)
     await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
     await expect(page.locator(`text=${name}`)).toBeVisible({ timeout: 8_000 })
   }
 
-  // Export
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.locator('button:has-text("Export"), a:has-text("Export")').first().click(),
+    page.locator(exportBtn).click(),
   ])
   const filePath = path.join(os.tmpdir(), `roundtrip-${Date.now()}.csv`)
   await download.saveAs(filePath)
 
-  // Clear and re-import
   await clearTestApplications(userId)
   await page.reload()
   await expect(page.locator('text=Roundtrip Alpha')).not.toBeVisible()

@@ -1,0 +1,178 @@
+name: Auto-fix CI failures
+
+on:
+  workflow_run:
+    workflows: ["Lint & type-check", "E2E Auth Tests", "E2E Local Tests (Board + CSV)"]
+    types: [completed]
+
+jobs:
+  auto-fix-ci:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ci-auto-fix-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+
+      - name: Cache Claude Code
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm-global
+          key: claude-code-${{ runner.os }}
+
+      - name: Install Claude Code
+        run: |
+          npm config set prefix "$HOME/.npm-global"
+          npm install -g @anthropic-ai/claude-code
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+
+      - name: Get failure logs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          gh run view "$RUN_ID" --log-failed 2>&1 | head -500 > /tmp/ci_logs.txt
+
+      - name: Get branch diff vs main
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [[ "$HEAD_BRANCH" != "main" ]]; then
+            git fetch origin main
+            { git diff --stat origin/main..HEAD; echo ""; git diff origin/main..HEAD -- '*.ts' '*.tsx' '*.js' '*.json'; } | head -400 > /tmp/branch_diff.txt
+          else
+            touch /tmp/branch_diff.txt
+          fi
+
+      - name: Find or create GitHub issue
+        id: issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          TITLE="CI failure: ${WORKFLOW_NAME} on ${HEAD_BRANCH}"
+          printf '%s' "$TITLE" > /tmp/issue_title.txt
+          EXISTING=$(gh issue list \
+            --state open \
+            --limit 50 \
+            --json number,title | \
+            jq --arg title "$TITLE" \
+              '[.[] | select(.title == $title)] | .[0] // empty')
+          if [[ -n "$EXISTING" ]]; then
+            NUMBER=$(echo "$EXISTING" | jq -r '.number')
+          else
+            ISSUE_URL=$(gh issue create \
+              --title "$TITLE" \
+              --body "**Workflow:** ${WORKFLOW_NAME}"$'\n\n'"**Branch:** \`${HEAD_BRANCH}\`"$'\n\n'"**Run:** ${RUN_URL}"$'\n\n'"This issue was automatically created from a CI failure.")
+            NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+          fi
+          echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Write prompt
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          {
+            echo "A CI workflow failed and needs to be fixed."
+            echo ""
+            echo "Workflow: ${WORKFLOW_NAME}"
+            echo "Branch: ${HEAD_BRANCH}"
+            echo "Issue: #${ISSUE_NUMBER}"
+            echo ""
+            echo "## Failed step logs"
+            echo ""
+            cat /tmp/ci_logs.txt
+            echo ""
+          } > /tmp/prompt.txt
+          if [[ -s /tmp/branch_diff.txt ]]; then
+            { echo "## Changes on this branch vs main"; echo ""; cat /tmp/branch_diff.txt; echo ""; } >> /tmp/prompt.txt
+          fi
+          cat >> /tmp/prompt.txt << 'EOF'
+          Analyze the CI failure above. Find the root cause in the codebase and fix it.
+          Do NOT run any git commands — just edit the files.
+          Do NOT add comments explaining what you changed.
+
+          After making the fix, write a single word to /tmp/risk.txt:
+          - Write "low" if ALL of the following are true:
+            - 1 or 2 files changed
+            - The fix is a null guard, type safety fix, lint error, type error, or simple value correction
+            - No new functions, classes, or logic flows were added
+            - No auth, database schema, or API surface was touched
+          - Write "high" for anything else; when in doubt use "high"
+
+          Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
+          EOF
+
+      - name: Run Claude Code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude --dangerously-skip-permissions --max-turns 20 -p "$(cat /tmp/prompt.txt)" || echo "claude exited with code $? (max-turns or error), continuing"
+
+      - name: Apply fix or open PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [[ -z "$(git diff --name-only)" ]]; then
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "Claude analyzed the CI failure but made no code changes. Manual investigation required."
+            exit 0
+          fi
+          ISSUE_TITLE=$(cat /tmp/issue_title.txt)
+          RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+          RISK=${RISK:-high}
+          FILES_CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
+          STATS=$(git diff --shortstat)
+          INSERTIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+          DELETIONS=$(echo "$STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+          TOTAL_LINES=$(( ${INSERTIONS:-0} + ${DELETIONS:-0} ))
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ "$HEAD_BRANCH" != "main" || ( "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ) ]]; then
+            git add -A
+            git commit -m "fix: auto-fix CI failure for issue #${ISSUE_NUMBER}"
+            git fetch origin "${HEAD_BRANCH}"
+            if ! git rebase "origin/${HEAD_BRANCH}"; then
+              git rebase --abort
+              gh issue comment "${ISSUE_NUMBER}" \
+                --body "Auto-fix failed: rebase conflict when applying fix on top of recent changes to \`${HEAD_BRANCH}\`. Manual investigation required."
+              exit 0
+            fi
+            COMMITS_AHEAD=$(git rev-list "origin/${HEAD_BRANCH}..HEAD" --count)
+            if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
+              git push origin "HEAD:${HEAD_BRANCH}"
+            else
+              echo "Fix already applied by another run, skipping push"
+            fi
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "Fix pushed to \`${HEAD_BRANCH}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
+            gh issue close "${ISSUE_NUMBER}"
+          else
+            BRANCH="fix/ci-issue-${ISSUE_NUMBER}-$(date +%s)"
+            git checkout -b "$BRANCH"
+            git add -A
+            git commit -m "fix: auto-fix CI failure for issue #${ISSUE_NUMBER}"
+            git push origin "$BRANCH"
+            PR_URL=$(gh pr create \
+              --title "fix: ${ISSUE_TITLE}" \
+              --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)" \
+              --base main)
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "A fix has been proposed: $PR_URL — please review before merging."
+          fi
