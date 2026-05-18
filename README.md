@@ -233,6 +233,7 @@ The app has two auto-healing workflows powered by Claude Code:
 |---|---|
 | `SENTRY_DSN` | Your Sentry project DSN (from Sentry → Settings → Projects → Client Keys) |
 | `SENTRY_WEBHOOK_SECRET` | Secret you set when creating the Sentry webhook |
+| `VERCEL_WEBHOOK_SECRET` | Secret you set when creating the Vercel webhook (see setup below) |
 | `GH_PAT` | GitHub Personal Access Token with `repo` scope |
 | `GITHUB_REPO` | `owner/repo` (e.g. `zhaoanliu/job-tracker`) |
 
@@ -252,6 +253,14 @@ In Sentry: **Settings → Integrations → WebHooks**, add your Vercel URL:
 https://your-app.vercel.app/api/sentry-webhook
 ```
 Enable the **Issue** event type and copy the signing secret into `SENTRY_WEBHOOK_SECRET`.
+
+### Vercel webhook setup
+
+In the Vercel dashboard: **Settings → Webhooks**, add:
+```
+https://your-app.vercel.app/api/vercel-webhook
+```
+Select the **Deployment Failed** (`deployment.error`) event. Copy the signing secret into the `VERCEL_WEBHOOK_SECRET` Vercel environment variable so the API route can verify incoming requests.
 
 ---
 

@@ -1,14 +1,14 @@
 name: Auto-fix CD failures
 
 on:
-  deployment_status:
+  repository_dispatch:
+    types: [cd-failure]
 
 jobs:
   auto-fix-cd:
-    if: github.event.deployment_status.state == 'failure' && github.event.deployment.environment == 'Production'
     runs-on: ubuntu-latest
     concurrency:
-      group: cd-auto-fix-${{ github.event.deployment.sha }}
+      group: cd-auto-fix-${{ github.event.client_payload.sha }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.deployment.sha }}
+          ref: ${{ github.event.client_payload.sha }}
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -64,8 +64,8 @@ jobs:
         id: issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHA: ${{ github.event.deployment.sha }}
-          DEPLOY_URL: ${{ github.event.deployment_status.log_url }}
+          SHA: ${{ github.event.client_payload.sha }}
+          DEPLOY_URL: ${{ github.event.client_payload.deployment_url }}
         run: |
           SHORT_SHA="${SHA:0:7}"
           TITLE="CD failure: Production deployment of ${SHORT_SHA} failed"
@@ -91,7 +91,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-          DEPLOY_URL: ${{ github.event.deployment_status.log_url }}
+          DEPLOY_URL: ${{ github.event.client_payload.deployment_url }}
         run: |
           gh issue comment "${ISSUE_NUMBER}" \
             --body "The build succeeds locally — this is likely a Vercel environment variable or configuration issue, not a code bug. Check: ${DEPLOY_URL}"$'\n\n'"Manual investigation required."
@@ -100,8 +100,8 @@ jobs:
         if: steps.build.outputs.reproducible == 'true'
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-          SHA: ${{ github.event.deployment.sha }}
-          DEPLOY_URL: ${{ github.event.deployment_status.log_url }}
+          SHA: ${{ github.event.client_payload.sha }}
+          DEPLOY_URL: ${{ github.event.client_payload.deployment_url }}
         run: |
           {
             echo "A Vercel production deployment failed. The build error was reproduced locally."

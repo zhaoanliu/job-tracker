@@ -172,13 +172,14 @@ Add it if the workflow runs tests or builds that Claude Code can reasonably fix 
 - The high-risk fix branch is named `fix/ci-issue-<N>-<timestamp>` so repeated runs never collide on the same branch name
 - **No infinite-fix loop** — two layers of protection: (1) GitHub blocks `on: push` / `on: pull_request` triggers for any push made with `GITHUB_TOKEN`, so lint.yml / e2e.yml never run after a bot push, and workflow_run never fires; (2) the job `if:` condition explicitly skips runs where `actor.login == 'github-actions[bot]'`, so the protection holds even if the push token is ever changed to a PAT
 
-**`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `deployment_status` when `state == 'failure'` and `environment == 'Production'`:
+**`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `repository_dispatch` with `event_type: cd-failure` (fired by `/api/vercel-webhook` only for production `deployment.error` events):
 - Checks out the failing commit, runs `npm run build` + `npx tsc --noEmit` locally to reproduce the error
 - **Not locally reproducible** (build succeeds locally): opens an issue and comments that it is likely a Vercel environment variable or configuration problem — no code fix is attempted
 - **Locally reproducible**: finds or creates a GitHub issue titled `"CD failure: Production deployment of <sha7> failed"`, runs Claude with the build output, and opens a PR — never pushes directly to main
 - Always opens a PR (never direct-push to main) to prevent an auto-merge from immediately triggering another Vercel production deployment before a human reviews the fix
 - **No infinite-fix loop**: the fix PR pushes to a branch via `GITHUB_TOKEN`, which Vercel deploys as a Preview (environment = "Preview"); the `environment == 'Production'` filter ignores Preview failures, so the loop is broken
-- No extra secrets needed — reuses `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (already present)
+- Required new secret: `VERCEL_WEBHOOK_SECRET` — set in Vercel dashboard when creating the webhook (add the same value as a Vercel environment variable so the API route can verify signatures); uses HMAC-SHA1 on the raw body against the `x-vercel-signature` header
+- Reuses existing secrets `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GH_PAT`, and `GITHUB_REPO`
 
 **Run tests proactively — do not wait to be asked, and do not ask permission first.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication, smoke-testing a new route's error path), just run it and report the result. Never offer to run a test as a question — just run it. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
 
