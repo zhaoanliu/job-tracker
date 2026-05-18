@@ -7,7 +7,7 @@ export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
-  silent: false,
+  silent: true,
   telemetry: false,
   webpack: {
     reactComponentAnnotation: { enabled: true },
