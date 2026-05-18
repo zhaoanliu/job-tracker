@@ -19,6 +19,8 @@ Track every application through a nine-stage pipeline — from passive interest 
 - **Auth** — email + password or magic link via Supabase Auth
 - **Row Level Security** — every DB query is scoped to the authenticated user, enforced at the Postgres layer
 
+> See [Development Journal](docs/development-journal.md) for the full story of how this project evolved — original intention, features added step by step, problems encountered and how they were solved, and the architecture decisions behind the production version.
+
 ---
 
 ## Architecture decisions
