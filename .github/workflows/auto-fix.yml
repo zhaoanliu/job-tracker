@@ -82,6 +82,51 @@ jobs:
             printf 'Sentry issue: %s\nCulprit: %s' "${SENTRY_URL}" "${SENTRY_CULPRIT}" > /tmp/issue_body.txt
           fi
 
+      - name: Fetch Sentry details
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ID: ${{ steps.issue.outputs.sentry_id }}
+        run: |
+          if [[ -z "${SENTRY_ID}" || -z "${SENTRY_AUTH_TOKEN}" ]]; then
+            printf '' > /tmp/sentry_details.txt
+            exit 0
+          fi
+
+          ISSUE_JSON=$(curl -sf \
+            -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+            "https://sentry.io/api/0/issues/${SENTRY_ID}/" || echo '{}')
+
+          EVENT_JSON=$(curl -sf \
+            -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+            "https://sentry.io/api/0/issues/${SENTRY_ID}/events/latest/" || echo '{}')
+
+          CULPRIT=$(printf '%s' "$ISSUE_JSON" | jq -r '.culprit // ""')
+          ERROR_TYPE=$(printf '%s' "$EVENT_JSON" | \
+            jq -r '.entries[]? | select(.type=="exception") | .data.values[-1]?.type // ""' | head -1)
+          ERROR_VALUE=$(printf '%s' "$EVENT_JSON" | \
+            jq -r '.entries[]? | select(.type=="exception") | .data.values[-1]?.value // ""' | head -1)
+
+          FRAMES=$(printf '%s' "$EVENT_JSON" | jq -r '
+            [
+              .entries[]? |
+              select(.type=="exception") |
+              .data.values[-1]?.stacktrace.frames? // [] |
+              .[]
+            ] | .[-8:] | .[] |
+            "\(if .inApp == true then "[app] " else "      " end)\(.filename // "unknown"):\(.lineNo // "?") in \(.function // "<anonymous>")"
+          ' 2>/dev/null)
+
+          {
+            [[ -n "$ERROR_TYPE" ]] && printf 'Error type: %s\n' "$ERROR_TYPE"
+            [[ -n "$ERROR_VALUE" ]] && printf 'Error message: %s\n' "$ERROR_VALUE"
+            [[ -n "$CULPRIT" ]] && printf 'Culprit: %s\n' "$CULPRIT"
+            if [[ -n "$FRAMES" ]]; then
+              printf '\nStack trace (most recent frames, [app] = your code):\n%s\n' "$FRAMES"
+            fi
+          } > /tmp/sentry_details.txt
+
+          cat /tmp/sentry_details.txt
+
       - name: Write prompt file
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
@@ -95,6 +140,11 @@ jobs:
             echo "Details:"
             cat /tmp/issue_body.txt
             echo ""
+            if [[ -s /tmp/sentry_details.txt ]]; then
+              echo "Sentry event details:"
+              cat /tmp/sentry_details.txt
+              echo ""
+            fi
           } >> /tmp/prompt.txt
           cat >> /tmp/prompt.txt << 'EOF'
           Analyze the error, find the root cause in the codebase, and fix it.

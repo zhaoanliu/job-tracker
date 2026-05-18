@@ -110,6 +110,7 @@ When a Sentry alert fires:
 2. Route validates HMAC signature, dispatches `repository_dispatch` to GitHub
 3. `auto-fix.yml` workflow runs:
    - Finds open GitHub issue matching the error title via list API, or creates one
+   - Fetches the full Sentry event (stack trace, error type/message, culprit) from the Sentry API and injects it into Claude's prompt — without this, Claude only sees the vague GitHub issue title and exhausts its turn limit without finding the bug
    - Runs `claude --dangerously-skip-permissions` to fix the bug
    - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type fix): pushes directly to `main`, resolves the Sentry issue via API, closes the GitHub issue
    - **High-risk fix**: opens a PR for review and comments on the issue
