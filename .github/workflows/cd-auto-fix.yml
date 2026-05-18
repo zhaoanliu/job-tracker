@@ -147,7 +147,8 @@ jobs:
       - name: Revert workflow file changes
         if: steps.build.outputs.reproducible == 'true'
         run: |
-          git checkout HEAD -- .github/ 2>/dev/null || true
+          git fetch origin main --quiet
+          git checkout origin/main -- .github/ 2>/dev/null || true
 
       - name: Open PR with fix
         if: steps.build.outputs.reproducible == 'true'
