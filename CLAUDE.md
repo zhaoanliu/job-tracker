@@ -122,6 +122,19 @@ The `on: issues` trigger fires for both manually-created issues (containing `sen
 - `npx tsc --noEmit` (TypeScript)
 - `actionlint` (validates workflow YAML — catches shell injection, expression errors, and YAML syntax bugs in `run:` blocks)
 
+**Test the workflow directly — do not trigger end-to-end through Sentry.** The `repository_dispatch` event can be fired locally with one command:
+
+```bash
+gh api repos/zhaoanliu/job-tracker/dispatches \
+  --method POST \
+  -f event_type=sentry-issue \
+  -f 'client_payload[title]=TypeError: your error here' \
+  -f 'client_payload[sentry_url]=https://sentry.io/organizations/zhaoans-org/issues/ISSUE_ID/' \
+  -f 'client_payload[culprit]=/dashboard'
+```
+
+Then watch with `gh run list --limit 3`. This takes seconds to set up vs. triggering a live crash, waiting for Sentry to detect it, fire the webhook, and dispatch — which adds 5+ minutes of latency and requires resolving the Sentry issue each time to re-trigger. Only do full end-to-end testing when verifying the Sentry webhook path itself.
+
 **Always run `actionlint` locally before pushing changes to any `.github/workflows/` file.** Install: `brew install actionlint` (macOS). The feedback loop for workflow bugs is 5+ minutes per iteration (full CI run); catching them locally is the only way to avoid the churn.
 
 ### GitHub Actions YAML pitfalls (learned the hard way)
