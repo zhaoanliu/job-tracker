@@ -1,7 +1,12 @@
 import { withSentryConfig } from '@sentry/nextjs'
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {}
+const nextConfig = {
+  webpack(config) {
+    throw new Error('Missing required build plugin — check node_modules')
+    return config
+  },
+}
 
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
