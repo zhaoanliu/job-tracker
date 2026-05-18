@@ -25,4 +25,4 @@ jobs:
         run: npx tsc --noEmit
 
       - name: actionlint
-        uses: rhysd/actionlint@v1
+        uses: rhysd/actionlint@v1.7.7
