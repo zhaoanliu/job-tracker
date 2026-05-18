@@ -57,20 +57,18 @@ jobs:
             # https://org.sentry.io/issues/1234/
             SENTRY_ID=$(echo "${SENTRY_URL}" | grep -oE '[0-9]{7,}')
             echo "sentry_id=${SENTRY_ID}" >> "$GITHUB_OUTPUT"
-            # Use list API (not search) to avoid search-index lag on freshly-created issues
+            # Use list API (not search) to avoid search-index lag on freshly-created issues.
+            # Only search open issues: sentry[bot] always creates a new open issue per alert,
+            # so there is no need to find and reopen an old closed one.
             EXISTING=$(gh issue list \
-              --state all \
+              --state open \
               --limit 50 \
-              --json number,state,title | \
+              --json number,title | \
               jq --arg title "${SENTRY_TITLE}" \
                 '[.[] | select(.title == $title)] | .[0] // empty')
 
             if [[ -n "$EXISTING" ]]; then
               NUMBER=$(echo "$EXISTING" | jq -r '.number')
-              STATE=$(echo "$EXISTING" | jq -r '.state' | tr '[:upper:]' '[:lower:]')
-              if [[ "$STATE" == "closed" ]]; then
-                gh issue reopen "$NUMBER"
-              fi
               echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
             else
               ISSUE_URL=$(gh issue create \
