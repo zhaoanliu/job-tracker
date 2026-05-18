@@ -20,11 +20,18 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Cache Claude Code
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm-global
+          key: claude-code-${{ runner.os }}
 
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          npm config set prefix ~/.npm-global
+          export PATH=~/.npm-global/bin:$PATH
+          npm install -g @anthropic-ai/claude-code
+          echo "~/.npm-global/bin" >> $GITHUB_PATH
 
       - name: Create fix branch
         id: branch
@@ -56,8 +63,7 @@ jobs:
       - name: Run Claude Code
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          claude --dangerously-skip-permissions -p "$(cat /tmp/prompt.txt)"
+        run: claude --dangerously-skip-permissions -p "$(cat /tmp/prompt.txt)"
 
       - name: Open PR if changes were made
         env:
