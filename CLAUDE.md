@@ -71,12 +71,14 @@ Unit tests use **Vitest + jsdom + Testing Library**. E2E uses **Playwright**.
 
 **Every fix or code change must include a corresponding test update.** If you add a function, add a unit test. If you fix a bug, add a test that would have caught it. If you change behaviour, update the existing test to reflect the new expectation.
 
-**When making any fix, explicitly ask: what is the earliest layer that could have caught this?** Work through the layers in order and add a guard at the earliest one that applies:
+**When making any fix, explicitly evaluate each layer below in order and state your reasoning for each one — do not skip silently.** Add a guard at the earliest layer that applies:
 1. **TypeScript type** — can a stricter type or removing a cast prevent this class of bug entirely?
 2. **Unit test** — can a fast, local test catch a regression before it reaches CI?
-3. **Lint / actionlint rule** — is there a static analysis rule that covers this pattern?
+3. **Lint / actionlint rule** — verify by actually running the tool; don't assume it catches something without checking.
 4. **CI check** — does this need a new step in `lint.yml` to catch it on every PR?
 5. **CLAUDE.md note** — if none of the above are feasible, document the gotcha so it isn't rediscovered.
+
+For each layer you skip, say why it doesn't apply (e.g. "N/A — shell script, not TypeScript" or "actionlint tested locally, does not catch this flag"). Jumping straight to step 5 without showing the reasoning for steps 1–4 is not acceptable.
 
 The goal is to shift failures left: a TypeScript error beats a unit test failure, which beats a CI failure, which beats a production Sentry event.
 
