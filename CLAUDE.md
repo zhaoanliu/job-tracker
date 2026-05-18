@@ -138,6 +138,27 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - `npx tsc --noEmit` (TypeScript)
 - `actionlint` (validates workflow YAML — catches shell injection, expression errors, and YAML syntax bugs in `run:` blocks)
 
+**When adding a new workflow**, ask: should failures in this workflow trigger the auto-fix pipeline? If yes, add this step at the end of the job (mirror the pattern in `lint.yml`):
+```yaml
+- name: Trigger CI auto-fix on failure
+  if: failure() && github.actor != 'github-actions[bot]'
+  uses: actions/github-script@v7
+  with:
+    script: |
+      await github.rest.repos.createDispatchEvent({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        event_type: 'ci-failure',
+        client_payload: {
+          workflow_name: '${{ github.workflow }}',
+          run_id: String(context.runId),
+          run_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+          head_branch: '${{ github.ref_name }}'
+        }
+      })
+```
+Add it if the workflow runs tests or builds that Claude Code can reasonably fix (lint errors, type errors, test failures, build failures). Skip it for workflows that are purely infra/ops (e.g., release tagging, dependency updates, deploy-only workflows where `cd-auto-fix.yml` already handles failures).
+
 **`ci-auto-fix.yml`** — auto-healing for CI failures; triggers on `repository_dispatch` with `event_type: ci-failure` (fired by `lint.yml`, `e2e.yml`, and `e2e-local.yml` only when they actually fail, via `actions/github-script`):
 - Checks out the failing branch (feature branch or main), fetches up to 500 lines of failed-step logs via `gh run view --log-failed`, and for PR branches also collects the diff vs main
 - Finds or creates a GitHub issue titled `"CI failure: <workflow> on <branch>"` using the same list-API deduplication pattern as `auto-fix.yml`
