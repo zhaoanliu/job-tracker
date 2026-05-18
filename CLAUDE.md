@@ -138,6 +138,19 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - `npx tsc --noEmit` (TypeScript)
 - `actionlint` (validates workflow YAML — catches shell injection, expression errors, and YAML syntax bugs in `run:` blocks)
 
+**`ci-auto-fix.yml`** — auto-healing for CI failures; triggers on `workflow_run` when `lint.yml` or `e2e.yml` completes with `failure`:
+- Checks out the failing branch (feature branch or main), fetches up to 500 lines of failed-step logs via `gh run view --log-failed`, and for PR branches also collects the diff vs main
+- Finds or creates a GitHub issue titled `"CI failure: <workflow> on <branch>"` using the same list-API deduplication pattern as `auto-fix.yml`
+- Runs `claude --dangerously-skip-permissions` to analyze the logs and fix the root cause
+- **Feature branch**: always pushes the fix directly to the failing branch (so the PR CI re-runs)
+- **Main branch — low-risk** (≤2 files, ≤20 lines, null guard / type / lint fix): pushes directly to main
+- **Main branch — high-risk**: opens a PR from `fix/ci-issue-<N>` targeting main
+- No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` (same as `auto-fix.yml`)
+- Concurrency group is per-branch (`ci-auto-fix-<branch>`) so simultaneous lint and E2E failures on the same branch queue rather than race; the second run checks out the branch AFTER the first run's push, so it sees the latest code
+- Rebase conflicts (e.g., ci-auto-fix and auto-fix/Sentry both pushing to main in different concurrency groups) are caught with `if ! git rebase ...; then git rebase --abort` and leave a comment for manual resolution
+- The high-risk fix branch is named `fix/ci-issue-<N>-<timestamp>` so repeated runs never collide on the same branch name
+- Pushes made by `GITHUB_TOKEN` do NOT re-trigger `on: push` workflows (GitHub design), so there is no infinite-fix loop
+
 **Run tests proactively — do not wait to be asked, and do not ask permission first.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication, smoke-testing a new route's error path), just run it and report the result. Never offer to run a test as a question — just run it. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
 
 **Test the workflow directly — do not trigger end-to-end through Sentry.** The `repository_dispatch` event can be fired locally with one command:

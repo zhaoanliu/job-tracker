@@ -147,16 +147,23 @@ After deploying, update the **Supabase Auth → URL Configuration** with your pr
 
 ## Error monitoring & auto-fix pipeline
 
-The app uses **Sentry** for error monitoring and a **GitHub Actions** workflow that automatically fixes bugs caught in production using Claude Code.
+The app has two auto-healing workflows powered by Claude Code:
 
-### How it works
-
+**Sentry → production runtime errors** (`auto-fix.yml`):
 1. A runtime error is caught by Sentry (`captureConsoleIntegration` forwards any `console.error` call)
 2. Sentry POSTs to `/api/sentry-webhook` on Vercel
 3. The webhook validates the HMAC signature and fires a `repository_dispatch` event to GitHub
 4. `sentry[bot]` simultaneously opens a GitHub issue
-5. `auto-fix.yml` runs Claude Code to find and fix the root cause, then either pushes directly to `main` (low-risk fixes) or opens a PR for review
+5. `auto-fix.yml` runs Claude Code to find and fix the root cause, then either pushes directly to `main` (low-risk fixes: ≤2 files, ≤20 lines) or opens a PR for review
 6. On a direct push, the Sentry issue is automatically resolved via the Sentry API
+
+**CI failures → lint / type / test errors** (`ci-auto-fix.yml`):
+1. `lint.yml` or `e2e.yml` completes with `failure`
+2. `ci-auto-fix.yml` triggers via `workflow_run`, opens (or reuses) a GitHub issue titled `"CI failure: <workflow> on <branch>"`
+3. Fetches up to 500 lines of failed-step logs and, for PR branches, the diff vs `main`
+4. Runs Claude Code to analyze and fix the root cause
+5. **Feature branch**: pushes fix directly to the failing branch so the PR is updated
+6. **Main branch — low-risk**: pushes directly to `main`; **high-risk**: opens a PR for review
 
 ### Required secrets
 
@@ -252,6 +259,9 @@ See `TODO` comments in:
 ├── e2e/                      # Playwright E2E tests
 ├── .github/workflows/
 │   ├── auto-fix.yml          # Auto-fix Sentry bugs with Claude Code
+│   ├── ci-auto-fix.yml       # Auto-fix CI failures (lint / E2E) with Claude Code
+│   ├── e2e.yml               # Auth E2E on every PR/push
+│   ├── e2e-local.yml         # Board + CSV E2E nightly cron
 │   └── lint.yml              # ESLint + tsc + actionlint on every PR
 ├── supabase/
 │   └── migrations/
