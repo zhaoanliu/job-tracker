@@ -190,7 +190,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
         ...data,
         role: data.role?.trim() ?? null,
         referrer: data.referrer?.toUpperCase() ?? null,
-        location: (data.location as string).toLowerCase(),
+        location: data.location ?? null,
         user_id: user.id,
         order: colCards.length,
       }
