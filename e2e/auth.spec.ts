@@ -34,7 +34,7 @@ test('shows an error for invalid credentials', async ({ page }) => {
 test('logs in and reaches dashboard', async ({ page }) => {
   await loginViaUI(page)
   await expect(page).toHaveURL('/dashboard')
-  await expect(page.locator('text=Job Tracker').or(page.locator('nav'))).toBeVisible()
+  await expect(page.locator('nav')).toBeVisible()
 })
 
 test('redirects logged-in user away from /login', async ({ page }) => {
@@ -53,5 +53,5 @@ test('logs out and redirects to login', async ({ page }) => {
 
 test('shows the user email in the nav after login', async ({ page }) => {
   await loginViaUI(page)
-  await expect(page.locator(`text=${TEST_EMAIL}`).or(page.locator('nav'))).toBeVisible()
+  await expect(page.locator('nav').getByText(TEST_EMAIL)).toBeVisible()
 })
