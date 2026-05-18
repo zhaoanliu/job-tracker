@@ -6,8 +6,7 @@ on:
 
 jobs:
   auto-fix:
-    # Only run for issues created by the Sentry GitHub integration
-    if: contains(github.event.issue.body, 'sentry.io')
+    if: github.event_name == 'issues' && contains(github.event.issue.body, 'sentry.io')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,25 +33,31 @@ jobs:
           git checkout -b "$BRANCH"
           echo "name=$BRANCH" >> $GITHUB_OUTPUT
 
-      - name: Run Claude Code
+      - name: Write prompt file
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          PROMPT="A bug was caught by Sentry and reported as GitHub issue #${ISSUE_NUMBER}.
+          cat > /tmp/prompt.txt << 'EOF'
+          A bug was caught by Sentry and reported as a GitHub issue.
+          EOF
+          echo "Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}" >> /tmp/prompt.txt
+          echo "" >> /tmp/prompt.txt
+          echo "Details:" >> /tmp/prompt.txt
+          printf '%s\n' "${ISSUE_BODY}" >> /tmp/prompt.txt
+          echo "" >> /tmp/prompt.txt
+          cat >> /tmp/prompt.txt << 'EOF'
+          Analyze the error, find the root cause in the codebase, and fix it.
+          Do NOT run any git commands — just edit the files.
+          Do NOT add comments explaining what you changed.
+          EOF
 
-Title: ${ISSUE_TITLE}
-
-Details:
-${ISSUE_BODY}
-
-Analyze the error, find the root cause in the codebase, and fix it.
-Do NOT run any git commands — just edit the files.
-Do NOT add comments explaining what you changed."
-
-          claude --dangerously-skip-permissions -p "$PROMPT"
+      - name: Run Claude Code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude --dangerously-skip-permissions -p "$(cat /tmp/prompt.txt)"
 
       - name: Open PR if changes were made
         env:
