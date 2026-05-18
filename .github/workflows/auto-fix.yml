@@ -65,10 +65,10 @@ jobs:
               fi
               echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
             else
-              NUMBER=$(gh issue create \
+              ISSUE_URL=$(gh issue create \
                 --title "${SENTRY_TITLE}" \
-                --body "**Sentry issue:** ${SENTRY_URL}"$'\n\n'"**Culprit:** ${SENTRY_CULPRIT}"$'\n\n'"This issue was automatically created from a Sentry alert." \
-                --json number --jq '.number')
+                --body "**Sentry issue:** ${SENTRY_URL}"$'\n\n'"**Culprit:** ${SENTRY_CULPRIT}"$'\n\n'"This issue was automatically created from a Sentry alert.")
+              NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
               echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
             fi
 
