@@ -1,0 +1,27 @@
+name: CD failure filter
+
+on:
+  deployment_status:
+
+jobs:
+  filter:
+    if: github.event.deployment_status.state == 'failure' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Dispatch cd-failure
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.deployment.sha }}
+          REF: ${{ github.event.deployment.ref }}
+          DEPLOY_URL: ${{ github.event.deployment_status.log_url }}
+          REPO: ${{ github.repository }}
+        run: |
+          jq -n \
+            --arg sha "${SHA}" \
+            --arg ref "${REF}" \
+            --arg url "${DEPLOY_URL}" \
+            '{"event_type":"cd-failure","client_payload":{"sha":$sha,"ref":$ref,"deployment_url":$url}}' | \
+            gh api "repos/${REPO}/dispatches" --method POST --input -
