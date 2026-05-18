@@ -118,7 +118,8 @@ When a Sentry alert fires:
 
 Required secrets:
 - **Vercel**: `SENTRY_DSN`, `SENTRY_WEBHOOK_SECRET`, `GH_PAT`, `GITHUB_REPO`
-- **GitHub Actions**: `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN`
+- **Vercel build** (source map upload): `SENTRY_AUTH_TOKEN` (needs `project:releases` scope — **not** the same token as GitHub Actions), `SENTRY_ORG=zhaoans-org`, `SENTRY_PROJECT=javascript-nextjs` (the Sentry project slug is `javascript-nextjs`, not the repo name — wrong value silently breaks source map uploads)
+- **GitHub Actions**: `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN` (needs Issue & Event: Read & Write)
 - **GitHub repo setting**: Actions → General → allow GitHub Actions to create PRs
 
 Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry alert — the webhook triggers a dispatch AND `sentry[bot]` opens a GitHub issue at the same time. The concurrency group (`group: auto-fix, cancel-in-progress: false`) queues the two runs so they don't race. `on: issues` also fires for manually-created issues containing `sentry.io` in the body. GitHub only blocks workflow triggers from `github-actions[bot]` (the built-in token actor) — third-party apps like `sentry[bot]` are not restricted.
