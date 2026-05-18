@@ -51,7 +51,6 @@ jobs:
             printf '%s' "${ISSUES_TITLE}" > /tmp/issue_title.txt
             printf '%s' "${ISSUES_BODY}" > /tmp/issue_body.txt
           else
-            # Search for existing issue containing the Sentry URL
             EXISTING=$(gh issue list \
               --search "${SENTRY_URL}" \
               --state all \
@@ -77,15 +76,6 @@ jobs:
             printf 'Sentry issue: %s\nCulprit: %s' "${SENTRY_URL}" "${SENTRY_CULPRIT}" > /tmp/issue_body.txt
           fi
 
-      - name: Create fix branch
-        id: branch
-        env:
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-        run: |
-          BRANCH="fix/issue-${ISSUE_NUMBER}"
-          git checkout -b "$BRANCH"
-          echo "name=$BRANCH" >> $GITHUB_OUTPUT
-
       - name: Write prompt file
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
@@ -102,6 +92,16 @@ jobs:
           Analyze the error, find the root cause in the codebase, and fix it.
           Do NOT run any git commands — just edit the files.
           Do NOT add comments explaining what you changed.
+
+          After making the fix, write a single word to /tmp/risk.txt:
+          - Write "low" if ALL of the following are true:
+            - 1 or 2 files changed
+            - The fix is a null guard, type safety fix, or simple value correction
+            - No new functions, classes, or logic flows were added
+            - No auth, database schema, or API surface was touched
+          - Write "high" for anything else, when in doubt use "high"
+
+          Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
       - name: Run Claude Code
@@ -109,28 +109,48 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: claude --dangerously-skip-permissions -p "$(cat /tmp/prompt.txt)"
 
-      - name: Open PR if changes were made
+      - name: Merge or open PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           if [[ -z $(git diff --name-only) ]]; then
-            echo "No changes made, skipping PR"
+            echo "No changes made, skipping"
             exit 0
           fi
 
           ISSUE_TITLE=$(cat /tmp/issue_title.txt)
+          RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+          RISK=${RISK:-high}
+          FILES_CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
+          STATS=$(git diff --shortstat)
+          INSERTIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+          DELETIONS=$(echo "$STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+          TOTAL_LINES=$(( ${INSERTIONS:-0} + ${DELETIONS:-0} ))
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
-          git push origin "${{ steps.branch.outputs.name }}"
 
-          PR_URL=$(gh pr create \
-            --title "fix: ${ISSUE_TITLE}" \
-            --body "Closes #${ISSUE_NUMBER}" \
-            --base main)
+          if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
+            git add -A
+            git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
+            git push origin HEAD:main
 
-          gh issue comment "${ISSUE_NUMBER}" \
-            --body "A fix has been proposed: $PR_URL — please review before merging."
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "Fix applied automatically (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
+            gh issue close "${ISSUE_NUMBER}"
+          else
+            BRANCH="fix/issue-${ISSUE_NUMBER}"
+            git checkout -b "$BRANCH"
+            git add -A
+            git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
+            git push origin "$BRANCH"
+
+            PR_URL=$(gh pr create \
+              --title "fix: ${ISSUE_TITLE}" \
+              --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)" \
+              --base main)
+
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "A fix has been proposed: $PR_URL — please review before merging."
+          fi
