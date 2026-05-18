@@ -3,10 +3,14 @@ name: Auto-fix Sentry issues
 on:
   issues:
     types: [opened, reopened]
+  repository_dispatch:
+    types: [sentry-issue]
 
 jobs:
   auto-fix:
-    if: github.event_name == 'issues' && contains(github.event.issue.body, 'sentry.io')
+    if: |
+      github.event_name == 'repository_dispatch' ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, 'sentry.io'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -33,26 +37,74 @@ jobs:
           npm install -g @anthropic-ai/claude-code
           echo "~/.npm-global/bin" >> $GITHUB_PATH
 
+      - name: Find or create GitHub issue
+        id: issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SENTRY_URL: ${{ github.event.client_payload.sentry_url }}
+          SENTRY_TITLE: ${{ github.event.client_payload.title }}
+          SENTRY_CULPRIT: ${{ github.event.client_payload.culprit }}
+          ISSUES_NUMBER: ${{ github.event.issue.number }}
+          ISSUES_TITLE: ${{ github.event.issue.title }}
+          ISSUES_BODY: ${{ github.event.issue.body }}
+        run: |
+          if [[ "${{ github.event_name }}" == "issues" ]]; then
+            echo "number=${ISSUES_NUMBER}" >> $GITHUB_OUTPUT
+            printf '%s' "${ISSUES_TITLE}" > /tmp/issue_title.txt
+            printf '%s' "${ISSUES_BODY}" > /tmp/issue_body.txt
+          else
+            # Search for existing issue containing the Sentry URL
+            EXISTING=$(gh issue list \
+              --search "${SENTRY_URL}" \
+              --state all \
+              --json number,state \
+              --jq '.[0] // empty')
+
+            if [[ -n "$EXISTING" ]]; then
+              NUMBER=$(echo "$EXISTING" | jq -r '.number')
+              STATE=$(echo "$EXISTING" | jq -r '.state' | tr '[:upper:]' '[:lower:]')
+              if [[ "$STATE" == "closed" ]]; then
+                gh issue reopen "$NUMBER"
+              fi
+              echo "number=${NUMBER}" >> $GITHUB_OUTPUT
+            else
+              BODY="**Sentry issue:** ${SENTRY_URL}
+
+**Culprit:** ${SENTRY_CULPRIT}
+
+This issue was automatically created from a Sentry alert."
+
+              NUMBER=$(gh issue create \
+                --title "${SENTRY_TITLE}" \
+                --body "${BODY}" \
+                --json number --jq '.number')
+              echo "number=${NUMBER}" >> $GITHUB_OUTPUT
+            fi
+
+            printf '%s' "${SENTRY_TITLE}" > /tmp/issue_title.txt
+            printf 'Sentry issue: %s\nCulprit: %s' "${SENTRY_URL}" "${SENTRY_CULPRIT}" > /tmp/issue_body.txt
+          fi
+
       - name: Create fix branch
         id: branch
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
-          BRANCH="fix/issue-${{ github.event.issue.number }}"
+          BRANCH="fix/issue-${ISSUE_NUMBER}"
           git checkout -b "$BRANCH"
           echo "name=$BRANCH" >> $GITHUB_OUTPUT
 
       - name: Write prompt file
         env:
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           cat > /tmp/prompt.txt << 'EOF'
           A bug was caught by Sentry and reported as a GitHub issue.
           EOF
-          echo "Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}" >> /tmp/prompt.txt
+          echo "Issue #${ISSUE_NUMBER}: $(cat /tmp/issue_title.txt)" >> /tmp/prompt.txt
           echo "" >> /tmp/prompt.txt
           echo "Details:" >> /tmp/prompt.txt
-          printf '%s\n' "${ISSUE_BODY}" >> /tmp/prompt.txt
+          cat /tmp/issue_body.txt >> /tmp/prompt.txt
           echo "" >> /tmp/prompt.txt
           cat >> /tmp/prompt.txt << 'EOF'
           Analyze the error, find the root cause in the codebase, and fix it.
@@ -68,13 +120,14 @@ jobs:
       - name: Open PR if changes were made
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           if [[ -z $(git diff --name-only) ]]; then
             echo "No changes made, skipping PR"
             exit 0
           fi
+
+          ISSUE_TITLE=$(cat /tmp/issue_title.txt)
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
