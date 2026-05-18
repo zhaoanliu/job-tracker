@@ -22,7 +22,7 @@ export default function AuthForm() {
       if (mode === 'magic') {
         const { error } = await supabase.auth.signInWithOtp({
           email,
-          options: { emailRedirectTo: `${location.origin}/dashboard` },
+          options: { emailRedirectTo: `${location.origin}/auth/callback` },
         })
         if (error) throw error
         setMessage({ text: 'Check your email for a magic link!', type: 'success' })
@@ -30,7 +30,7 @@ export default function AuthForm() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${location.origin}/dashboard` },
+          options: { emailRedirectTo: `${location.origin}/auth/callback` },
         })
         if (error) throw error
         setMessage({ text: 'Account created! Check your email to confirm.', type: 'success' })

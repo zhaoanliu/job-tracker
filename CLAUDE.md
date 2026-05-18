@@ -49,10 +49,16 @@ lib/
   utils.ts           # computeStats, getStageApplications, CSV parsing
   supabase/          # client.ts (browser) and server.ts (SSR)
 __tests__/           # Vitest unit tests (mirrors src structure)
-e2e/                 # Playwright E2E tests
+e2e/
+  auth.spec.ts       # password auth flows — run in CI against hosted Supabase
+  auth.email.spec.ts # magic link + signup via Testmail.app — run in CI (skipped if TESTMAIL_API_KEY unset)
+  helpers.ts         # shared test utilities (env-var-driven, local Supabase defaults)
+  local/             # board + CSV tests — require supabase start, run via nightly cron only
 .github/workflows/
   auto-fix.yml       # auto-fix Sentry bugs with Claude Code
   lint.yml           # ESLint + tsc + actionlint on every PR
+  e2e.yml            # auth E2E on every PR/push (no local Supabase)
+  e2e-local.yml      # board + CSV E2E nightly cron (supabase start)
 ```
 
 ## Key architectural decisions
@@ -117,12 +123,22 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 
 ## CI workflows
 
+**`e2e.yml`** — runs on every PR and push to main (no local Supabase needed):
+- `auth.spec.ts` — password login/logout/redirect, uses hosted Supabase via secrets
+- `auth.email.spec.ts` — magic link + signup confirmation via Testmail.app
+- Required secrets: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TESTMAIL_API_KEY`, `TESTMAIL_NAMESPACE`
+
+**`e2e-local.yml`** — nightly cron (06:00 UTC), runs `e2e/local/` (board + CSV tests):
+- Starts local Supabase via `supabase/setup-cli` + `supabase start`
+- Uses well-known local dev keys (hardcoded in workflow — they are public Supabase demo values)
+- Async, does not block PRs
+
 **`lint.yml`** — runs on every PR and push to main:
 - `npm run lint` (ESLint) — requires `.eslintrc.json` to exist; without it `next lint` runs an interactive setup wizard and fails CI
 - `npx tsc --noEmit` (TypeScript)
 - `actionlint` (validates workflow YAML — catches shell injection, expression errors, and YAML syntax bugs in `run:` blocks)
 
-**Run tests proactively — do not wait to be asked.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication), just run it and report the result. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
+**Run tests proactively — do not wait to be asked, and do not ask permission first.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication, smoke-testing a new route's error path), just run it and report the result. Never offer to run a test as a question — just run it. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
 
 **Test the workflow directly — do not trigger end-to-end through Sentry.** The `repository_dispatch` event can be fired locally with one command:
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { createTestUser, clearTestApplications, deleteTestUser, loginViaUI } from './helpers'
+import { createTestUser, clearTestApplications, deleteTestUser, loginViaUI } from '../helpers'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'

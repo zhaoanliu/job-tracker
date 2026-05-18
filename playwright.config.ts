@@ -16,11 +16,10 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
 
-  // Reuse existing dev server if already running
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: true,
-    timeout: 30_000,
+    reuseExistingServer: !process.env.CI,
+    timeout: 60_000,
   },
 })

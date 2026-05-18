@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { createTestUser, clearTestApplications, deleteTestUser, loginViaUI } from './helpers'
+import { createTestUser, clearTestApplications, deleteTestUser, loginViaUI } from '../helpers'
 
 let userId: string
 

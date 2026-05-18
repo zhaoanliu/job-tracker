@@ -83,13 +83,19 @@ describe('AuthForm — sign-in', () => {
 })
 
 describe('AuthForm — sign-up', () => {
-  it('calls signUp when in sign-up mode', async () => {
+  it('calls signUp pointing to /auth/callback', async () => {
     render(<AuthForm />)
     await userEvent.click(screen.getByRole('button', { name: 'Sign Up' }))
     await userEvent.type(screen.getByPlaceholderText('you@example.com'), 'new@example.com')
     await userEvent.type(screen.getByPlaceholderText('••••••••'), 'pass1234')
     fireEvent.submit(document.querySelector('form')!)
-    await waitFor(() => expect(mockAuth.signUp).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(mockAuth.signUp).toHaveBeenCalledWith({
+        email: 'new@example.com',
+        password: 'pass1234',
+        options: { emailRedirectTo: expect.stringContaining('/auth/callback') },
+      })
+    )
   })
 
   it('shows success message after sign-up', async () => {
@@ -103,12 +109,17 @@ describe('AuthForm — sign-up', () => {
 })
 
 describe('AuthForm — magic link', () => {
-  it('calls signInWithOtp when in magic-link mode', async () => {
+  it('calls signInWithOtp pointing to /auth/callback', async () => {
     render(<AuthForm />)
     await userEvent.click(screen.getByRole('button', { name: 'Magic Link' }))
     await userEvent.type(screen.getByPlaceholderText('you@example.com'), 'magic@example.com')
     fireEvent.submit(document.querySelector('form')!)
-    await waitFor(() => expect(mockAuth.signInWithOtp).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(mockAuth.signInWithOtp).toHaveBeenCalledWith({
+        email: 'magic@example.com',
+        options: { emailRedirectTo: expect.stringContaining('/auth/callback') },
+      })
+    )
   })
 
   it('shows success message after magic link sent', async () => {
