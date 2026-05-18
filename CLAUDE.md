@@ -155,7 +155,16 @@ Then watch with `gh run list --limit 3`. This takes seconds to set up vs. trigge
 
 ## README
 
-**Always update `README.md` when making user-facing changes** — new features, changed behaviour, updated setup steps, or new environment variables. The README is the first thing a new user or reviewer reads; keep it accurate.
+**After every change, ask: does README.md need updating?** Do not wait to be asked. The README is the first thing a new user or reviewer reads; keep it accurate.
+
+Update it whenever you change anything that affects:
+- Features or behaviour visible in the UI
+- Setup steps (env vars, secrets, third-party integrations, GitHub settings)
+- New secrets or configuration — including GitHub Actions secrets like `SENTRY_AUTH_TOKEN`
+- The auto-fix pipeline or CI workflows
+- Architecture decisions
+
+The "user-facing" bar is intentionally low — ops and setup changes count too. When in doubt, update it.
 
 **When updating CLAUDE.md, grep for related terms first.** Before adding a new note, search for existing notes on the same topic and update or remove anything the change supersedes. Don't only append — stale notes that contradict current behaviour are worse than no notes.
 
