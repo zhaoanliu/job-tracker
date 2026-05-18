@@ -102,16 +102,25 @@ Required secrets:
 - **GitHub Actions**: `ANTHROPIC_API_KEY`
 - **GitHub repo setting**: Actions → General → allow GitHub Actions to create PRs
 
-The `on: issues` trigger also fires for manually-created GitHub issues containing `sentry.io` in the body, but `sentry[bot]`-created issues do NOT trigger it (GitHub blocks bot→workflow loops). The `repository_dispatch` path handles those.
+The `on: issues` trigger fires for both manually-created issues (containing `sentry.io` in the body) and issues created by `sentry[bot]` (a third-party GitHub App). GitHub only blocks workflow triggers from `github-actions[bot]` (the built-in `GITHUB_TOKEN` actor) to prevent loops — third-party apps like `sentry[bot]` are not restricted. The `repository_dispatch` path is the primary path for Sentry alerts; the `on: issues` path is a fallback for manual issue creation.
 
 ## CI workflows
 
 **`lint.yml`** — runs on every PR and push to main:
-- `npm run lint` (ESLint)
+- `npm run lint` (ESLint) — requires `.eslintrc.json` to exist; without it `next lint` runs an interactive setup wizard and fails CI
 - `npx tsc --noEmit` (TypeScript)
 - `actionlint` (validates workflow YAML — catches shell injection, expression errors, and YAML syntax bugs in `run:` blocks)
 
-Always run `actionlint` locally before pushing changes to any `.github/workflows/` file.
+**Always run `actionlint` locally before pushing changes to any `.github/workflows/` file.** Install: `brew install actionlint` (macOS). The feedback loop for workflow bugs is 5+ minutes per iteration (full CI run); catching them locally is the only way to avoid the churn.
+
+### GitHub Actions YAML pitfalls (learned the hard way)
+
+- **`if:` expressions must be on a single line.** Using `|` (block scalar) adds a trailing newline that GitHub's expression parser silently rejects — the job is skipped with no error message.
+- **Blank lines inside `run: |` blocks break YAML.** A blank line followed by a line starting at column 0 terminates the block scalar. Use `echo ""` for blank lines in shell output, not literal blank lines.
+- **`~` does not expand inside double-quoted strings.** Use `$HOME` instead of `~` in any quoted context (shellcheck SC2088).
+- **Quote `$GITHUB_OUTPUT` and `$GITHUB_PATH`.** These are file paths; shellcheck (SC2086) correctly flags unquoted use.
+- **Pin GitHub Action versions with exact tags** (e.g., `rhysd/actionlint@v1.7.7`), not floating major versions like `@v1` which may not exist as a tag.
+- **Consecutive `>> file` redirects** should be consolidated with `{ cmd1; cmd2; } >> file` (shellcheck SC2129).
 
 ## README
 
