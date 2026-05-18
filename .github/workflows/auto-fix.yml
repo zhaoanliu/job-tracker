@@ -57,6 +57,8 @@ jobs:
             # https://org.sentry.io/issues/1234/
             SENTRY_ID=$(echo "${SENTRY_URL}" | grep -oE '[0-9]{7,}')
             echo "sentry_id=${SENTRY_ID}" >> "$GITHUB_OUTPUT"
+            # Wait for GitHub search to index any issue just created by sentry[bot]
+            sleep 15
             EXISTING=$(gh issue list \
               --search "${SENTRY_ID}" \
               --state all \
@@ -144,7 +146,14 @@ jobs:
           if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
             git add -A
             git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
-            git push origin HEAD:main
+            git fetch origin main
+            git rebase origin/main
+            COMMITS_AHEAD=$(git rev-list origin/main..HEAD --count)
+            if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
+              git push origin HEAD:main
+            else
+              echo "Fix already in main (another run applied it first), skipping push"
+            fi
 
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Fix applied automatically (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
