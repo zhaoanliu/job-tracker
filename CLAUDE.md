@@ -138,7 +138,7 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - `npx tsc --noEmit` (TypeScript)
 - `actionlint` (validates workflow YAML — catches shell injection, expression errors, and YAML syntax bugs in `run:` blocks)
 
-**`ci-auto-fix.yml`** — auto-healing for CI failures; triggers on `workflow_run` when `lint.yml`, `e2e.yml`, or `e2e-local.yml` completes with `failure`:
+**`ci-auto-fix.yml`** — auto-healing for CI failures; triggers on `repository_dispatch` with `event_type: ci-failure` (fired by `lint.yml`, `e2e.yml`, and `e2e-local.yml` only when they actually fail, via `actions/github-script`):
 - Checks out the failing branch (feature branch or main), fetches up to 500 lines of failed-step logs via `gh run view --log-failed`, and for PR branches also collects the diff vs main
 - Finds or creates a GitHub issue titled `"CI failure: <workflow> on <branch>"` using the same list-API deduplication pattern as `auto-fix.yml`
 - Runs `claude --dangerously-skip-permissions` to analyze the logs and fix the root cause
@@ -150,6 +150,14 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - Rebase conflicts (e.g., ci-auto-fix and auto-fix/Sentry both pushing to main in different concurrency groups) are caught with `if ! git rebase ...; then git rebase --abort` and leave a comment for manual resolution
 - The high-risk fix branch is named `fix/ci-issue-<N>-<timestamp>` so repeated runs never collide on the same branch name
 - **No infinite-fix loop** — two layers of protection: (1) GitHub blocks `on: push` / `on: pull_request` triggers for any push made with `GITHUB_TOKEN`, so lint.yml / e2e.yml never run after a bot push, and workflow_run never fires; (2) the job `if:` condition explicitly skips runs where `actor.login == 'github-actions[bot]'`, so the protection holds even if the push token is ever changed to a PAT
+
+**`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `deployment_status` when `state == 'failure'` and `environment == 'Production'`:
+- Checks out the failing commit, runs `npm run build` + `npx tsc --noEmit` locally to reproduce the error
+- **Not locally reproducible** (build succeeds locally): opens an issue and comments that it is likely a Vercel environment variable or configuration problem — no code fix is attempted
+- **Locally reproducible**: finds or creates a GitHub issue titled `"CD failure: Production deployment of <sha7> failed"`, runs Claude with the build output, and opens a PR — never pushes directly to main
+- Always opens a PR (never direct-push to main) to prevent an auto-merge from immediately triggering another Vercel production deployment before a human reviews the fix
+- **No infinite-fix loop**: the fix PR pushes to a branch via `GITHUB_TOKEN`, which Vercel deploys as a Preview (environment = "Preview"); the `environment == 'Production'` filter ignores Preview failures, so the loop is broken
+- No extra secrets needed — reuses `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (already present)
 
 **Run tests proactively — do not wait to be asked, and do not ask permission first.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication, smoke-testing a new route's error path), just run it and report the result. Never offer to run a test as a question — just run it. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
 

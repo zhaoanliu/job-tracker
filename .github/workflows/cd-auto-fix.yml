@@ -1,0 +1,172 @@
+name: Auto-fix CD failures
+
+on:
+  deployment_status:
+
+jobs:
+  auto-fix-cd:
+    if: github.event.deployment_status.state == 'failure' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cd-auto-fix-${{ github.event.deployment.sha }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Cache Claude Code
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm-global
+          key: claude-code-${{ runner.os }}
+
+      - name: Install Claude Code
+        run: |
+          npm config set prefix "$HOME/.npm-global"
+          npm install -g @anthropic-ai/claude-code
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Reproduce build error locally
+        id: build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set +e
+          { npm run build > /tmp/build_raw.txt 2>&1; }
+          BUILD_EXIT=$?
+          { npx tsc --noEmit >> /tmp/build_raw.txt 2>&1; }
+          TSC_EXIT=$?
+          set -e
+          tail -300 /tmp/build_raw.txt > /tmp/build_logs.txt
+          if [[ "$BUILD_EXIT" -ne 0 || "$TSC_EXIT" -ne 0 ]]; then
+            echo "reproducible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reproducible=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Find or create GitHub issue
+        id: issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.deployment.sha }}
+          DEPLOY_URL: ${{ github.event.deployment_status.log_url }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          TITLE="CD failure: Production deployment of ${SHORT_SHA} failed"
+          printf '%s' "$TITLE" > /tmp/issue_title.txt
+          EXISTING=$(gh issue list \
+            --state open \
+            --limit 50 \
+            --json number,title | \
+            jq --arg title "$TITLE" \
+              '[.[] | select(.title == $title)] | .[0] // empty')
+          if [[ -n "$EXISTING" ]]; then
+            NUMBER=$(echo "$EXISTING" | jq -r '.number')
+          else
+            ISSUE_URL=$(gh issue create \
+              --title "$TITLE" \
+              --body "**Commit:** \`${SHA}\`"$'\n\n'"**Vercel logs:** ${DEPLOY_URL}"$'\n\n'"This issue was automatically created from a Vercel production deployment failure.")
+            NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+          fi
+          echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Comment and stop if not locally reproducible
+        if: steps.build.outputs.reproducible == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          DEPLOY_URL: ${{ github.event.deployment_status.log_url }}
+        run: |
+          gh issue comment "${ISSUE_NUMBER}" \
+            --body "The build succeeds locally — this is likely a Vercel environment variable or configuration issue, not a code bug. Check: ${DEPLOY_URL}"$'\n\n'"Manual investigation required."
+
+      - name: Write prompt
+        if: steps.build.outputs.reproducible == 'true'
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          SHA: ${{ github.event.deployment.sha }}
+          DEPLOY_URL: ${{ github.event.deployment_status.log_url }}
+        run: |
+          {
+            echo "A Vercel production deployment failed. The build error was reproduced locally."
+            echo ""
+            echo "Commit: ${SHA}"
+            echo "Issue: #${ISSUE_NUMBER}"
+            echo "Vercel logs: ${DEPLOY_URL}"
+            echo ""
+            echo "## Build error output"
+            echo ""
+            cat /tmp/build_logs.txt
+            echo ""
+          } > /tmp/prompt.txt
+          cat >> /tmp/prompt.txt << 'EOF'
+          Analyze the build failure above. Find the root cause in the codebase and fix it.
+          Do NOT run any git commands — just edit the files.
+          Do NOT add comments explaining what you changed.
+
+          After making the fix, write a single word to /tmp/risk.txt:
+          - Write "low" if ALL of the following are true:
+            - 1 or 2 files changed
+            - The fix is a null guard, type safety fix, lint error, type error, or simple value correction
+            - No new functions, classes, or logic flows were added
+            - No auth, database schema, or API surface was touched
+          - Write "high" for anything else; when in doubt use "high"
+
+          Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
+          EOF
+
+      - name: Run Claude Code
+        if: steps.build.outputs.reproducible == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude --dangerously-skip-permissions --max-turns 20 -p "$(cat /tmp/prompt.txt)" || echo "claude exited with code $? (max-turns or error), continuing"
+
+      - name: Open PR with fix
+        if: steps.build.outputs.reproducible == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          if [[ -z "$(git diff --name-only)" ]]; then
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "Claude analyzed the build failure but made no code changes. Manual investigation required."
+            exit 0
+          fi
+          ISSUE_TITLE=$(cat /tmp/issue_title.txt)
+          RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+          RISK=${RISK:-high}
+          FILES_CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
+          STATS=$(git diff --shortstat)
+          INSERTIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+          DELETIONS=$(echo "$STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+          TOTAL_LINES=$(( ${INSERTIONS:-0} + ${DELETIONS:-0} ))
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="fix/cd-issue-${ISSUE_NUMBER}-$(date +%s)"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "fix: auto-fix CD failure for issue #${ISSUE_NUMBER}"
+          git push origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --title "fix: ${ISSUE_TITLE}" \
+            --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"$'\n\n'"**Note:** merging this PR triggers a new Vercel production deployment." \
+            --base main)
+          gh issue comment "${ISSUE_NUMBER}" \
+            --body "A fix has been proposed: $PR_URL — review before merging (merging triggers a new production deployment)."

@@ -212,12 +212,18 @@ The app has two auto-healing workflows powered by Claude Code:
 6. On a direct push, the Sentry issue is automatically resolved via the Sentry API
 
 **CI failures → lint / type / test errors** (`ci-auto-fix.yml`):
-1. `lint.yml` or `e2e.yml` completes with `failure`
-2. `ci-auto-fix.yml` triggers via `workflow_run`, opens (or reuses) a GitHub issue titled `"CI failure: <workflow> on <branch>"`
+1. `lint.yml`, `e2e.yml`, or `e2e-local.yml` fails and fires a `repository_dispatch` event
+2. `ci-auto-fix.yml` opens (or reuses) a GitHub issue titled `"CI failure: <workflow> on <branch>"`
 3. Fetches up to 500 lines of failed-step logs and, for PR branches, the diff vs `main`
 4. Runs Claude Code to analyze and fix the root cause
 5. **Feature branch**: pushes fix directly to the failing branch so the PR is updated
 6. **Main branch — low-risk**: pushes directly to `main`; **high-risk**: opens a PR for review
+
+**CD failures → Vercel production build errors** (`cd-auto-fix.yml`):
+1. Vercel reports a failed production deployment → GitHub fires a `deployment_status` event
+2. `cd-auto-fix.yml` checks out the failing commit and runs `npm run build` + `npx tsc --noEmit` locally
+3. **Not locally reproducible**: opens an issue noting it's likely a Vercel config/env-var problem
+4. **Locally reproducible**: runs Claude Code with the build output, opens a PR (never pushes directly to `main` — merging the PR is what triggers the next production deployment)
 
 ### Required secrets
 
@@ -319,6 +325,7 @@ See `TODO` comments in:
 ├── .github/workflows/
 │   ├── auto-fix.yml          # Auto-fix Sentry bugs with Claude Code
 │   ├── ci-auto-fix.yml       # Auto-fix CI failures (lint / E2E) with Claude Code
+│   ├── cd-auto-fix.yml       # Auto-fix Vercel production build failures with Claude Code
 │   ├── e2e.yml               # Auth E2E on every PR/push (no local Supabase)
 │   ├── e2e-local.yml         # Board + CSV E2E — nightly + path-triggered (supabase start)
 │   └── lint.yml              # ESLint + tsc + actionlint on every PR
