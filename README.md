@@ -145,6 +145,49 @@ After deploying, update the **Supabase Auth → URL Configuration** with your pr
 
 ---
 
+## Error monitoring & auto-fix pipeline
+
+The app uses **Sentry** for error monitoring and a **GitHub Actions** workflow that automatically fixes bugs caught in production using Claude Code.
+
+### How it works
+
+1. A runtime error is caught by Sentry (`captureConsoleIntegration` forwards any `console.error` call)
+2. Sentry POSTs to `/api/sentry-webhook` on Vercel
+3. The webhook validates the HMAC signature and fires a `repository_dispatch` event to GitHub
+4. `sentry[bot]` simultaneously opens a GitHub issue
+5. `auto-fix.yml` runs Claude Code to find and fix the root cause, then either pushes directly to `main` (low-risk fixes) or opens a PR for review
+6. On a direct push, the Sentry issue is automatically resolved via the Sentry API
+
+### Required secrets
+
+**Vercel environment variables:**
+
+| Variable | Value |
+|---|---|
+| `SENTRY_DSN` | Your Sentry project DSN (from Sentry → Settings → Projects → Client Keys) |
+| `SENTRY_WEBHOOK_SECRET` | Secret you set when creating the Sentry webhook |
+| `GH_PAT` | GitHub Personal Access Token with `repo` scope |
+| `GITHUB_REPO` | `owner/repo` (e.g. `zhaoanliu/job-tracker`) |
+
+**GitHub Actions secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `ANTHROPIC_API_KEY` | Your Anthropic API key |
+| `SENTRY_AUTH_TOKEN` | Sentry internal integration token with `issue:write` scope |
+
+**GitHub repo setting:** Actions → General → enable "Allow GitHub Actions to create and approve pull requests"
+
+### Sentry webhook setup
+
+In Sentry: **Settings → Integrations → WebHooks**, add your Vercel URL:
+```
+https://your-app.vercel.app/api/sentry-webhook
+```
+Enable the **Issue** event type and copy the signing secret into `SENTRY_WEBHOOK_SECRET`.
+
+---
+
 ## Pipeline stages
 
 | ID | Label | Description |
