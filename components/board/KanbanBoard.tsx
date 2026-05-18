@@ -188,7 +188,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       const colCards = applications.filter(a => a.status === (data.status ?? 'future'))
       const newApp = {
         ...data,
-        role: (data.role as string).trim(),
+        role: data.role?.trim() ?? null,
         user_id: user.id,
         order: colCards.length,
       }
