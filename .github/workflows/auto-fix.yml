@@ -47,6 +47,8 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "issues" ]]; then
             echo "number=${ISSUES_NUMBER}" >> "$GITHUB_OUTPUT"
+            SENTRY_ID=$(printf '%s' "${ISSUES_BODY}" | grep -oE '[0-9]{7,}' | head -1)
+            echo "sentry_id=${SENTRY_ID}" >> "$GITHUB_OUTPUT"
             printf '%s' "${ISSUES_TITLE}" > /tmp/issue_title.txt
             printf '%s' "${ISSUES_BODY}" > /tmp/issue_body.txt
           else
@@ -54,6 +56,7 @@ jobs:
             # https://sentry.io/api/0/.../issues/1234/ and
             # https://org.sentry.io/issues/1234/
             SENTRY_ID=$(echo "${SENTRY_URL}" | grep -oE '[0-9]{7,}')
+            echo "sentry_id=${SENTRY_ID}" >> "$GITHUB_OUTPUT"
             EXISTING=$(gh issue list \
               --search "${SENTRY_ID}" \
               --state all \
@@ -118,6 +121,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+          SENTRY_ID: ${{ steps.issue.outputs.sentry_id }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           if [[ -z $(git diff --name-only) ]]; then
             echo "No changes made, skipping"
@@ -144,6 +149,15 @@ jobs:
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Fix applied automatically (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
             gh issue close "${ISSUE_NUMBER}"
+
+            if [[ -n "${SENTRY_ID}" && -n "${SENTRY_AUTH_TOKEN}" ]]; then
+              RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X PUT "https://sentry.io/api/0/issues/${SENTRY_ID}/" \
+                -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d '{"status":"resolved"}')
+              echo "Sentry resolve HTTP ${RESULT} for issue ${SENTRY_ID}"
+            fi
           else
             BRANCH="fix/issue-${ISSUE_NUMBER}"
             git checkout -b "$BRANCH"
