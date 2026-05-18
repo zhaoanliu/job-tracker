@@ -58,7 +58,7 @@ e2e/
   auto-fix.yml       # auto-fix Sentry bugs with Claude Code
   lint.yml           # ESLint + tsc + actionlint on every PR
   e2e.yml            # auth E2E on every PR/push (no local Supabase)
-  e2e-local.yml      # board + CSV E2E nightly cron (supabase start)
+  e2e-local.yml      # board + CSV E2E — nightly cron + push to main on relevant paths (supabase start)
 ```
 
 ## Key architectural decisions
@@ -128,10 +128,10 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - `auth.email.spec.ts` — magic link + signup confirmation via Testmail.app
 - Required secrets: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TESTMAIL_API_KEY`, `TESTMAIL_NAMESPACE`
 
-**`e2e-local.yml`** — nightly cron (06:00 UTC), runs `e2e/local/` (board + CSV tests):
+**`e2e-local.yml`** — runs `e2e/local/` (board + CSV tests), async, never blocks PRs:
 - Starts local Supabase via `supabase/setup-cli` + `supabase start`
 - Uses well-known local dev keys (hardcoded in workflow — they are public Supabase demo values)
-- Async, does not block PRs
+- Triggers: nightly cron (06:00 UTC), `workflow_dispatch`, and push to main when any of these paths change: `components/board/**`, `components/modals/**`, `components/ui/**`, `app/dashboard/**`, `lib/utils.ts`, `supabase/migrations/**`, `e2e/local/**`, `e2e/helpers.ts`
 
 **`lint.yml`** — runs on every PR and push to main:
 - `npm run lint` (ESLint) — requires `.eslintrc.json` to exist; without it `next lint` runs an interactive setup wizard and fails CI
