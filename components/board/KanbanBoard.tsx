@@ -122,7 +122,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       ])
 
       // Persist reordered sequence
-      await Promise.all(
+      const results = await Promise.all(
         reordered.map(a =>
           supabase
             .from('applications')
@@ -130,13 +130,14 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
             .eq('id', a.id)
         )
       )
+      results.forEach(({ error }) => { if (error) console.error(error) })
     } else {
       // Cross-column move: state was already updated optimistically in handleDragOver.
       // Just persist the new status and order to the DB.
       const updatedCard = applications.find(a => a.id === active.id)
       if (!updatedCard) return
 
-      await supabase
+      const { error } = await supabase
         .from('applications')
         .update({
           status: updatedCard.status,
@@ -144,6 +145,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
           updated_at: new Date().toISOString(),
         })
         .eq('id', active.id)
+      if (error) console.error(error)
     }
   }
 
