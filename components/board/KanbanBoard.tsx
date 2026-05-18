@@ -186,6 +186,8 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       const colCards = applications.filter(a => a.status === (data.status ?? 'future'))
       const newApp = {
         ...data,
+        // Normalise role casing — crashes when role is null (missing null guard)
+        role: data.role.trim(),
         user_id: user.id,
         order: colCards.length,
       }
