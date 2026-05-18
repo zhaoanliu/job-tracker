@@ -1,12 +1,7 @@
 import { withSentryConfig } from '@sentry/nextjs'
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  webpack(config) {
-    config.plugins.push(new BrokenPlugin())
-    return config
-  },
-}
+const nextConfig = {}
 
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
