@@ -147,6 +147,8 @@ Then watch with `gh run list --limit 3`. This takes seconds to set up vs. trigge
 - **Quote `$GITHUB_OUTPUT` and `$GITHUB_PATH`.** These are file paths; shellcheck (SC2086) correctly flags unquoted use.
 - **Pin GitHub Action versions with exact tags** (e.g., `rhysd/actionlint@v1.7.7`), not floating major versions like `@v1` which may not exist as a tag.
 - **Consecutive `>> file` redirects** should be consolidated with `{ cmd1; cmd2; } >> file` (shellcheck SC2129).
+- **Both `repository_dispatch` and `on: issues` fire simultaneously** when Sentry alerts — the webhook triggers a dispatch AND `sentry[bot]` opens a GitHub issue at the same time. Without a concurrency group both runs push to main and one gets rejected. The workflow uses `concurrency: group: auto-fix, cancel-in-progress: false` to queue them.
+- **`sentry[bot]` and our webhook use different Sentry URL formats** — webhook sends `https://sentry.io/api/0/.../issues/ID/`, sentry[bot] writes `https://org.sentry.io/issues/ID/`. Searching by full URL creates duplicates. Always extract the numeric issue ID with `grep -oE '[0-9]{7,}'` and search by that instead.
 - **`gh issue create` does not support `--json`/`--jq`** — those flags are only on read commands (`gh issue list`, `gh issue view`). Capture the URL it prints to stdout and extract the number: `NUMBER=$(gh issue create ... | grep -oE '[0-9]+$')`.
 
 ## README
