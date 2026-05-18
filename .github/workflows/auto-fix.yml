@@ -10,6 +10,9 @@ jobs:
   auto-fix:
     if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && contains(github.event.issue.body, 'sentry.io'))
     runs-on: ubuntu-latest
+    concurrency:
+      group: auto-fix
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
@@ -47,8 +50,12 @@ jobs:
             printf '%s' "${ISSUES_TITLE}" > /tmp/issue_title.txt
             printf '%s' "${ISSUES_BODY}" > /tmp/issue_body.txt
           else
+            # Extract numeric ID from Sentry URL — works for both
+            # https://sentry.io/api/0/.../issues/1234/ and
+            # https://org.sentry.io/issues/1234/
+            SENTRY_ID=$(echo "${SENTRY_URL}" | grep -oE '[0-9]{7,}')
             EXISTING=$(gh issue list \
-              --search "${SENTRY_URL}" \
+              --search "${SENTRY_ID}" \
               --state all \
               --json number,state \
               --jq '.[0] // empty')
