@@ -4,6 +4,17 @@ on:
   schedule:
     - cron: '0 6 * * *'  # 06:00 UTC daily
   workflow_dispatch:      # allow manual runs
+  push:
+    branches: [main]
+    paths:
+      - 'components/board/**'
+      - 'components/modals/**'
+      - 'components/ui/**'
+      - 'app/dashboard/**'
+      - 'lib/utils.ts'
+      - 'supabase/migrations/**'
+      - 'e2e/local/**'
+      - 'e2e/helpers.ts'
 
 jobs:
   e2e-local:
