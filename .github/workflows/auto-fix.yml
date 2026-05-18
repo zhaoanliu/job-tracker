@@ -33,7 +33,7 @@ jobs:
           npm config set prefix ~/.npm-global
           export PATH=~/.npm-global/bin:$PATH
           npm install -g @anthropic-ai/claude-code
-          echo "~/.npm-global/bin" >> $GITHUB_PATH
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
 
       - name: Find or create GitHub issue
         id: issue
@@ -47,7 +47,7 @@ jobs:
           ISSUES_BODY: ${{ github.event.issue.body }}
         run: |
           if [[ "${{ github.event_name }}" == "issues" ]]; then
-            echo "number=${ISSUES_NUMBER}" >> $GITHUB_OUTPUT
+            echo "number=${ISSUES_NUMBER}" >> "$GITHUB_OUTPUT"
             printf '%s' "${ISSUES_TITLE}" > /tmp/issue_title.txt
             printf '%s' "${ISSUES_BODY}" > /tmp/issue_body.txt
           else
@@ -63,13 +63,13 @@ jobs:
               if [[ "$STATE" == "closed" ]]; then
                 gh issue reopen "$NUMBER"
               fi
-              echo "number=${NUMBER}" >> $GITHUB_OUTPUT
+              echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
             else
               NUMBER=$(gh issue create \
                 --title "${SENTRY_TITLE}" \
                 --body "**Sentry issue:** ${SENTRY_URL}"$'\n\n'"**Culprit:** ${SENTRY_CULPRIT}"$'\n\n'"This issue was automatically created from a Sentry alert." \
                 --json number --jq '.number')
-              echo "number=${NUMBER}" >> $GITHUB_OUTPUT
+              echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
             fi
 
             printf '%s' "${SENTRY_TITLE}" > /tmp/issue_title.txt
@@ -83,11 +83,13 @@ jobs:
           cat > /tmp/prompt.txt << 'EOF'
           A bug was caught by Sentry and reported as a GitHub issue.
           EOF
-          echo "Issue #${ISSUE_NUMBER}: $(cat /tmp/issue_title.txt)" >> /tmp/prompt.txt
-          echo "" >> /tmp/prompt.txt
-          echo "Details:" >> /tmp/prompt.txt
-          cat /tmp/issue_body.txt >> /tmp/prompt.txt
-          echo "" >> /tmp/prompt.txt
+          {
+            echo "Issue #${ISSUE_NUMBER}: $(cat /tmp/issue_title.txt)"
+            echo ""
+            echo "Details:"
+            cat /tmp/issue_body.txt
+            echo ""
+          } >> /tmp/prompt.txt
           cat >> /tmp/prompt.txt << 'EOF'
           Analyze the error, find the root cause in the codebase, and fix it.
           Do NOT run any git commands — just edit the files.
