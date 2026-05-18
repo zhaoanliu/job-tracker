@@ -37,23 +37,28 @@ jobs:
       - name: Run Claude Code
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          claude --dangerously-skip-permissions -p "
-          A bug was caught by Sentry and reported as GitHub issue #${{ github.event.issue.number }}.
+          PROMPT="A bug was caught by Sentry and reported as GitHub issue #${ISSUE_NUMBER}.
 
-          Title: ${{ github.event.issue.title }}
+Title: ${ISSUE_TITLE}
 
-          Details:
-          ${{ github.event.issue.body }}
+Details:
+${ISSUE_BODY}
 
-          Analyze the error, find the root cause in the codebase, and fix it.
-          Do NOT run any git commands — just edit the files.
-          Do NOT add comments explaining what you changed.
-          "
+Analyze the error, find the root cause in the codebase, and fix it.
+Do NOT run any git commands — just edit the files.
+Do NOT add comments explaining what you changed."
+
+          claude --dangerously-skip-permissions -p "$PROMPT"
 
       - name: Open PR if changes were made
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
         run: |
           if [[ -z $(git diff --name-only) ]]; then
             echo "No changes made, skipping PR"
@@ -63,13 +68,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "fix: auto-fix for issue #${{ github.event.issue.number }}"
+          git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
           git push origin "${{ steps.branch.outputs.name }}"
 
           PR_URL=$(gh pr create \
-            --title "fix: ${{ github.event.issue.title }}" \
-            --body "Closes #${{ github.event.issue.number }}" \
+            --title "fix: ${ISSUE_TITLE}" \
+            --body "Closes #${ISSUE_NUMBER}" \
             --base main)
 
-          gh issue comment ${{ github.event.issue.number }} \
+          gh issue comment "${ISSUE_NUMBER}" \
             --body "A fix has been proposed: $PR_URL — please review before merging."
