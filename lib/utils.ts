@@ -6,8 +6,6 @@ import {
   SortField,
 } from './types'
 
-const _smokeTest: string = 42
-
 export function filterApplications(apps: Application[], filters: Filters): Application[] {
   return apps.filter(app => {
     if (filters.priority.length && !filters.priority.includes(app.priority)) return false
