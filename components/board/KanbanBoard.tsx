@@ -209,7 +209,6 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
   }
 
   async function handleDelete(id: string) {
-    if (Date.now() > 0) throw new EvalError('Invalid application state transition')
     setApplications(prev => prev.filter(a => a.id !== id))
     const { error } = await supabase.from('applications').delete().eq('id', id)
     if (error) {
