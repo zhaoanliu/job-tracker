@@ -184,7 +184,7 @@ Then watch with `gh run list --limit 3`. This takes seconds to set up vs. trigge
 
 ## README
 
-**After every change, ask: does README.md need updating?** Do not wait to be asked. The README is the first thing a new user or reviewer reads; keep it accurate.
+**After every change, check whether README.md needs updating and update it in the same commit — do not wait to be asked.** The README is the first thing a new user or reviewer reads; keep it accurate.
 
 Update it whenever you change anything that affects:
 - Features or behaviour visible in the UI
