@@ -122,6 +122,8 @@ The `on: issues` trigger fires for both manually-created issues (containing `sen
 - `npx tsc --noEmit` (TypeScript)
 - `actionlint` (validates workflow YAML — catches shell injection, expression errors, and YAML syntax bugs in `run:` blocks)
 
+**Run tests proactively — do not wait to be asked.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication), just run it and report the result. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
+
 **Test the workflow directly — do not trigger end-to-end through Sentry.** The `repository_dispatch` event can be fired locally with one command:
 
 ```bash
