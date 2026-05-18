@@ -149,7 +149,7 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - Concurrency group is per-branch (`ci-auto-fix-<branch>`) so simultaneous lint and E2E failures on the same branch queue rather than race; the second run checks out the branch AFTER the first run's push, so it sees the latest code
 - Rebase conflicts (e.g., ci-auto-fix and auto-fix/Sentry both pushing to main in different concurrency groups) are caught with `if ! git rebase ...; then git rebase --abort` and leave a comment for manual resolution
 - The high-risk fix branch is named `fix/ci-issue-<N>-<timestamp>` so repeated runs never collide on the same branch name
-- Pushes made by `GITHUB_TOKEN` do NOT re-trigger `on: push` workflows (GitHub design), so there is no infinite-fix loop
+- **No infinite-fix loop** — two layers of protection: (1) GitHub blocks `on: push` / `on: pull_request` triggers for any push made with `GITHUB_TOKEN`, so lint.yml / e2e.yml never run after a bot push, and workflow_run never fires; (2) the job `if:` condition explicitly skips runs where `actor.login == 'github-actions[bot]'`, so the protection holds even if the push token is ever changed to a PAT
 
 **Run tests proactively — do not wait to be asked, and do not ask permission first.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication, smoke-testing a new route's error path), just run it and report the result. Never offer to run a test as a question — just run it. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
 
