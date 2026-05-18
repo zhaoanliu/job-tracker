@@ -66,15 +66,9 @@ jobs:
               fi
               echo "number=${NUMBER}" >> $GITHUB_OUTPUT
             else
-              BODY="**Sentry issue:** ${SENTRY_URL}
-
-**Culprit:** ${SENTRY_CULPRIT}
-
-This issue was automatically created from a Sentry alert."
-
               NUMBER=$(gh issue create \
                 --title "${SENTRY_TITLE}" \
-                --body "${BODY}" \
+                --body "**Sentry issue:** ${SENTRY_URL}"$'\n\n'"**Culprit:** ${SENTRY_CULPRIT}"$'\n\n'"This issue was automatically created from a Sentry alert." \
                 --json number --jq '.number')
               echo "number=${NUMBER}" >> $GITHUB_OUTPUT
             fi
