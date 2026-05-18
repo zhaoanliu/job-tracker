@@ -186,10 +186,11 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       if (!user) throw new Error('Not authenticated')
 
       const colCards = applications.filter(a => a.status === (data.status ?? 'future'))
+      const trimmedReferrer = data.referrer?.trim() ?? null
       const newApp = {
         ...data,
         role: data.role?.trim() ?? null,
-        referrer: data.referrer?.trim() ? data.referrer.trim().toUpperCase() : null,
+        referrer: trimmedReferrer ? trimmedReferrer.toUpperCase() : null,
         location: data.location ?? null,
         user_id: user.id,
         order: colCards.length,
