@@ -123,6 +123,60 @@ Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/l
 
 ---
 
+## Testing
+
+### Unit tests
+
+```bash
+npm test                 # run once
+npm run test:watch       # watch mode
+npm run test:coverage    # with coverage report
+```
+
+Uses Vitest + jsdom + Testing Library. Coverage thresholds enforced in CI (lines 85%, branches 80%).
+
+### E2E tests — auth (runs in CI on every PR and push to main)
+
+```bash
+npm run test:e2e         # runs e2e/auth*.spec.ts against localhost:3000
+```
+
+Covers password login/logout, magic link sign-in, and signup email confirmation. Magic link and signup tests use [Testmail.app](https://testmail.app) to receive real emails and extract the confirmation link — they are automatically skipped if `TESTMAIL_API_KEY` is not set.
+
+Required GitHub Actions secrets for `e2e.yml`:
+
+| Secret | Where to find it |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API → Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API → anon public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role key |
+| `TESTMAIL_API_KEY` | Testmail.app dashboard |
+| `TESTMAIL_NAMESPACE` | Testmail.app dashboard |
+
+### E2E tests — board + CSV (async, never blocks PRs)
+
+```bash
+npx playwright test e2e/local/   # requires: supabase start
+```
+
+Covers the kanban board (add/edit/delete cards, stats bar, filter chips) and CSV import/export. Requires a running local Supabase instance (`supabase start`).
+
+Runs automatically via `e2e-local.yml`:
+- Nightly at 06:00 UTC
+- On push to `main` when any of these paths change: `components/board/**`, `components/modals/**`, `components/ui/**`, `app/dashboard/**`, `lib/utils.ts`, `supabase/migrations/**`, `e2e/local/**`, `e2e/helpers.ts`
+- Manually via `workflow_dispatch`
+
+### Supabase redirect URL
+
+Add these to **Supabase → Authentication → URL Configuration → Redirect URLs** to enable auth callback for magic link and signup confirmation:
+
+```
+https://your-app.vercel.app/**
+http://localhost:3000/**
+```
+
+---
+
 ## Deployment to Vercel
 
 ```bash
@@ -227,6 +281,7 @@ See `TODO` comments in:
 ├── app/
 │   ├── layout.tsx            # Root HTML shell, Inter font, global CSS
 │   ├── page.tsx              # Redirects → /dashboard
+│   ├── auth/callback/        # Exchanges Supabase PKCE code for session (magic link / signup)
 │   ├── login/page.tsx        # Auth page (email/password + magic link)
 │   ├── api/
 │   │   └── sentry-webhook/   # Validates HMAC, fires repository_dispatch to GitHub
@@ -256,12 +311,16 @@ See `TODO` comments in:
 │   ├── utils.ts              # Filter, sort, stats, formatting helpers
 │   └── csv.ts                # CSV export/import (no library dependency)
 ├── __tests__/                # Vitest unit tests (mirrors src structure)
-├── e2e/                      # Playwright E2E tests
+├── e2e/
+│   ├── auth.spec.ts          # Password auth flows — CI on every PR/push
+│   ├── auth.email.spec.ts    # Magic link + signup via Testmail.app — CI on every PR/push
+│   ├── helpers.ts            # Shared test utilities (env-var-driven, local Supabase defaults)
+│   └── local/                # Board + CSV tests — require supabase start, async cron only
 ├── .github/workflows/
 │   ├── auto-fix.yml          # Auto-fix Sentry bugs with Claude Code
 │   ├── ci-auto-fix.yml       # Auto-fix CI failures (lint / E2E) with Claude Code
-│   ├── e2e.yml               # Auth E2E on every PR/push
-│   ├── e2e-local.yml         # Board + CSV E2E nightly cron
+│   ├── e2e.yml               # Auth E2E on every PR/push (no local Supabase)
+│   ├── e2e-local.yml         # Board + CSV E2E — nightly + path-triggered (supabase start)
 │   └── lint.yml              # ESLint + tsc + actionlint on every PR
 ├── supabase/
 │   └── migrations/
