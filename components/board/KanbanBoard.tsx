@@ -189,6 +189,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       const newApp = {
         ...data,
         role: data.role?.trim() ?? null,
+        referrer: data.referrer.trim(),
         user_id: user.id,
         order: colCards.length,
       }
