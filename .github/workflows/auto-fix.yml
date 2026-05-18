@@ -8,9 +8,7 @@ on:
 
 jobs:
   auto-fix:
-    if: |
-      github.event_name == 'repository_dispatch' ||
-      (github.event_name == 'issues' && contains(github.event.issue.body, 'sentry.io'))
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && contains(github.event.issue.body, 'sentry.io'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
