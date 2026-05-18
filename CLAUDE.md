@@ -157,6 +157,8 @@ Then watch with `gh run list --limit 3`. This takes seconds to set up vs. trigge
 
 **Always update `README.md` when making user-facing changes** — new features, changed behaviour, updated setup steps, or new environment variables. The README is the first thing a new user or reviewer reads; keep it accurate.
 
+**When updating CLAUDE.md, grep for related terms first.** Before adding a new note, search for existing notes on the same topic and update or remove anything the change supersedes. Don't only append — stale notes that contradict current behaviour are worse than no notes.
+
 ## Git commits
 
 Bundle related changes — code and the documentation that explains them — into a single commit. A separate "docs:" commit for a CLAUDE.md note or README update that accompanies a code change adds noise to history and implies independence that isn't there. Only split into separate commits when the changes are genuinely independent.
