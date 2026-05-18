@@ -1,16 +1,14 @@
 name: Auto-fix CI failures
 
 on:
-  workflow_run:
-    workflows: ["Lint & type-check", "E2E Auth Tests", "E2E Local Tests (Board + CSV)"]
-    types: [completed]
+  repository_dispatch:
+    types: [ci-failure]
 
 jobs:
   auto-fix-ci:
-    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.actor.login != 'github-actions[bot]'
     runs-on: ubuntu-latest
     concurrency:
-      group: ci-auto-fix-${{ github.event.workflow_run.head_branch }}
+      group: ci-auto-fix-${{ github.event.client_payload.head_branch }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -21,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_branch }}
+          ref: ${{ github.event.client_payload.head_branch }}
           fetch-depth: 0
 
       - name: Cache Claude Code
@@ -39,13 +37,13 @@ jobs:
       - name: Get failure logs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_ID: ${{ github.event.client_payload.run_id }}
         run: |
           gh run view "$RUN_ID" --log-failed 2>&1 | head -500 > /tmp/ci_logs.txt
 
       - name: Get branch diff vs main
         env:
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_BRANCH: ${{ github.event.client_payload.head_branch }}
         run: |
           if [[ "$HEAD_BRANCH" != "main" ]]; then
             git fetch origin main
@@ -58,9 +56,9 @@ jobs:
         id: issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW_NAME: ${{ github.event.client_payload.workflow_name }}
+          HEAD_BRANCH: ${{ github.event.client_payload.head_branch }}
+          RUN_URL: ${{ github.event.client_payload.run_url }}
         run: |
           TITLE="CI failure: ${WORKFLOW_NAME} on ${HEAD_BRANCH}"
           printf '%s' "$TITLE" > /tmp/issue_title.txt
@@ -83,8 +81,8 @@ jobs:
       - name: Write prompt
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_NAME: ${{ github.event.client_payload.workflow_name }}
+          HEAD_BRANCH: ${{ github.event.client_payload.head_branch }}
         run: |
           {
             echo "A CI workflow failed and needs to be fixed."
@@ -127,7 +125,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_BRANCH: ${{ github.event.client_payload.head_branch }}
         run: |
           if [[ -z "$(git diff --name-only)" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \

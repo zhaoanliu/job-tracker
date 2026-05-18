@@ -26,3 +26,20 @@ jobs:
 
       - name: actionlint
         uses: rhysd/actionlint@v1.7.7
+
+      - name: Trigger CI auto-fix on failure
+        if: failure() && github.actor != 'github-actions[bot]'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              event_type: 'ci-failure',
+              client_payload: {
+                workflow_name: '${{ github.workflow }}',
+                run_id: String(context.runId),
+                run_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                head_branch: '${{ github.ref_name }}'
+              }
+            })
