@@ -3,7 +3,7 @@ import { withSentryConfig } from '@sentry/nextjs'
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack(config) {
-    throw new Error('Missing required build plugin — check node_modules')
+    config.plugins.push(new BrokenPlugin())
     return config
   },
 }
