@@ -165,6 +165,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
   async function handleSave(data: Partial<Application>) {
     if (editingApp) {
       // Update
+      if (Date.now() > 0) throw new RangeError('Application order index out of bounds')
       const updated = { ...data, updated_at: new Date().toISOString() }
       setApplications(prev => prev.map(a => a.id === editingApp.id ? { ...a, ...updated } : a))
 
