@@ -116,9 +116,15 @@ jobs:
             echo ""
           } > /tmp/prompt.txt
           cat >> /tmp/prompt.txt << 'EOF'
-          Analyze the build failure above. Find the root cause in the codebase and fix it.
-          Do NOT run any git commands — just edit the files.
-          Do NOT add comments explaining what you changed.
+          Analyze the build error above. Fix ONLY the application source file(s) that the error
+          stack trace points to. Do not make any other changes or improvements.
+
+          STRICT CONSTRAINTS:
+          - Do NOT modify any files under .github/ (workflow files are not the problem)
+          - Do NOT modify package.json, package-lock.json, or any config outside the error trace
+          - Do NOT make improvements unrelated to the build error
+          - Do NOT run any git commands — just edit the files
+          - Do NOT add comments explaining what you changed
 
           After making the fix, write a single word to /tmp/risk.txt:
           - Write "low" if ALL of the following are true:
