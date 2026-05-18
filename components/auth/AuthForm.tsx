@@ -49,7 +49,7 @@ export default function AuthForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4" suppressHydrationWarning>
       <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
         {(['signin', 'signup', 'magic'] as Mode[]).map(m => (
           <button
@@ -76,6 +76,7 @@ export default function AuthForm() {
           onChange={e => setEmail(e.target.value)}
           placeholder="you@example.com"
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          suppressHydrationWarning
         />
       </div>
 
@@ -90,6 +91,7 @@ export default function AuthForm() {
             placeholder="••••••••"
             minLength={6}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            suppressHydrationWarning
           />
         </div>
       )}
