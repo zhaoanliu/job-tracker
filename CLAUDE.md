@@ -138,7 +138,7 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - `npx tsc --noEmit` (TypeScript)
 - `actionlint` (validates workflow YAML — catches shell injection, expression errors, and YAML syntax bugs in `run:` blocks)
 
-**`ci-auto-fix.yml`** — auto-healing for CI failures; triggers on `workflow_run` when `lint.yml` or `e2e.yml` completes with `failure`:
+**`ci-auto-fix.yml`** — auto-healing for CI failures; triggers on `workflow_run` when `lint.yml`, `e2e.yml`, or `e2e-local.yml` completes with `failure`:
 - Checks out the failing branch (feature branch or main), fetches up to 500 lines of failed-step logs via `gh run view --log-failed`, and for PR branches also collects the diff vs main
 - Finds or creates a GitHub issue titled `"CI failure: <workflow> on <branch>"` using the same list-API deduplication pattern as `auto-fix.yml`
 - Runs `claude --dangerously-skip-permissions` to analyze the logs and fix the root cause

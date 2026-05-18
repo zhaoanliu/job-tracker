@@ -2,7 +2,7 @@ name: Auto-fix CI failures
 
 on:
   workflow_run:
-    workflows: ["Lint & type-check", "E2E Auth Tests"]
+    workflows: ["Lint & type-check", "E2E Auth Tests", "E2E Local Tests (Board + CSV)"]
     types: [completed]
 
 jobs:
