@@ -36,51 +36,64 @@ export function downloadCsv(applications: Application[]): void {
   URL.revokeObjectURL(url)
 }
 
-function parseCsvRow(row: string): string[] {
-  const values: string[] = []
+// Parse entire CSV text into rows, handling quoted fields that span newlines.
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = []
+  let currentRow: string[] = []
   let current = ''
   let inQuotes = false
   let i = 0
 
-  while (i < row.length) {
-    const char = row[i]
+  while (i < text.length) {
+    const char = text[i]
     if (char === '"') {
-      if (inQuotes && row[i + 1] === '"') {
+      if (inQuotes && text[i + 1] === '"') {
         current += '"'
         i += 2
         continue
       }
       inQuotes = !inQuotes
     } else if (char === ',' && !inQuotes) {
-      values.push(current)
+      currentRow.push(current)
       current = ''
+    } else if (char === '\r') {
+      // skip bare \r; \r\n handled when we hit the \n
+    } else if (char === '\n' && !inQuotes) {
+      currentRow.push(current)
+      current = ''
+      rows.push(currentRow)
+      currentRow = []
     } else {
       current += char
     }
     i++
   }
-  values.push(current)
-  return values
+
+  currentRow.push(current)
+  if (currentRow.some(v => v !== '')) rows.push(currentRow)
+
+  return rows
 }
 
 export function parseCsv(csvText: string): Partial<ApplicationFormData>[] {
-  const lines = csvText.trim().split('\n')
-  if (lines.length < 2) return []
+  const rows = parseCsvRows(csvText.trim())
+  if (rows.length < 2) return []
 
-  const headers = parseCsvRow(lines[0])
+  const headers = rows[0].map(h => h.trim())
   const results: Partial<ApplicationFormData>[] = []
 
-  for (let i = 1; i < lines.length; i++) {
-    if (!lines[i].trim()) continue
-    const values = parseCsvRow(lines[i])
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i]
     const obj: Record<string, string> = {}
     headers.forEach((h, idx) => {
-      obj[h.trim()] = values[idx]?.trim() ?? ''
+      obj[h] = values[idx]?.trim() ?? ''
     })
+
+    if (!obj.company) continue
+
     results.push({
-      company: obj.company || '',
+      company: obj.company,
       role: obj.role || null,
-      // Cast loosely — validation happens at the DB / RLS layer
       status: (obj.status as ApplicationFormData['status']) || 'future',
       type: (obj.type as ApplicationFormData['type']) || null,
       priority: (obj.priority as ApplicationFormData['priority']) || 'Medium',
