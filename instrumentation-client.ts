@@ -8,6 +8,7 @@ Sentry.init({
   replaysSessionSampleRate: 0.05,
   replaysOnErrorSampleRate: 1.0,
   integrations: [
+    Sentry.captureConsoleIntegration({ levels: ['error'] }),
     Sentry.replayIntegration({
       maskAllText: true,
       blockAllMedia: false,
