@@ -103,17 +103,17 @@ When a Sentry alert fires:
 1. Sentry POSTs to `/api/sentry-webhook` (Vercel)
 2. Route validates HMAC signature, dispatches `repository_dispatch` to GitHub
 3. `auto-fix.yml` workflow runs:
-   - Finds existing GitHub issue by Sentry URL or creates one
-   - Reopens if closed (handles regressions)
+   - Finds open GitHub issue matching the error title via list API, or creates one
    - Runs `claude --dangerously-skip-permissions` to fix the bug
-   - Opens a PR and comments on the issue
+   - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type fix): pushes directly to `main`, resolves the Sentry issue via API, closes the GitHub issue
+   - **High-risk fix**: opens a PR for review and comments on the issue
 
 Required secrets:
-- **Vercel**: `SENTRY_WEBHOOK_SECRET`, `GH_PAT`, `GITHUB_REPO`
-- **GitHub Actions**: `ANTHROPIC_API_KEY`
+- **Vercel**: `SENTRY_DSN`, `SENTRY_WEBHOOK_SECRET`, `GH_PAT`, `GITHUB_REPO`
+- **GitHub Actions**: `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN`
 - **GitHub repo setting**: Actions → General → allow GitHub Actions to create PRs
 
-The `on: issues` trigger fires for both manually-created issues (containing `sentry.io` in the body) and issues created by `sentry[bot]` (a third-party GitHub App). GitHub only blocks workflow triggers from `github-actions[bot]` (the built-in `GITHUB_TOKEN` actor) to prevent loops — third-party apps like `sentry[bot]` are not restricted. The `repository_dispatch` path is the primary path for Sentry alerts; the `on: issues` path is a fallback for manual issue creation.
+Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry alert — the webhook triggers a dispatch AND `sentry[bot]` opens a GitHub issue at the same time. The concurrency group (`group: auto-fix, cancel-in-progress: false`) queues the two runs so they don't race. `on: issues` also fires for manually-created issues containing `sentry.io` in the body. GitHub only blocks workflow triggers from `github-actions[bot]` (the built-in token actor) — third-party apps like `sentry[bot]` are not restricted.
 
 ## CI workflows
 

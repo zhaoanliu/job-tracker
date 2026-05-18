@@ -71,7 +71,7 @@ Drag-and-drop operations update local React state immediately (via `handleDragOv
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/yourname/job-tracker.git
+git clone https://github.com/zhaoanliu/job-tracker.git
 cd job-tracker
 npm install
 ```
@@ -221,6 +221,8 @@ See `TODO` comments in:
 │   ├── layout.tsx            # Root HTML shell, Inter font, global CSS
 │   ├── page.tsx              # Redirects → /dashboard
 │   ├── login/page.tsx        # Auth page (email/password + magic link)
+│   ├── api/
+│   │   └── sentry-webhook/   # Validates HMAC, fires repository_dispatch to GitHub
 │   └── dashboard/
 │       ├── layout.tsx
 │       └── page.tsx          # Server Component: fetches initial data, passes to KanbanBoard
@@ -246,6 +248,11 @@ See `TODO` comments in:
 │   ├── types.ts              # Application interface, Stage config, enums
 │   ├── utils.ts              # Filter, sort, stats, formatting helpers
 │   └── csv.ts                # CSV export/import (no library dependency)
+├── __tests__/                # Vitest unit tests (mirrors src structure)
+├── e2e/                      # Playwright E2E tests
+├── .github/workflows/
+│   ├── auto-fix.yml          # Auto-fix Sentry bugs with Claude Code
+│   └── lint.yml              # ESLint + tsc + actionlint on every PR
 ├── supabase/
 │   └── migrations/
 │       └── 20240101000000_initial.sql
