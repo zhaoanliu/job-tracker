@@ -70,6 +70,14 @@ describe('ApplicationModal — new application', () => {
     ))
   })
 
+  it('shows error message when onSave throws', async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error('Save failed'))
+    render(<ApplicationModal {...defaultProps} onSave={onSave} />)
+    await userEvent.type(screen.getByPlaceholderText('e.g. Acme Corp'), 'New Co')
+    fireEvent.submit(document.querySelector('form')!)
+    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+  })
+
   it('defaults status to the provided defaultStatus', () => {
     render(<ApplicationModal {...defaultProps} defaultStatus="watchlist" />)
     const select = screen.getByDisplayValue('Waiting to Apply')
@@ -130,6 +138,28 @@ describe('ApplicationModal — edit application', () => {
     await userEvent.click(screen.getByText('Delete application'))
     await userEvent.click(screen.getByText('Confirm Delete'))
     await waitFor(() => expect(onDelete).toHaveBeenCalled())
+  })
+
+  it('shows error message when onDelete throws', async () => {
+    const onDelete = vi.fn().mockRejectedValue(new Error('Delete failed'))
+    render(
+      <ApplicationModal
+        {...defaultProps}
+        application={existingApp}
+        onDelete={onDelete}
+      />
+    )
+    await userEvent.click(screen.getByText('Delete application'))
+    await userEvent.click(screen.getByText('Confirm Delete'))
+    expect(await screen.findByText('Delete failed')).toBeInTheDocument()
+  })
+})
+
+describe('ApplicationModal — keyboard and backdrop', () => {
+  it('calls onClose when Escape is pressed', async () => {
+    render(<ApplicationModal {...defaultProps} />)
+    await userEvent.keyboard('{Escape}')
+    expect(defaultProps.onClose).toHaveBeenCalled()
   })
 })
 
