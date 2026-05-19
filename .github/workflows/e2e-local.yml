@@ -15,6 +15,16 @@ on:
       - 'supabase/migrations/**'
       - 'e2e/local/**'
       - 'e2e/helpers.ts'
+  pull_request:
+    paths:
+      - 'components/board/**'
+      - 'components/modals/**'
+      - 'components/ui/**'
+      - 'app/dashboard/**'
+      - 'lib/utils.ts'
+      - 'supabase/migrations/**'
+      - 'e2e/local/**'
+      - 'e2e/helpers.ts'
 
 jobs:
   e2e-local:

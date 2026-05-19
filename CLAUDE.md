@@ -186,10 +186,11 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - `auth.email.spec.ts` — magic link + signup confirmation via Testmail.app
 - Required secrets: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TESTMAIL_API_KEY`, `TESTMAIL_NAMESPACE`
 
-**`e2e-local.yml`** — runs `e2e/local/` (board + CSV tests), async, never blocks PRs:
+**`e2e-local.yml`** — runs `e2e/local/` (board + CSV tests) against a real local Supabase instance:
 - Starts local Supabase via `supabase/setup-cli` + `supabase start`
 - Uses well-known local dev keys (hardcoded in workflow — they are public Supabase demo values)
-- Triggers: nightly cron (06:00 UTC), `workflow_dispatch`, and push to main when any of these paths change: `components/board/**`, `components/modals/**`, `components/ui/**`, `app/dashboard/**`, `lib/utils.ts`, `supabase/migrations/**`, `e2e/local/**`, `e2e/helpers.ts`
+- Triggers: nightly cron (06:00 UTC), `workflow_dispatch`, push to main, and `pull_request` — all path-filtered to: `components/board/**`, `components/modals/**`, `components/ui/**`, `app/dashboard/**`, `lib/utils.ts`, `supabase/migrations/**`, `e2e/local/**`, `e2e/helpers.ts`
+- **Not a required check for branch protection** — `supabase start` + full board/CSV suite runs 15–30 min, too slow to block auto-merge. PRs get early feedback without being gated; push-to-main is the final catch-all.
 
 **`lint.yml`** — runs on every PR and push to main:
 - `npm run lint` (ESLint) — requires `.eslintrc.json` to exist; without it `next lint` runs an interactive setup wizard and fails CI
