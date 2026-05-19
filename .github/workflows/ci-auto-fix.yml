@@ -126,9 +126,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           HEAD_BRANCH: ${{ github.event.client_payload.head_branch }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: team_aTYh0oWfaRSgem4RzW5JH9c0
-          VERCEL_PROJECT_ID: prj_5J32UqKRiToXBAzDPFPym5EfnXI2
         run: |
           if [[ -z "$(git diff --name-only)" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
@@ -145,7 +142,8 @@ jobs:
           TOTAL_LINES=$(( ${INSERTIONS:-0} + ${DELETIONS:-0} ))
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [[ "$HEAD_BRANCH" != "main" || ( "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ) ]]; then
+          if [[ "$HEAD_BRANCH" != "main" ]]; then
+            # CI failed on a PR branch — push fix directly so CI re-runs on the same branch
             git add -A
             git commit -m "fix: auto-fix CI failure for issue #${ISSUE_NUMBER}"
             git fetch origin "${HEAD_BRANCH}"
@@ -158,9 +156,6 @@ jobs:
             COMMITS_AHEAD=$(git rev-list "origin/${HEAD_BRANCH}..HEAD" --count)
             if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
               git push origin "HEAD:${HEAD_BRANCH}"
-              if [[ "$HEAD_BRANCH" == "main" ]]; then
-                npx vercel deploy --prod --token="${VERCEL_TOKEN}" || true
-              fi
             else
               echo "Fix already applied by another run, skipping push"
             fi
@@ -168,6 +163,7 @@ jobs:
               --body "Fix pushed to \`${HEAD_BRANCH}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
             gh issue close "${ISSUE_NUMBER}"
           else
+            # CI failed on main — always open a PR so CI (lint + e2e-auth) verifies the fix before merging
             BRANCH="fix/ci-issue-${ISSUE_NUMBER}-$(date +%s)"
             git checkout -b "$BRANCH"
             git add -A
@@ -177,6 +173,12 @@ jobs:
               --title "fix: ${ISSUE_TITLE}" \
               --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)" \
               --base main)
-            gh issue comment "${ISSUE_NUMBER}" \
-              --body "A fix has been proposed: $PR_URL — please review before merging."
+            if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
+              gh pr merge --auto --squash "$PR_URL" || true
+              gh issue comment "${ISSUE_NUMBER}" \
+                --body "Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes."
+            else
+              gh issue comment "${ISSUE_NUMBER}" \
+                --body "A fix has been proposed: $PR_URL — please review before merging."
+            fi
           fi

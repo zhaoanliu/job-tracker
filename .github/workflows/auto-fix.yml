@@ -242,16 +242,11 @@ jobs:
           git fetch origin main
           git checkout origin/main -- .github/ 2>/dev/null || true
 
-      - name: Merge or open PR
+      - name: Open PR
         if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-          SENTRY_ID: ${{ steps.issue.outputs.sentry_id }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: team_aTYh0oWfaRSgem4RzW5JH9c0
-          VERCEL_PROJECT_ID: prj_5J32UqKRiToXBAzDPFPym5EfnXI2
         run: |
           if [[ -z $(git diff --name-only) ]]; then
             echo "No changes made, skipping"
@@ -270,49 +265,23 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Always create a PR — fixes are verified by CI (lint + e2e-auth) before reaching main
+          BRANCH="fix/issue-${ISSUE_NUMBER}-$(date +%s)"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
+          git push origin "$BRANCH"
+
+          PR_URL=$(gh pr create \
+            --title "fix: ${ISSUE_TITLE}" \
+            --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)" \
+            --base main)
+
           if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
-            git add -A
-            git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
-            git fetch origin main
-            if ! git rebase origin/main; then
-              git rebase --abort
-              gh issue comment "${ISSUE_NUMBER}" \
-                --body "Auto-fix skipped: a concurrent run already pushed a fix for this error, causing a rebase conflict. The fix is already in main — closing as a duplicate."
-              gh issue close "${ISSUE_NUMBER}"
-              exit 0
-            fi
-            COMMITS_AHEAD=$(git rev-list origin/main..HEAD --count)
-            if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
-              git push origin HEAD:main
-              npx vercel deploy --prod --token="${VERCEL_TOKEN}" || true
-            else
-              echo "Fix already in main (another run applied it first), skipping push"
-            fi
-
+            gh pr merge --auto --squash "$PR_URL" || true
             gh issue comment "${ISSUE_NUMBER}" \
-              --body "Fix applied automatically (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
-            gh issue close "${ISSUE_NUMBER}"
-
-            if [[ -n "${SENTRY_ID}" && -n "${SENTRY_AUTH_TOKEN}" ]]; then
-              RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X PUT "https://sentry.io/api/0/issues/${SENTRY_ID}/" \
-                -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
-                -H "Content-Type: application/json" \
-                -d '{"status":"resolved"}')
-              echo "Sentry resolve HTTP ${RESULT} for issue ${SENTRY_ID}"
-            fi
+              --body "Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes. Sentry will be resolved automatically when this issue closes."
           else
-            BRANCH="fix/issue-${ISSUE_NUMBER}-$(date +%s)"
-            git checkout -b "$BRANCH"
-            git add -A
-            git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
-            git push origin "$BRANCH"
-
-            PR_URL=$(gh pr create \
-              --title "fix: ${ISSUE_TITLE}" \
-              --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)" \
-              --base main)
-
             gh issue comment "${ISSUE_NUMBER}" \
               --body "A fix has been proposed: $PR_URL — please review before merging."
           fi

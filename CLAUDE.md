@@ -153,15 +153,20 @@ When a Sentry alert fires:
    - Fetches the full Sentry event (stack trace, error type/message, culprit) from the Sentry API and injects it into Claude's prompt — without this, Claude only sees the vague GitHub issue title and exhausts its turn limit without finding the bug
    - Skips `replay_hydration_error` issues (Sentry `issueType`) — these have no stack trace and are caused by browser extensions, not application code; the workflow comments on and closes the GitHub issue automatically
    - Runs `claude --dangerously-skip-permissions` to fix the bug
-   - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type fix): pushes directly to `main`, resolves the Sentry issue via API, closes the GitHub issue
-   - **High-risk fix**: opens a PR for review and comments on the issue; the `resolve-sentry-on-close` job resolves the Sentry issue when the GitHub issue is closed (either by PR merge or manually)
-   - The high-risk fix branch is named `fix/issue-<N>-<timestamp>` so repeated runs for the same issue never collide on the same branch name
+   - **Always creates a PR** — no direct-to-main pushes; every fix is verified by CI (`lint` + `e2e-auth`) before reaching production
+   - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type fix): opens a PR and enables auto-merge (`gh pr merge --auto --squash`) — merges automatically once all required CI checks pass
+   - **High-risk fix**: opens a PR for review; no auto-merge — a human must approve and merge
+   - In both cases the PR body contains "Closes #N", so merging closes the GitHub issue and triggers `resolve-sentry-on-close` to resolve the Sentry issue — no manual Sentry API call needed
+   - The fix branch is named `fix/issue-<N>-<timestamp>` so repeated runs for the same issue never collide
 
 Required secrets:
 - **Vercel**: `SENTRY_DSN`, `SENTRY_WEBHOOK_SECRET`, `GH_PAT`, `GITHUB_REPO`
 - **Vercel build** (source map upload): `SENTRY_AUTH_TOKEN` (needs `project:releases` scope — **not** the same token as GitHub Actions), `SENTRY_ORG=zhaoans-org`, `SENTRY_PROJECT=javascript-nextjs` (the Sentry project slug is `javascript-nextjs`, not the repo name — wrong value silently breaks source map uploads). After a successful build the Sentry files API returns `fileCount: -1` for the release — that is correct and expected; it means source maps are stored as artifact bundles (the newer format), not as individual release files.
 - **GitHub Actions**: `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN` (needs Issue & Event: Read & Write), `VERCEL_TOKEN` (generate at vercel.com → Account Settings → Tokens — needed by `lint.yml` to trigger production deploys after CI passes)
-- **GitHub repo setting**: Actions → General → allow GitHub Actions to create PRs
+- **GitHub repo settings** (required for auto-merge to work):
+  - Actions → General → enable "Allow GitHub Actions to create and approve pull requests"
+  - General → enable "Allow auto-merge"
+  - Branches → Add branch protection rule for `main` → enable "Require status checks to pass before merging" → add required checks: `lint` (from `lint.yml`) and `e2e-auth` (from `e2e.yml`). Do NOT add `e2e-local` — it only runs on push to main and nightly cron, not on PRs, so requiring it would permanently block auto-merge.
 
 **All Vercel deploys are gated on CI passing.** `vercel.json` sets `ignoreCommand: exit 0` to disable Vercel's auto-deploy entirely. Note: Vercel's exit code semantics are the opposite of Unix convention — `exit 0` means **skip the build**, `exit 1` means **proceed**. `lint.yml` triggers `vercel deploy --prod` as its final step, only on success + push to main. No preview deploys — not needed for a single-reviewer project. `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` are hardcoded from `.vercel/project.json` — no additional secrets needed for those.
 
@@ -216,14 +221,14 @@ Add it if the workflow runs tests or builds that Claude Code can reasonably fix 
 - Checks out the failing branch (feature branch or main), fetches up to 500 lines of failed-step logs via `gh run view --log-failed`, and for PR branches also collects the diff vs main
 - Finds or creates a GitHub issue titled `"CI failure: <workflow> on <branch>"` using the same list-API deduplication pattern as `auto-fix.yml`
 - Runs `claude --dangerously-skip-permissions` to analyze the logs and fix the root cause
-- **Feature branch**: always pushes the fix directly to the failing branch (so the PR CI re-runs)
-- **Main branch — low-risk** (≤2 files, ≤20 lines, null guard / type / lint fix): pushes directly to main
-- **Main branch — high-risk**: opens a PR from `fix/ci-issue-<N>` targeting main
+- **Feature branch**: always pushes the fix directly to the failing branch so CI re-runs on the same PR
+- **Main branch**: always opens a PR — never pushes directly to main
+  - **Low-risk** (≤2 files, ≤20 lines, null guard / type / lint fix): enables auto-merge (`gh pr merge --auto --squash`) — merges once `lint` and `e2e-auth` pass
+  - **High-risk**: opens a PR only; a human must review and merge
 - No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` (same as `auto-fix.yml`)
 - Concurrency group is per-branch (`ci-auto-fix-<branch>`) so simultaneous lint and E2E failures on the same branch queue rather than race; the second run checks out the branch AFTER the first run's push, so it sees the latest code
-- Rebase conflicts (e.g., ci-auto-fix and auto-fix/Sentry both pushing to main in different concurrency groups) are caught with `if ! git rebase ...; then git rebase --abort` and leave a comment for manual resolution
-- The high-risk fix branch is named `fix/ci-issue-<N>-<timestamp>` so repeated runs never collide on the same branch name
-- **No infinite-fix loop** — two layers of protection: (1) GitHub blocks `on: push` / `on: pull_request` triggers for any push made with `GITHUB_TOKEN`, so lint.yml / e2e.yml never run after a bot push, and workflow_run never fires; (2) the job `if:` condition explicitly skips runs where `actor.login == 'github-actions[bot]'`, so the protection holds even if the push token is ever changed to a PAT
+- The fix branch is named `fix/ci-issue-<N>-<timestamp>` so repeated runs never collide on the same branch name
+- **No infinite-fix loop** — two layers of protection: (1) GitHub blocks `on: push` / `on: pull_request` triggers for any push made with `GITHUB_TOKEN`, so lint.yml / e2e.yml never run after a bot push; (2) the job `if:` condition explicitly skips runs where `actor.login == 'github-actions[bot]'`, so the protection holds even if the push token is ever changed to a PAT
 
 **`feature-implement.yml`** — implements approved user feature requests; triggers on `issues: assigned` when the assignee is the repo owner AND the issue has the `user-requested` label:
 - Comments on the issue immediately so the submitter sees it's in progress
