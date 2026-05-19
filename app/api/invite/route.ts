@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
 
-const APP_URL = 'https://job-tracker-phi-tan.vercel.app'
+const APP_URL = 'https://applytrackr.app'
 
 function buildEmailHtml(senderEmail: string, name?: string, message?: string) {
   const greeting = name?.trim() ? `Hey ${escapeHtml(name.trim())},` : 'Hey,'
