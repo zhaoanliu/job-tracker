@@ -45,7 +45,7 @@ function buildEmailHtml(senderEmail: string, name?: string, message?: string) {
             </p>
             ${personalNote}
             <p style="margin:0 0 24px;color:#374151;font-size:14px;line-height:1.6;">
-              I&rsquo;d love for you to give it a try. If you run into anything or have ideas, hit the <strong>Feedback</strong> button inside the app — I read every submission.
+              I&rsquo;d love for you to give it a try. If you run into anything or have ideas, hit the <strong>Feedback</strong> button inside the app — I read every submission. And if you find it useful, feel free to invite your friends to try it out too!
             </p>
             <table cellpadding="0" cellspacing="0">
               <tr>
