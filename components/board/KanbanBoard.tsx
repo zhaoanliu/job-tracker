@@ -42,6 +42,15 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
   const [applications, setApplications] = useState<Application[]>(initialApplications)
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
   const dragStartStatus = useRef<ApplicationStatus | null>(null)
+  // Tracks the column the card was last dragged INTO (set inside setApplications so it uses
+  // fresh prev state, not a stale closure). handleDragEnd uses this instead of over.id so
+  // that releasing the mouse while the cursor clips a different column doesn't mismatch.
+  const dragCurrentStatus = useRef<ApplicationStatus | null>(null)
+  // Tracks the status actually persisted to DB per application id.
+  // Used by handleSave to detect real status changes even when local state is ahead of DB.
+  const persistedStatus = useRef<Map<string, ApplicationStatus>>(
+    new Map(initialApplications.map(a => [a.id, a.status]))
+  )
   const [filters, setFilters] = useState<Filters>({ priority: [], type: [], workmode: [], location: [], search: '' })
   const [sortBy, setSortBy] = useState<SortField>('order')
   const [modalOpen, setModalOpen] = useState(false)
@@ -55,76 +64,101 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
 
   const activeApp = activeId ? applications.find(a => a.id === activeId) ?? null : null
 
-  // Resolve where a dragged item is heading: returns target stage id
-  function resolveTargetStatus(overId: UniqueIdentifier): ApplicationStatus | null {
-    if (STAGES.some(s => s.id === overId)) return overId as ApplicationStatus
-    return applications.find(a => a.id === overId)?.status ?? null
-  }
-
   function handleDragStart({ active }: DragStartEvent) {
     setActiveId(active.id)
     const card = applications.find(a => a.id === active.id)
     dragStartStatus.current = card?.status ?? null
+    dragCurrentStatus.current = card?.status ?? null
   }
 
-  // Live preview: when dragging a card over a different column, move it there
-  // immediately in local state so the column card counts update in real time.
+  // Live preview: all logic is inside the functional updater so it always reads
+  // fresh state (prev) — no stale-closure issues. dragCurrentStatus is set here
+  // so handleDragEnd knows the last column the card was dragged into.
   function handleDragOver({ active, over }: DragOverEvent) {
     if (!over) return
-    const card = applications.find(a => a.id === active.id)
-    if (!card) return
-
-    const targetStatus = resolveTargetStatus(over.id)
-    if (!targetStatus || targetStatus === card.status) return
-
     setApplications(prev => {
+      const card = prev.find(a => a.id === active.id)
+      if (!card) return prev
+
+      const targetStatus: ApplicationStatus | null = STAGES.some(s => s.id === over.id)
+        ? (over.id as ApplicationStatus)
+        : (prev.find(a => a.id === over.id)?.status ?? null)
+
+      if (!targetStatus || card.status === targetStatus) return prev
+
+      dragCurrentStatus.current = targetStatus
+
       const filtered = prev.filter(a => a.id !== active.id)
       const targetCards = filtered.filter(a => a.status === targetStatus)
       const overIsCard = !STAGES.some(s => s.id === over.id)
       const overIdx = overIsCard ? targetCards.findIndex(a => a.id === over.id) : targetCards.length
       const insertAt = overIdx >= 0 ? overIdx : targetCards.length
-
       const newCard = { ...card, status: targetStatus, order: insertAt }
-      const withNew = [
+      return [
         ...filtered.filter(a => a.status !== targetStatus),
         ...targetCards.slice(0, insertAt),
         newCard,
         ...targetCards.slice(insertAt),
       ].map((a, _, arr) => {
-        // Recompute order within each column
-        const colCards = arr.filter(x => x.status === a.status)
-        return { ...a, order: colCards.indexOf(a) }
+        const col = arr.filter(x => x.status === a.status)
+        return { ...a, order: col.indexOf(a) }
       })
-      return withNew
     })
   }
 
   async function handleDragEnd({ active, over }: DragEndEvent) {
     setActiveId(null)
-    if (!over || active.id === over.id) return
+    if (!over) return
 
-    const card = applications.find(a => a.id === active.id)
-    if (!card) return
+    // Use the last column the card was dragged INTO (not over.id / cursor position at drop).
+    // This prevents the bug where releasing the mouse while the cursor clips the source
+    // column causes handleDragEnd to see a different target than handleDragOver set.
+    const finalStatus = dragCurrentStatus.current
+    if (!finalStatus) return
 
-    const overIsColumn = STAGES.some(s => s.id === over.id)
-    const targetStatus = resolveTargetStatus(over.id)
-    if (!targetStatus) return
+    if (finalStatus !== dragStartStatus.current) {
+      // Cross-column: handleDragOver already moved the card in local state.
+      // Compute order from the closure (card is excluded either way, so count is reliable).
+      const finalOrder = applications.filter(
+        a => a.status === finalStatus && a.id !== active.id
+      ).length
 
-    if (dragStartStatus.current === targetStatus && !overIsColumn) {
+      // Guard: if handleDragOver's update wasn't committed yet, move the card now.
+      setApplications(prev => {
+        const card = prev.find(a => a.id === active.id)
+        if (!card || card.status === finalStatus) return prev
+        const filtered = prev.filter(a => a.id !== active.id)
+        const targetCards = filtered.filter(a => a.status === finalStatus)
+        const newCard = { ...card, status: finalStatus, order: targetCards.length }
+        return [...filtered, newCard].map((a, _, arr) => {
+          const col = arr.filter(x => x.status === a.status)
+          return { ...a, order: col.indexOf(a) }
+        })
+      })
+
+      const { error } = await supabase
+        .from('applications')
+        .update({ status: finalStatus, order: finalOrder, updated_at: new Date().toISOString() })
+        .eq('id', active.id)
+      if (error) console.error('Cross-column move update failed:', error)
+      else {
+        persistedStatus.current.set(String(active.id), finalStatus)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) recordStatusHistory(String(active.id), user.id, finalStatus)
+      }
+    } else if (active.id !== over.id) {
       // Same-column reorder
-      const colCards = applications.filter(a => a.status === targetStatus)
+      const colCards = applications.filter(a => a.status === finalStatus)
       const oldIdx = colCards.findIndex(a => a.id === active.id)
       const newIdx = colCards.findIndex(a => a.id === over.id)
       if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return
 
       const reordered = arrayMove(colCards, oldIdx, newIdx).map((a, i) => ({ ...a, order: i }))
-
       setApplications(prev => [
-        ...prev.filter(a => a.status !== targetStatus),
+        ...prev.filter(a => a.status !== finalStatus),
         ...reordered,
       ])
 
-      // Persist reordered sequence
       const results = await Promise.all(
         reordered.map(a =>
           supabase
@@ -134,42 +168,6 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
         )
       )
       results.forEach(({ error }) => { if (error) console.error('Reorder update failed:', error) })
-    } else {
-      // Cross-column: set final state explicitly from prev (always fresh) so we
-      // don't depend on handleDragOver's optimistic update having been committed.
-      let finalOrder = 0
-      setApplications(prev => {
-        const card = prev.find(a => a.id === active.id)
-        if (!card) return prev
-        const filtered = prev.filter(a => a.id !== active.id)
-        const targetCards = filtered.filter(a => a.status === targetStatus)
-        const overIdx = !overIsColumn ? targetCards.findIndex(a => a.id === over.id) : targetCards.length
-        finalOrder = overIdx >= 0 ? overIdx : targetCards.length
-        const newCard = { ...card, status: targetStatus, order: finalOrder }
-        return [
-          ...filtered.filter(a => a.status !== targetStatus),
-          ...targetCards.slice(0, finalOrder),
-          newCard,
-          ...targetCards.slice(finalOrder),
-        ].map((a, _, arr) => {
-          const colCards = arr.filter(x => x.status === a.status)
-          return { ...a, order: colCards.indexOf(a) }
-        })
-      })
-
-      const { error } = await supabase
-        .from('applications')
-        .update({
-          status: targetStatus,
-          order: finalOrder,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', active.id)
-      if (error) console.error('Cross-column move update failed:', error)
-      else {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) recordStatusHistory(String(active.id), user.id, targetStatus)
-      }
     }
   }
 
@@ -209,7 +207,10 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
         throw error
       }
 
-      if (data.status && data.status !== editingApp.status) {
+      // Compare against persistedStatus (DB truth), not editingApp.status (local state),
+      // so a drag-then-modal-save flow still records history even when local state is ahead.
+      if (data.status && data.status !== persistedStatus.current.get(editingApp.id)) {
+        persistedStatus.current.set(editingApp.id, data.status)
         const { data: { user } } = await supabase.auth.getUser()
         if (user) recordStatusHistory(editingApp.id, user.id, data.status)
       }
@@ -239,6 +240,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
 
       if (error) throw error
       const insertedApp = inserted as Application
+      persistedStatus.current.set(insertedApp.id, insertedApp.status)
       setApplications(prev => [...prev, insertedApp])
       recordStatusHistory(insertedApp.id, user.id, insertedApp.status)
     }
