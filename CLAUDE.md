@@ -120,7 +120,8 @@ When a Sentry alert fires:
    - Skips `replay_hydration_error` issues (Sentry `issueType`) — these have no stack trace and are caused by browser extensions, not application code; the workflow comments on and closes the GitHub issue automatically
    - Runs `claude --dangerously-skip-permissions` to fix the bug
    - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type fix): pushes directly to `main`, resolves the Sentry issue via API, closes the GitHub issue
-   - **High-risk fix**: opens a PR for review and comments on the issue
+   - **High-risk fix**: opens a PR for review and comments on the issue; the `resolve-sentry-on-close` job resolves the Sentry issue when the GitHub issue is closed (either by PR merge or manually)
+   - The high-risk fix branch is named `fix/issue-<N>-<timestamp>` so repeated runs for the same issue never collide on the same branch name
 
 Required secrets:
 - **Vercel**: `SENTRY_DSN`, `SENTRY_WEBHOOK_SECRET`, `GH_PAT`, `GITHUB_REPO`
@@ -133,7 +134,7 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 ## CI workflows
 
 **`migrate.yml`** — applies pending Supabase migrations to production automatically:
-- Triggers on push to main when `supabase/migrations/**` changes, plus `workflow_dispatch` for manual runs
+- Triggers on every push to main (no path filter — `supabase db push` is a no-op when nothing is pending so overhead is minimal)
 - Runs `supabase db push --project-ref` via the Supabase Management API (no direct DB connection needed)
 - Required secrets: `SUPABASE_ACCESS_TOKEN` (generate at supabase.com → Account → Access Tokens), `SUPABASE_PROJECT_REF` (the ID from your project URL, e.g. `abcdefghijklmnop`)
 - **Every new migration file added to `supabase/migrations/` is automatically applied on merge to main** — no manual SQL steps needed

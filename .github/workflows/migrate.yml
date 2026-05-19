@@ -3,8 +3,6 @@ name: DB migrations
 on:
   push:
     branches: [main]
-    paths:
-      - 'supabase/migrations/**'
   workflow_dispatch:
 
 jobs:
