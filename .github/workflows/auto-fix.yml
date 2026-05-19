@@ -2,13 +2,32 @@ name: Auto-fix Sentry issues
 
 on:
   issues:
-    types: [opened, reopened]
+    types: [opened, reopened, closed]
   repository_dispatch:
     types: [sentry-issue]
 
 jobs:
+  resolve-sentry-on-close:
+    if: github.event_name == 'issues' && github.event.action == 'closed' && contains(github.event.issue.body, 'sentry.io')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve Sentry issue
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          SENTRY_ID=$(printf '%s' "${ISSUE_BODY}" | grep -oE '[0-9]{7,}' | head -1)
+          if [[ -n "${SENTRY_ID}" && -n "${SENTRY_AUTH_TOKEN}" ]]; then
+            RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X PUT "https://sentry.io/api/0/issues/${SENTRY_ID}/" \
+              -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"status":"resolved"}')
+            echo "Sentry resolve HTTP ${RESULT} for issue ${SENTRY_ID}"
+          fi
+
   auto-fix:
-    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && contains(github.event.issue.body, 'sentry.io') && !contains(github.event.issue.labels.*.name, 'user-requested'))
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && github.event.action != 'closed' && contains(github.event.issue.body, 'sentry.io') && !contains(github.event.issue.labels.*.name, 'user-requested'))
     runs-on: ubuntu-latest
     concurrency:
       group: auto-fix
@@ -250,7 +269,7 @@ jobs:
               echo "Sentry resolve HTTP ${RESULT} for issue ${SENTRY_ID}"
             fi
           else
-            BRANCH="fix/issue-${ISSUE_NUMBER}"
+            BRANCH="fix/issue-${ISSUE_NUMBER}-$(date +%s)"
             git checkout -b "$BRANCH"
             git add -A
             git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
