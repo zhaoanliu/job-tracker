@@ -79,6 +79,10 @@ Unit tests use **Vitest + jsdom + Testing Library**. E2E uses **Playwright**.
 
 **Every fix or code change must include a corresponding test update.** If you add a function, add a unit test. If you fix a bug, add a test that would have caught it. If you change behaviour, update the existing test to reflect the new expectation.
 
+**Adding a new tab, section, or conditional render block to a component is new behaviour — it needs tests even if the component's existing tests still pass.** The existing suite passing is not sufficient; the new section must have at least one test that exercises it.
+
+**Updating `vitest.setup.ts` to extend a mock (e.g., adding a new method to the Supabase chain) is a signal that new component behaviour was added. Before opening a PR, verify the test file for every modified component covers that new behaviour.**
+
 **When making any fix, explicitly evaluate each layer below in order and state your reasoning for each one — do not skip silently.** Add a guard at the earliest layer that applies:
 1. **TypeScript type** — can a stricter type or removing a cast prevent this class of bug entirely?
 2. **Unit test** — can a fast, local test catch a regression before it reaches CI?
