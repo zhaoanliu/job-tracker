@@ -1,6 +1,6 @@
 # Job Tracker
 
-**Live demo:** https://job-tracker-phi-tan.vercel.app  
+**Live demo:** https://applytrackr.app  
 **Demo account:** `demo@jobtracker.dev` / `demo1234` — no sign-up needed
 
 A full-stack kanban-based job search pipeline tracker built for senior/principal-level engineers managing a complex, multi-stage search.

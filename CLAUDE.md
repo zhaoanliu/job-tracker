@@ -4,7 +4,7 @@
 
 A personal kanban board for tracking job applications. Built with Next.js 14 App Router, Supabase (auth + database), and @dnd-kit for drag-and-drop. Deployed on Vercel. Error monitoring via Sentry with an automated bug-fix pipeline.
 
-Live: https://job-tracker-phi-tan.vercel.app  
+Live: https://applytrackr.app  
 Demo account: `demo@jobtracker.dev` / `demo1234`
 
 ## Commands
