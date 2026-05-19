@@ -16,7 +16,8 @@ jobs:
       - name: Apply pending migrations
         run: |
           PROJECT_REF=$(echo "$SUPABASE_URL" | sed 's|https://||;s|\.supabase\.co.*||')
-          supabase db push --project-ref "$PROJECT_REF"
+          supabase link --project-ref "$PROJECT_REF" --password ""
+          supabase db push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
