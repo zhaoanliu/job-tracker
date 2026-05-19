@@ -137,6 +137,13 @@ export interface Filters {
 
 export type SortField = 'order' | 'date' | 'company' | 'priority'
 
+export interface StatusHistoryEntry {
+  id: string
+  application_id: string
+  status: ApplicationStatus
+  changed_at: string
+}
+
 export const PRIORITY_RANK: Record<ApplicationPriority, number> = {
   High: 0,
   Medium: 1,

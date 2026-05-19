@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ApplicationModal from '@/components/modals/ApplicationModal'
 import { Application } from '@/lib/types'
+import { createClient } from '@/lib/supabase/client'
 
 const existingApp: Application = {
   id: 'app-1',
@@ -152,6 +153,54 @@ describe('ApplicationModal — edit application', () => {
     await userEvent.click(screen.getByText('Delete application'))
     await userEvent.click(screen.getByText('Confirm Delete'))
     expect(await screen.findByText('Delete failed')).toBeInTheDocument()
+  })
+})
+
+describe('ApplicationModal — History tab', () => {
+  it('renders History tab button', () => {
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument()
+  })
+
+  it('shows empty state when there is no history', async () => {
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    await userEvent.click(screen.getByRole('button', { name: 'History' }))
+    expect(await screen.findByText('No status history recorded yet.')).toBeInTheDocument()
+  })
+
+  it('shows timeline entries when history data is available', async () => {
+    vi.mocked(createClient).mockReturnValueOnce({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-uid' } } }),
+        signOut: vi.fn().mockResolvedValue({}),
+        signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
+        signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+        signUp: vi.fn().mockResolvedValue({ error: null }),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        delete: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error: null }),
+        then: vi.fn(resolve => resolve({
+          data: [
+            { id: 'h1', application_id: 'app-1', status: 'applied', changed_at: '2026-05-01T10:00:00Z' },
+            { id: 'h2', application_id: 'app-1', status: 'future', changed_at: '2026-04-30T09:00:00Z' },
+          ],
+          error: null,
+        })),
+      })),
+    } as unknown as ReturnType<typeof createClient>)
+
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    await userEvent.click(screen.getByRole('button', { name: 'History' }))
+
+    expect(await screen.findByText('Applied')).toBeInTheDocument()
+    expect(screen.getByText('Future')).toBeInTheDocument()
+    expect(screen.getByText(/· initial/)).toBeInTheDocument()
   })
 })
 

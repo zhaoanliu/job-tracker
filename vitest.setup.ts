@@ -30,6 +30,9 @@ vi.mock('@/lib/supabase/client', () => ({
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      then: vi.fn((resolve: (v: { data: unknown[]; error: null }) => void) =>
+        resolve({ data: [], error: null })
+      ),
     })),
   })),
 }))
