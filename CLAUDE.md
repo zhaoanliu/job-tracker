@@ -208,6 +208,7 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - Required secrets: `SUPABASE_ACCESS_TOKEN`, `NEXT_PUBLIC_SUPABASE_URL`, `VERCEL_TOKEN`
 - **Supabase CLI note**: `supabase db push --project-ref` was removed in CLI v2 — `cd.yml` uses `supabase link` first, then `supabase db push`
 - **Supabase CLI baseline pitfall**: when first connecting to an existing project, the CLI may baseline all local migrations without executing the SQL. To force a specific migration to re-run: add `supabase migration repair --status reverted <timestamp>` before `supabase db push` in the deploy job. Remove it after one successful run.
+- **Supabase CLI version is pinned** (`version: 2.100.1`) in `cd.yml`, `migrate-validate.yml`, and `e2e-local.yml` — `version: latest` makes a GitHub API call to resolve the latest release and fails with a rate-limit error on busy runners. When upgrading, update the version in all three files. Check the latest stable release at `gh release list --repo supabase/cli --limit 5`.
 
 **Async / non-blocking:**
 

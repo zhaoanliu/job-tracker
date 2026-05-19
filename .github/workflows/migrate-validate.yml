@@ -13,7 +13,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.100.1
 
       - name: Start local Supabase
         run: supabase start

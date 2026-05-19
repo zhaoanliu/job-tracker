@@ -32,7 +32,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.100.1
 
       - name: Apply migrations
         id: apply-migrations
@@ -60,4 +60,15 @@ jobs:
             --arg id "${{ github.run_id }}" \
             --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{"event_type":"db-failure","client_payload":{"run_id":$id,"run_url":$url}}' \
+          | gh api repos/${{ github.repository }}/dispatches --method POST --input -
+
+      - name: Trigger cd-auto-fix on non-migration deploy failure
+        if: failure() && steps.apply-migrations.outcome != 'failure' && github.actor != 'github-actions[bot]'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          jq -n \
+            --arg sha "${{ github.sha }}" \
+            --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{"event_type":"cd-failure","client_payload":{"sha":$sha,"deployment_url":$url}}' \
           | gh api repos/${{ github.repository }}/dispatches --method POST --input -
