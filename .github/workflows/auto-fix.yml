@@ -8,7 +8,7 @@ on:
 
 jobs:
   auto-fix:
-    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && contains(github.event.issue.body, 'sentry.io'))
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && contains(github.event.issue.body, 'sentry.io') && !contains(github.event.issue.labels.*.name, 'user-requested'))
     runs-on: ubuntu-latest
     concurrency:
       group: auto-fix
