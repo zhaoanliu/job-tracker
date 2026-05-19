@@ -73,6 +73,35 @@ e2e/
 
 **dnd-kit column ordering** — `order` field is an integer per-column index. `handleDragOver` updates local state optimistically; `handleDragEnd` persists to DB.
 
+## DB schema changes
+
+Every schema change follows this checklist — skipping any step is what caused the `status_history` incident (table deployed to prod days after the code that needed it, with no visible errors because Supabase `PostgrestError` objects log as `[object Object]` in Sentry).
+
+**Checklist for adding or modifying a table:**
+
+1. **Create the migration file** in `supabase/migrations/` with a timestamp prefix (`YYYYMMDDHHMMSS_description.sql`). Use `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` so re-running is safe.
+
+2. **Enable RLS and add a policy** on every new table. The standard pattern:
+   ```sql
+   alter table public.<table> enable row level security;
+   create policy "Users can only access their own <table>"
+     on public.<table> for all
+     using (auth.uid() = user_id)
+     with check (auth.uid() = user_id);
+   ```
+
+3. **Update `lib/types.ts`** — add the TypeScript interface and any new enum values. New enum values also need to be added to the corresponding constant arrays in the same file.
+
+4. **Write the feature code and tests** — the new table can be referenced in code immediately; `migrate.yml` will apply it when the PR merges.
+
+5. **Merge to main** — `migrate.yml` runs automatically on every push to main, applies all pending migrations via `supabase link + supabase db push`. No manual SQL steps needed.
+
+**Supabase error logging rules** (learned from this incident):
+- Always log `error.message` alongside the raw error object: `console.error('context:', error.message, error)` — a bare `console.error(error)` shows as `[object Object]` in Sentry and is impossible to diagnose.
+- Always log errors in both write paths (`insert`/`update`) AND read paths (`.then(({ data, error }) => ...)`). Silent read failures produce the same symptom as silent write failures and are impossible to distinguish in production.
+
+**Race condition note:** `migrate.yml` and Vercel deployment both trigger on push to main and run in parallel. There is a brief window where new code is live but the migration hasn't applied yet. For this app this is acceptable — the error is logged and the UI shows empty state rather than crashing. If a future feature requires the migration to land before the code, run `gh workflow run migrate.yml` and wait for it to succeed before merging the code change.
+
 ## Testing
 
 Unit tests use **Vitest + jsdom + Testing Library**. E2E uses **Playwright**.
