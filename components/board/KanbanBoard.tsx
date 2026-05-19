@@ -170,7 +170,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
     const { error } = await supabase
       .from('status_history')
       .insert({ application_id: applicationId, user_id: userId, status })
-    if (error) console.error('Status history insert failed:', error)
+    if (error) console.error('status_history insert failed:', error.message, error)
   }
 
   async function handleSave(data: Partial<Application>) {

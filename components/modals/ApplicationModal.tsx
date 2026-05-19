@@ -93,7 +93,10 @@ export default function ApplicationModal({
       .select('*')
       .eq('application_id', application.id)
       .order('changed_at', { ascending: false })
-      .then(({ data }) => { if (data) setHistory(data as StatusHistoryEntry[]) })
+      .then(({ data, error }) => {
+        if (error) console.error('status_history fetch failed:', error.message, error)
+        if (data) setHistory(data as StatusHistoryEntry[])
+      })
   }, [application?.id])
 
   // Close on Escape
