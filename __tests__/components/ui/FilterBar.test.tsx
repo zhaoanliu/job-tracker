@@ -111,6 +111,41 @@ describe('FilterBar', () => {
     expect(screen.getByText('Clear filters')).toBeInTheDocument()
   })
 
+  it('does not render the clear-search button when search is empty', () => {
+    render(<FilterBar filters={emptyFilters} sortBy="order" onFilterChange={vi.fn()} onSortChange={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+  })
+
+  it('renders the clear-search button when search is non-empty', () => {
+    render(
+      <FilterBar
+        filters={{ ...emptyFilters, search: 'Google' }}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Clear search' })).toBeInTheDocument()
+  })
+
+  it('clears only the search field when the clear-search button is clicked', async () => {
+    const onFilterChange = vi.fn()
+    render(
+      <FilterBar
+        filters={{ ...emptyFilters, search: 'Google', priority: ['High'] }}
+        sortBy="order"
+        onFilterChange={onFilterChange}
+        onSortChange={vi.fn()}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(onFilterChange).toHaveBeenCalledWith({
+      ...emptyFilters,
+      search: '',
+      priority: ['High'],
+    })
+  })
+
   it('calls onSortChange when the sort select changes', async () => {
     const onSortChange = vi.fn()
     render(<FilterBar filters={emptyFilters} sortBy="order" onFilterChange={vi.fn()} onSortChange={onSortChange} />)

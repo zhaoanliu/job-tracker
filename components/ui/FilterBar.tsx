@@ -70,13 +70,27 @@ export default function FilterBar({ filters, sortBy, onFilterChange, onSortChang
         <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
         </svg>
-        <input
-          type="text"
-          value={filters.search}
-          onChange={e => onFilterChange({ ...filters, search: e.target.value })}
-          placeholder="Search company…"
-          className="w-36 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        />
+        <div className="relative">
+          <input
+            type="text"
+            value={filters.search}
+            onChange={e => onFilterChange({ ...filters, search: e.target.value })}
+            placeholder="Search company…"
+            className={`w-36 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 ${filters.search ? 'pr-6' : ''}`}
+          />
+          {filters.search && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => onFilterChange({ ...filters, search: '' })}
+              className="absolute inset-y-0 right-1.5 flex items-center text-slate-400 hover:text-slate-600"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="h-4 w-px bg-slate-200 flex-shrink-0" />
