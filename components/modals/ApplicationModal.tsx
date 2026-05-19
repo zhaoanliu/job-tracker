@@ -120,7 +120,7 @@ export default function ApplicationModal({
     try {
       await onSave(form)
     } catch (err: unknown) {
-      console.error(err)
+      console.error('Application save failed:', err)
       setError(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(false)
@@ -133,7 +133,7 @@ export default function ApplicationModal({
     try {
       await onDelete()
     } catch (err: unknown) {
-      console.error(err)
+      console.error('Application delete failed:', err)
       setError(err instanceof Error ? err.message : 'Failed to delete')
       setDeleting(false)
       setConfirmDelete(false)
