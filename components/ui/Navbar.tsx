@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Application } from '@/lib/types'
+import { Application, CsvHistoryEntry, ImportRow } from '@/lib/types'
 import { downloadCsv, parseCsv } from '@/lib/csv'
 
 interface NavbarProps {
   userEmail: string
   applications: Application[]
-  onImport: (rows: Partial<Application>[]) => Promise<void>
+  onImport: (rows: ImportRow[]) => Promise<void>
   onNewApplication: () => void
 }
 
@@ -52,8 +52,25 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
     setFeatureDesc('')
   }
 
-  function handleExport() {
-    downloadCsv(applications)
+  async function handleExport() {
+    const ids = applications.map(a => a.id)
+    let historyMap: Map<string, CsvHistoryEntry[]> | undefined
+    if (ids.length > 0) {
+      const { data } = await supabase
+        .from('status_history')
+        .select('application_id, status, changed_at')
+        .in('application_id', ids)
+        .order('changed_at', { ascending: true })
+      if (data) {
+        historyMap = new Map()
+        for (const row of data) {
+          const arr = historyMap.get(row.application_id) ?? []
+          arr.push({ status: row.status, changed_at: row.changed_at })
+          historyMap.set(row.application_id, arr)
+        }
+      }
+    }
+    downloadCsv(applications, historyMap)
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -63,7 +80,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
     try {
       const text = await file.text()
       const rows = parseCsv(text)
-      await onImport(rows as Partial<Application>[])
+      await onImport(rows)
     } finally {
       setImporting(false)
       e.target.value = ''

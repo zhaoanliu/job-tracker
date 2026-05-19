@@ -1,6 +1,6 @@
-import { Application, ApplicationFormData } from './types'
+import { Application, ApplicationFormData, CsvHistoryEntry, ImportRow } from './types'
 
-const CSV_HEADERS = [
+const APP_HEADERS = [
   'company', 'role', 'status', 'type', 'priority', 'location', 'workmode',
   'date', 'link', 'source', 'referrer', 'notes', 'next_step', 'jd', 'order',
 ] as const
@@ -15,18 +15,28 @@ function escapeCsvValue(value: unknown): string {
   return str
 }
 
-export function exportToCsv(applications: Application[]): string {
+export function exportToCsv(
+  applications: Application[],
+  historyMap?: Map<string, CsvHistoryEntry[]>
+): string {
+  const headers = [...APP_HEADERS, 'status_history']
   const rows = [
-    CSV_HEADERS.join(','),
-    ...applications.map(app =>
-      CSV_HEADERS.map(h => escapeCsvValue(app[h])).join(',')
-    ),
+    headers.join(','),
+    ...applications.map(app => {
+      const appValues = APP_HEADERS.map(h => escapeCsvValue(app[h]))
+      const history = historyMap?.get(app.id) ?? []
+      const historyValue = escapeCsvValue(history.length ? JSON.stringify(history) : '')
+      return [...appValues, historyValue].join(',')
+    }),
   ]
   return rows.join('\n')
 }
 
-export function downloadCsv(applications: Application[]): void {
-  const csv = exportToCsv(applications)
+export function downloadCsv(
+  applications: Application[],
+  historyMap?: Map<string, CsvHistoryEntry[]>
+): void {
+  const csv = exportToCsv(applications, historyMap)
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -75,12 +85,12 @@ function parseCsvRows(text: string): string[][] {
   return rows
 }
 
-export function parseCsv(csvText: string): Partial<ApplicationFormData>[] {
+export function parseCsv(csvText: string): ImportRow[] {
   const rows = parseCsvRows(csvText.trim())
   if (rows.length < 2) return []
 
   const headers = rows[0].map(h => h.trim())
-  const results: Partial<ApplicationFormData>[] = []
+  const results: ImportRow[] = []
 
   for (let i = 1; i < rows.length; i++) {
     const values = rows[i]
@@ -90,6 +100,22 @@ export function parseCsv(csvText: string): Partial<ApplicationFormData>[] {
     })
 
     if (!obj.company) continue
+
+    let _statusHistory: CsvHistoryEntry[] | undefined
+    if (obj.status_history) {
+      try {
+        const parsed = JSON.parse(obj.status_history)
+        if (Array.isArray(parsed)) {
+          _statusHistory = parsed.filter(
+            (e): e is CsvHistoryEntry =>
+              typeof e?.status === 'string' && typeof e?.changed_at === 'string'
+          )
+          if (_statusHistory.length === 0) _statusHistory = undefined
+        }
+      } catch {
+        // ignore malformed JSON — backward compat
+      }
+    }
 
     results.push({
       company: obj.company,
@@ -107,6 +133,7 @@ export function parseCsv(csvText: string): Partial<ApplicationFormData>[] {
       next_step: obj.next_step || null,
       jd: obj.jd || null,
       order: obj.order ? parseInt(obj.order, 10) : 0,
+      _statusHistory,
     })
   }
 

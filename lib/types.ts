@@ -144,6 +144,13 @@ export interface StatusHistoryEntry {
   changed_at: string
 }
 
+export interface CsvHistoryEntry {
+  status: string
+  changed_at: string
+}
+
+export type ImportRow = Partial<ApplicationFormData> & { _statusHistory?: CsvHistoryEntry[] }
+
 export const PRIORITY_RANK: Record<ApplicationPriority, number> = {
   High: 0,
   Medium: 1,

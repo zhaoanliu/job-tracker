@@ -59,11 +59,11 @@ describe('Navbar', () => {
     expect(screen.getByText('Import')).toBeInTheDocument()
   })
 
-  it('calls downloadCsv with applications when Export is clicked', async () => {
+  it('calls downloadCsv with applications and a history map when Export is clicked', async () => {
     const apps = [{ id: '1', company: 'Acme' } as Application]
     render(<Navbar {...defaultProps} applications={apps} />)
     await userEvent.click(screen.getByText('Export'))
-    expect(downloadCsv).toHaveBeenCalledWith(apps)
+    await waitFor(() => expect(downloadCsv).toHaveBeenCalledWith(apps, expect.any(Map)))
   })
 
   it('renders Sign out button', () => {

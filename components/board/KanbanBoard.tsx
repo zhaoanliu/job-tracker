@@ -19,6 +19,7 @@ import {
   Application,
   ApplicationStatus,
   Filters,
+  ImportRow,
   STAGES,
   SortField,
 } from '@/lib/types'
@@ -184,10 +185,10 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
     setModalOpen(true)
   }, [])
 
-  async function recordStatusHistory(applicationId: string, userId: string, status: string) {
-    const { error } = await supabase
-      .from('status_history')
-      .insert({ application_id: applicationId, user_id: userId, status })
+  async function recordStatusHistory(applicationId: string, userId: string, status: string, changedAt?: string) {
+    const payload: Record<string, string> = { application_id: applicationId, user_id: userId, status }
+    if (changedAt) payload.changed_at = changedAt
+    const { error } = await supabase.from('status_history').insert(payload)
     if (error && error.code !== 'PGRST205') console.error('status_history insert failed:', error.message, error)
   }
 
@@ -259,16 +260,19 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
     setModalOpen(false)
   }
 
-  // Import: upsert rows parsed from CSV
-  async function handleImport(rows: Partial<Application>[]) {
+  // Import: insert rows parsed from CSV, preserving status_history timestamps when present
+  async function handleImport(rows: ImportRow[]) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return
 
-    const inserts = rows
-      .filter(r => r.company)
-      .map((r, i) => ({ ...r, user_id: user.id, order: applications.length + i }))
+    const validRows = rows.filter(r => r.company)
+    const inserts = validRows.map((r, i) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { _statusHistory: _, ...appFields } = r
+      return { ...appFields, user_id: user.id, order: applications.length + i }
+    })
 
     const { data: inserted, error } = await supabase
       .from('applications')
@@ -283,7 +287,16 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       const apps = inserted as Application[]
       apps.forEach(a => persistedStatus.current.set(a.id, a.status))
       setApplications(prev => [...prev, ...apps])
-      await Promise.all(apps.map(a => recordStatusHistory(a.id, user.id, a.status)))
+      // Supabase returns inserted rows in insertion order, so apps[i] matches validRows[i]
+      await Promise.all(apps.map((app, i) => {
+        const history = validRows[i]?._statusHistory
+        if (history?.length) {
+          return Promise.all(
+            history.map(e => recordStatusHistory(app.id, user.id, e.status, e.changed_at))
+          )
+        }
+        return recordStatusHistory(app.id, user.id, app.status)
+      }))
     }
   }
 
