@@ -67,6 +67,8 @@ e2e/
 
 **`console.error` → Sentry** — errors in catch blocks call `console.error(err)`. `captureConsoleIntegration` picks this up automatically. Never call `Sentry.captureException` directly in application code.
 
+**Transient browser-network errors are filtered from Sentry** — `Failed to fetch` / `NetworkError` / `Load failed` / `AbortError` are caused by offline state, ad blockers, page unloads, or upstream outages, not application bugs. They're listed in `ignoreErrors` in `instrumentation-client.ts` so they don't trigger the auto-fix bot. Do not remove entries from that list without a replacement plan — every removal is a recurring auto-fix noise source.
+
 **Supabase RLS** — every table has row-level security. The `user_id` column is always set from `supabase.auth.getUser()` on insert, never from client input.
 
 **dnd-kit column ordering** — `order` field is an integer per-column index. `handleDragOver` updates local state optimistically; `handleDragEnd` persists to DB.

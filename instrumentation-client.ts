@@ -14,5 +14,13 @@ Sentry.init({
       blockAllMedia: false,
     }),
   ],
+  ignoreErrors: [
+    'Failed to fetch',
+    'NetworkError when attempting to fetch resource',
+    'Load failed',
+    'The Internet connection appears to be offline',
+    'cancelled',
+    'AbortError',
+  ],
   enabled: process.env.NODE_ENV === 'production',
 })
