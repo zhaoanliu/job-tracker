@@ -376,18 +376,18 @@ export default function ApplicationModal({
                   </div>
                 </div>
                 {jdPreview ? (
-                  <div
-                    className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
-                    {...(form.jd && /<[a-z][\s\S]*>/i.test(form.jd)
-                      ? { dangerouslySetInnerHTML: { __html: form.jd } }
-                      : {})}
-                  >
-                    {!(form.jd && /<[a-z][\s\S]*>/i.test(form.jd)) && (
+                  form.jd && /<[a-z][\s\S]*>/i.test(form.jd) ? (
+                    <div
+                      className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+                      dangerouslySetInnerHTML={{ __html: form.jd }}
+                    />
+                  ) : (
+                    <div className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
                       <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 m-0">
                         {form.jd || <span className="text-slate-400 italic">Nothing to preview.</span>}
                       </pre>
-                    )}
-                  </div>
+                    </div>
+                  )
                 ) : (
                   <textarea
                     rows={18}
