@@ -93,15 +93,13 @@ Both values are in your Supabase project under **Settings → API**.
 
 ### 3. Apply the database migration
 
-**Option A — Supabase CLI**
 ```bash
 npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push
 ```
 
-**Option B — SQL editor**
-Open `supabase/migrations/20240101000000_initial.sql`, paste it into the Supabase **SQL Editor**, and run it.
+In production, migrations are applied automatically by `migrate.yml` on every push to `main` that changes files under `supabase/migrations/` — no manual step needed after the initial setup.
 
 ### 4. Run the dev server
 
@@ -152,6 +150,8 @@ Required GitHub Actions secrets for `e2e.yml`:
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role key |
 | `TESTMAIL_API_KEY` | Testmail.app dashboard |
 | `TESTMAIL_NAMESPACE` | Testmail.app dashboard |
+| `SUPABASE_ACCESS_TOKEN` | supabase.com → Account → Access Tokens (used by `migrate.yml`) |
+| `SUPABASE_PROJECT_REF` | Your project ref from the Supabase dashboard URL (used by `migrate.yml`) |
 
 ### E2E tests — board + CSV (async, never blocks PRs)
 
