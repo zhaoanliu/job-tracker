@@ -40,4 +40,18 @@
   .dragging {
     @apply opacity-40;
   }
+
+  /* Job Description preview — styles rendered HTML/plain text content */
+  .jd-preview h1, .jd-preview h2, .jd-preview h3, .jd-preview h4 {
+    @apply font-semibold text-slate-800 mt-3 mb-1;
+  }
+  .jd-preview h1 { @apply text-base; }
+  .jd-preview h2 { @apply text-sm; }
+  .jd-preview h3, .jd-preview h4 { @apply text-xs uppercase tracking-wide; }
+  .jd-preview p { @apply my-1.5; }
+  .jd-preview ul { @apply list-disc ml-4 my-1; }
+  .jd-preview ol { @apply list-decimal ml-4 my-1; }
+  .jd-preview li { @apply my-0.5; }
+  .jd-preview strong, .jd-preview b { @apply font-semibold; }
+  .jd-preview a { @apply text-indigo-600 underline; }
 }
