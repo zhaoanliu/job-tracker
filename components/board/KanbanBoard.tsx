@@ -135,23 +135,40 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       )
       results.forEach(({ error }) => { if (error) console.error('Reorder update failed:', error) })
     } else {
-      // Cross-column move: state was already updated optimistically in handleDragOver.
-      // Just persist the new status and order to the DB.
-      const updatedCard = applications.find(a => a.id === active.id)
-      if (!updatedCard) return
+      // Cross-column: set final state explicitly from prev (always fresh) so we
+      // don't depend on handleDragOver's optimistic update having been committed.
+      let finalOrder = 0
+      setApplications(prev => {
+        const card = prev.find(a => a.id === active.id)
+        if (!card) return prev
+        const filtered = prev.filter(a => a.id !== active.id)
+        const targetCards = filtered.filter(a => a.status === targetStatus)
+        const overIdx = !overIsColumn ? targetCards.findIndex(a => a.id === over.id) : targetCards.length
+        finalOrder = overIdx >= 0 ? overIdx : targetCards.length
+        const newCard = { ...card, status: targetStatus, order: finalOrder }
+        return [
+          ...filtered.filter(a => a.status !== targetStatus),
+          ...targetCards.slice(0, finalOrder),
+          newCard,
+          ...targetCards.slice(finalOrder),
+        ].map((a, _, arr) => {
+          const colCards = arr.filter(x => x.status === a.status)
+          return { ...a, order: colCards.indexOf(a) }
+        })
+      })
 
       const { error } = await supabase
         .from('applications')
         .update({
           status: targetStatus,
-          order: updatedCard.order,
+          order: finalOrder,
           updated_at: new Date().toISOString(),
         })
         .eq('id', active.id)
       if (error) console.error('Cross-column move update failed:', error)
       else {
         const { data: { user } } = await supabase.auth.getUser()
-        if (user) recordStatusHistory(updatedCard.id, user.id, targetStatus)
+        if (user) recordStatusHistory(String(active.id), user.id, targetStatus)
       }
     }
   }
