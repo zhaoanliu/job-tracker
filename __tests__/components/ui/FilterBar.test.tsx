@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import FilterBar from '@/components/ui/FilterBar'
 import { Filters } from '@/lib/types'
 
-const emptyFilters: Filters = { priority: [], type: [], workmode: [], location: [] }
+const emptyFilters: Filters = { priority: [], type: [], workmode: [], location: [], search: '' }
 
 describe('FilterBar', () => {
   it('renders all filter dimension labels', () => {
@@ -85,6 +85,30 @@ describe('FilterBar', () => {
     )
     await userEvent.click(screen.getByText('Clear filters'))
     expect(onFilterChange).toHaveBeenCalledWith(emptyFilters)
+  })
+
+  it('renders the search input', () => {
+    render(<FilterBar filters={emptyFilters} sortBy="order" onFilterChange={vi.fn()} onSortChange={vi.fn()} />)
+    expect(screen.getByPlaceholderText('Search company…')).toBeInTheDocument()
+  })
+
+  it('calls onFilterChange with updated search when typing', async () => {
+    const onFilterChange = vi.fn()
+    render(<FilterBar filters={emptyFilters} sortBy="order" onFilterChange={onFilterChange} onSortChange={vi.fn()} />)
+    await userEvent.type(screen.getByPlaceholderText('Search company…'), 'G')
+    expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ search: 'G' }))
+  })
+
+  it('shows "Clear filters" when search is non-empty', () => {
+    render(
+      <FilterBar
+        filters={{ ...emptyFilters, search: 'Google' }}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Clear filters')).toBeInTheDocument()
   })
 
   it('calls onSortChange when the sort select changes', async () => {

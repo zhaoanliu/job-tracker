@@ -41,7 +41,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
 
   const [applications, setApplications] = useState<Application[]>(initialApplications)
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
-  const [filters, setFilters] = useState<Filters>({ priority: [], type: [], workmode: [], location: [] })
+  const [filters, setFilters] = useState<Filters>({ priority: [], type: [], workmode: [], location: [], search: '' })
   const [sortBy, setSortBy] = useState<SortField>('order')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingApp, setEditingApp] = useState<Application | null>(null)
