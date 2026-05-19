@@ -153,7 +153,7 @@ When a Sentry alert fires:
    - Fetches the full Sentry event (stack trace, error type/message, culprit) from the Sentry API and injects it into Claude's prompt — without this, Claude only sees the vague GitHub issue title and exhausts its turn limit without finding the bug
    - Skips `replay_hydration_error` issues (Sentry `issueType`) — these have no stack trace and are caused by browser extensions, not application code; the workflow comments on and closes the GitHub issue automatically
    - Runs `claude --dangerously-skip-permissions` to fix the bug
-   - **Always creates a PR** — no direct-to-main pushes; every fix is verified by CI (`lint` + `e2e-auth`) before reaching production
+   - **Always creates a PR** — no direct-to-main pushes; every fix is verified by CI (`lint` + `e2e-auth` + `e2e-local`) before reaching production
    - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type fix): opens a PR and enables auto-merge (`gh pr merge --auto --squash`) — merges automatically once all required CI checks pass
    - **High-risk fix**: opens a PR for review; no auto-merge — a human must approve and merge
    - In both cases the PR body contains "Closes #N", so merging closes the GitHub issue and triggers `resolve-sentry-on-close` to resolve the Sentry issue — no manual Sentry API call needed
@@ -166,7 +166,7 @@ Required secrets:
 - **GitHub repo settings** (required for auto-merge to work):
   - Actions → General → enable "Allow GitHub Actions to create and approve pull requests"
   - General → enable "Allow auto-merge"
-  - Branches → Add branch protection rule for `main` → enable "Require status checks to pass before merging" → add required checks: `lint` (from `lint.yml`) and `e2e-auth` (from `e2e.yml`). Do NOT add `e2e-local` — it only runs on push to main and nightly cron, not on PRs, so requiring it would permanently block auto-merge.
+  - Branches → Add branch protection rule for `main` → enable "Require status checks to pass before merging" → add required checks: `lint` (from `lint.yml`), `e2e-auth` (from `e2e.yml`), and `e2e-local` (from `e2e-local.yml`). All three run on every PR and complete in under 5 minutes.
 
 **All Vercel deploys are gated on CI passing.** `vercel.json` sets `ignoreCommand: exit 0` to disable Vercel's auto-deploy entirely. Note: Vercel's exit code semantics are the opposite of Unix convention — `exit 0` means **skip the build**, `exit 1` means **proceed**. `lint.yml` triggers `vercel deploy --prod` as its final step, only on success + push to main. No preview deploys — not needed for a single-reviewer project. `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` are hardcoded from `.vercel/project.json` — no additional secrets needed for those.
 
@@ -189,8 +189,8 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 **`e2e-local.yml`** — runs `e2e/local/` (board + CSV tests) against a real local Supabase instance:
 - Starts local Supabase via `supabase/setup-cli` + `supabase start`
 - Uses well-known local dev keys (hardcoded in workflow — they are public Supabase demo values)
-- Triggers: nightly cron (06:00 UTC), `workflow_dispatch`, push to main, and `pull_request` — all path-filtered to: `components/board/**`, `components/modals/**`, `components/ui/**`, `app/dashboard/**`, `lib/utils.ts`, `supabase/migrations/**`, `e2e/local/**`, `e2e/helpers.ts`
-- **Not a required check for branch protection** — `supabase start` + full board/CSV suite runs 15–30 min, too slow to block auto-merge. PRs get early feedback without being gated; push-to-main is the final catch-all.
+- Triggers: nightly cron (06:00 UTC), `workflow_dispatch`, `pull_request` (all PRs), and push to main (path-filtered to board/modal/CSV/migration paths)
+- Runs in under 5 minutes — fast enough to be a required branch protection check alongside `lint` and `e2e-auth`
 
 **`lint.yml`** — runs on every PR and push to main:
 - `npm run lint` (ESLint) — requires `.eslintrc.json` to exist; without it `next lint` runs an interactive setup wizard and fails CI
@@ -224,7 +224,7 @@ Add it if the workflow runs tests or builds that Claude Code can reasonably fix 
 - Runs `claude --dangerously-skip-permissions` to analyze the logs and fix the root cause
 - **Feature branch**: always pushes the fix directly to the failing branch so CI re-runs on the same PR
 - **Main branch**: always opens a PR — never pushes directly to main
-  - **Low-risk** (≤2 files, ≤20 lines, null guard / type / lint fix): enables auto-merge (`gh pr merge --auto --squash`) — merges once `lint` and `e2e-auth` pass
+  - **Low-risk** (≤2 files, ≤20 lines, null guard / type / lint fix): enables auto-merge (`gh pr merge --auto --squash`) — merges once `lint`, `e2e-auth`, and `e2e-local` pass
   - **High-risk**: opens a PR only; a human must review and merge
 - No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` (same as `auto-fix.yml`)
 - Concurrency group is per-branch (`ci-auto-fix-<branch>`) so simultaneous lint and E2E failures on the same branch queue rather than race; the second run checks out the branch AFTER the first run's push, so it sees the latest code
