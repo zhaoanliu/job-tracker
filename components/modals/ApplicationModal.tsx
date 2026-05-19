@@ -74,7 +74,6 @@ export default function ApplicationModal({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [section, setSection] = useState<Section>('details')
-  const [jdPreview, setJdPreview] = useState(false)
 
   const firstInputRef = useRef<HTMLInputElement>(null)
 
@@ -358,45 +357,17 @@ export default function ApplicationModal({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className={labelClass}>Job Description</label>
-                  <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] font-medium">
-                    <button
-                      type="button"
-                      onClick={() => setJdPreview(false)}
-                      className={`px-2.5 py-0.5 transition-colors ${!jdPreview ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setJdPreview(true)}
-                      className={`px-2.5 py-0.5 transition-colors ${jdPreview ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-                    >
-                      Preview
-                    </button>
-                  </div>
+                  <span className="text-[10px] text-slate-400">Accepts plain text or HTML</span>
                 </div>
-                {jdPreview ? (
-                  <div
-                    className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
-                    {...(form.jd && /<[a-z][\s\S]*>/i.test(form.jd)
-                      ? { dangerouslySetInnerHTML: { __html: form.jd } }
-                      : {})}
-                  >
-                    {!(form.jd && /<[a-z][\s\S]*>/i.test(form.jd)) && (
-                      <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 m-0">
-                        {form.jd || <span className="text-slate-400 italic">Nothing to preview.</span>}
-                      </pre>
-                    )}
-                  </div>
-                ) : (
-                  <textarea
-                    rows={18}
-                    value={form.jd ?? ''}
-                    onChange={e => set('jd', e.target.value || null)}
-                    placeholder="Paste the full job description here…"
-                    className={`${inputClass} resize-none font-mono text-xs`}
-                  />
-                )}
+                <textarea
+                  rows={18}
+                  value={form.jd ?? ''}
+                  onChange={e => set('jd', e.target.value || null)}
+                  placeholder="Paste the full job description here…"
+                  className={`${inputClass} resize-none font-mono text-xs`}
+                />
+                {/* TODO (Phase 2): Replace textarea with Tiptap rich-text editor
+                    and add Claude API gap-analysis button that compares JD to stored resume */}
               </div>
             )}
           </div>
