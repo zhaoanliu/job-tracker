@@ -17,6 +17,7 @@ jobs:
         run: |
           PROJECT_REF=$(echo "$SUPABASE_URL" | sed 's|https://||;s|\.supabase\.co.*||')
           supabase link --project-ref "$PROJECT_REF" --password ""
+          supabase migration repair --status reverted 20240102000000
           supabase db push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
