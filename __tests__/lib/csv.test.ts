@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { exportToCsv, parseCsv } from '@/lib/csv'
-import { Application } from '@/lib/types'
+import { Application, CsvHistoryEntry } from '@/lib/types'
 
 function makeApp(overrides: Partial<Application> = {}): Application {
   return {
@@ -39,6 +39,11 @@ describe('exportToCsv', () => {
     expect(header).toContain('priority')
   })
 
+  it('includes status_history column in header', () => {
+    const csv = exportToCsv([makeApp()])
+    expect(csv.split('\n')[0]).toContain('status_history')
+  })
+
   it('includes one data row per application', () => {
     const csv = exportToCsv([makeApp(), makeApp({ company: 'Beta Corp' })])
     const lines = csv.trim().split('\n')
@@ -71,12 +76,37 @@ describe('exportToCsv', () => {
     const lines = csv.trim().split('\n')
     expect(lines).toHaveLength(1)
   })
+
+  it('serializes history entries as JSON in status_history column', () => {
+    const history: CsvHistoryEntry[] = [
+      { status: 'applied', changed_at: '2024-01-01T00:00:00Z' },
+      { status: 'interview', changed_at: '2024-01-15T00:00:00Z' },
+    ]
+    const historyMap = new Map([['id-1', history]])
+    const csv = exportToCsv([makeApp()], historyMap)
+    // JSON is CSV-quoted: internal double-quotes are doubled
+    const escapedJson = JSON.stringify(history).replace(/"/g, '""')
+    expect(csv).toContain(`"${escapedJson}"`)
+  })
+
+  it('outputs empty status_history for apps not in historyMap', () => {
+    const csv = exportToCsv([makeApp()], new Map())
+    const dataRow = csv.split('\n')[1]
+    expect(dataRow.endsWith(',')).toBe(true)
+  })
+
+  it('outputs empty status_history when no historyMap provided', () => {
+    const csv = exportToCsv([makeApp()])
+    const dataRow = csv.split('\n')[1]
+    expect(dataRow.endsWith(',')).toBe(true)
+  })
 })
 
 // ─── parseCsv ────────────────────────────────────────────────────────────────
 
 describe('parseCsv', () => {
   const HEADER = 'company,role,status,type,priority,location,workmode,date,link,source,referrer,notes,next_step,jd,order'
+  const HEADER_WITH_HISTORY = HEADER + ',status_history'
 
   it('parses a standard row correctly', () => {
     const csv = `${HEADER}\nAcme,Engineer,applied,Principal Engineer,High,Seattle WA,Hybrid,2026-05-01,https://example.com,LinkedIn,,,,,0`
@@ -137,6 +167,32 @@ describe('parseCsv', () => {
     const csv = `${HEADER}\n,Eng,applied,,,,,,,LinkedIn,,,,,0`
     expect(parseCsv(csv)).toHaveLength(0)
   })
+
+  it('parses status_history JSON into _statusHistory when column present', () => {
+    const history: CsvHistoryEntry[] = [{ status: 'applied', changed_at: '2024-01-01T00:00:00Z' }]
+    const escaped = JSON.stringify(history).replace(/"/g, '""')
+    const csv = `${HEADER_WITH_HISTORY}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0,"${escaped}"`
+    const result = parseCsv(csv)
+    expect(result[0]._statusHistory).toEqual(history)
+  })
+
+  it('returns _statusHistory as undefined when status_history column is absent (old CSV backward compat)', () => {
+    const csv = `${HEADER}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0`
+    const result = parseCsv(csv)
+    expect(result[0]._statusHistory).toBeUndefined()
+  })
+
+  it('returns _statusHistory as undefined when status_history field is empty', () => {
+    const csv = `${HEADER_WITH_HISTORY}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0,`
+    const result = parseCsv(csv)
+    expect(result[0]._statusHistory).toBeUndefined()
+  })
+
+  it('returns _statusHistory as undefined when status_history JSON is malformed', () => {
+    const csv = `${HEADER_WITH_HISTORY}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0,not-valid-json`
+    const result = parseCsv(csv)
+    expect(result[0]._statusHistory).toBeUndefined()
+  })
 })
 
 // ─── Round-trip ───────────────────────────────────────────────────────────────
@@ -179,5 +235,27 @@ describe('CSV round-trip', () => {
 
     expect(parsed[0].company).toBe('Acme, Inc.')
     expect(parsed[0].notes).toBe('Recruiter said "great fit"\nFollow up Friday')
+  })
+
+  it('preserves status_history through export → parse round-trip', () => {
+    const history: CsvHistoryEntry[] = [
+      { status: 'future', changed_at: '2024-01-01T00:00:00Z' },
+      { status: 'applied', changed_at: '2024-01-10T00:00:00Z' },
+    ]
+    const historyMap = new Map([['id-1', history]])
+    const csv = exportToCsv([makeApp()], historyMap)
+    const parsed = parseCsv(csv)
+    expect(parsed[0]._statusHistory).toEqual(history)
+  })
+
+  it('gives undefined _statusHistory when importing old CSV without status_history column', () => {
+    const app = makeApp()
+    const csv = exportToCsv([app])
+    // Strip the last (status_history) column to simulate a pre-history CSV
+    const lines = csv.split('\n')
+    const oldHeader = lines[0].split(',').slice(0, -1).join(',')
+    const oldData = lines[1].split(',').slice(0, -1).join(',')
+    const parsed = parseCsv([oldHeader, oldData].join('\n'))
+    expect(parsed[0]._statusHistory).toBeUndefined()
   })
 })
