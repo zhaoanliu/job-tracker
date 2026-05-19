@@ -183,3 +183,28 @@ describe('ApplicationModal — tab navigation', () => {
     expect(screen.getByPlaceholderText(/paste the full job description/i)).toBeInTheDocument()
   })
 })
+
+describe('ApplicationModal — JD preview', () => {
+  it('renders HTML job description via dangerouslySetInnerHTML without React errors', async () => {
+    const appWithHtml: Application = { ...existingApp, jd: '<p>Hello <strong>world</strong></p>' }
+    render(<ApplicationModal {...defaultProps} application={appWithHtml} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Job Description' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(document.querySelector('.jd-preview')?.innerHTML).toContain('<strong>world</strong>')
+  })
+
+  it('renders plain-text job description in a <pre> block', async () => {
+    const appWithText: Application = { ...existingApp, jd: 'Plain text JD\nwith newlines' }
+    render(<ApplicationModal {...defaultProps} application={appWithText} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Job Description' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(screen.getByText(/Plain text JD/)).toBeInTheDocument()
+  })
+
+  it('shows "Nothing to preview" when JD is empty', async () => {
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Job Description' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(screen.getByText('Nothing to preview.')).toBeInTheDocument()
+  })
+})
