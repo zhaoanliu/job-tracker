@@ -41,6 +41,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
 
   const [applications, setApplications] = useState<Application[]>(initialApplications)
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
+  const [dragStartStatus, setDragStartStatus] = useState<ApplicationStatus | null>(null)
   const [filters, setFilters] = useState<Filters>({ priority: [], type: [], workmode: [], location: [], search: '' })
   const [sortBy, setSortBy] = useState<SortField>('order')
   const [modalOpen, setModalOpen] = useState(false)
@@ -62,6 +63,8 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
 
   function handleDragStart({ active }: DragStartEvent) {
     setActiveId(active.id)
+    const card = applications.find(a => a.id === active.id)
+    setDragStartStatus(card?.status ?? null)
   }
 
   // Live preview: when dragging a card over a different column, move it there
@@ -107,7 +110,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
     const targetStatus = resolveTargetStatus(over.id)
     if (!targetStatus) return
 
-    if (card.status === targetStatus && !overIsColumn) {
+    if (dragStartStatus === targetStatus && !overIsColumn) {
       // Same-column reorder
       const colCards = applications.filter(a => a.status === targetStatus)
       const oldIdx = colCards.findIndex(a => a.id === active.id)
