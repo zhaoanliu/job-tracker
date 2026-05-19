@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import { filterHydrationEvent } from './lib/sentry-filters'
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart
 
@@ -22,5 +23,6 @@ Sentry.init({
     'cancelled',
     'AbortError',
   ],
+  beforeSend: filterHydrationEvent,
   enabled: process.env.NODE_ENV === 'production',
 })
