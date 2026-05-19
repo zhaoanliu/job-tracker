@@ -117,7 +117,11 @@ export async function POST(req: NextRequest) {
   })
 
   if (error) {
-    console.error('Resend email failed:', error.message, error)
+    if (error.message?.includes('domain is not verified')) {
+      console.warn('Resend email skipped: domain not verified -', error.message)
+    } else {
+      console.error('Resend email failed:', error.message, error)
+    }
     return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
   }
 

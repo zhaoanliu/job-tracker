@@ -153,8 +153,29 @@ describe('POST /api/invite — email sending', () => {
   it('returns 500 when Resend returns an error', async () => {
     mockUser()
     mockSend.mockResolvedValue({ error: { message: 'Invalid API key', name: 'validation_error' } })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const res = await POST(makeReq({ to: 'friend@example.com' }))
     expect(res.status).toBe(500)
+    expect(errSpy).toHaveBeenCalled()
+    errSpy.mockRestore()
+  })
+
+  it('logs domain-not-verified errors as warnings, not errors', async () => {
+    mockUser()
+    mockSend.mockResolvedValue({
+      error: {
+        message: 'The applytrackr.app domain is not verified. Please, add and verify your domain on https://resend.com/domains',
+        name: 'validation_error',
+      },
+    })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const res = await POST(makeReq({ to: 'friend@example.com' }))
+    expect(res.status).toBe(500)
+    expect(errSpy).not.toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalled()
+    errSpy.mockRestore()
+    warnSpy.mockRestore()
   })
 
   it('falls back to noreply@applytrackr.app when RESEND_FROM_EMAIL is unset', async () => {
