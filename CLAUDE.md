@@ -217,6 +217,15 @@ Add it if the workflow runs tests or builds that Claude Code can reasonably fix 
 - The high-risk fix branch is named `fix/ci-issue-<N>-<timestamp>` so repeated runs never collide on the same branch name
 - **No infinite-fix loop** — two layers of protection: (1) GitHub blocks `on: push` / `on: pull_request` triggers for any push made with `GITHUB_TOKEN`, so lint.yml / e2e.yml never run after a bot push, and workflow_run never fires; (2) the job `if:` condition explicitly skips runs where `actor.login == 'github-actions[bot]'`, so the protection holds even if the push token is ever changed to a PAT
 
+**`feature-implement.yml`** — implements approved user feature requests; triggers on `issues: assigned` when the assignee is the repo owner AND the issue has the `user-requested` label:
+- Comments on the issue immediately so the submitter sees it's in progress
+- Runs `claude --dangerously-skip-permissions` with the issue title and body as the prompt
+- Always opens a PR (never pushes to main) — feature work always needs review
+- Branch name is `feat/issue-<N>-<timestamp>` to avoid collisions on re-runs
+- If Claude makes no changes, comments on the issue explaining that the request may need more detail
+- **Approval flow**: user submits via the in-app Feedback form → GitHub issue created with `user-requested` label → owner assigns the issue to themselves → this workflow runs
+- No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`
+
 **`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `repository_dispatch` with `event_type: cd-failure` (fired by `cd-filter.yml`, which filters `deployment_status` events to Production failures only; or by `/api/vercel-webhook` for Vercel Pro users):
 - Checks out the failing commit, runs `npm run build` + `npx tsc --noEmit` locally to reproduce the error
 - **Not locally reproducible** (build succeeds locally): opens an issue and comments that it is likely a Vercel environment variable or configuration problem — no code fix is attempted

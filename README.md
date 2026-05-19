@@ -17,6 +17,7 @@ Track every application through a nine-stage pipeline — from passive interest 
 - **Filters & sort** — filter by priority, role type, work mode, and location simultaneously; sort by date, company, priority, or manual order
 - **Stats bar** — at-a-glance totals: Total / Active / Interviewing / Offers
 - **CSV export & import** — backup your data or bulk-import from a spreadsheet
+- **Feature requests** — submit requests in-app via the Feedback button; owner approves by self-assigning the issue, triggering Claude Code to implement and open a PR
 - **Auth** — email + password or magic link via Supabase Auth
 - **Row Level Security** — every DB query is scoped to the authenticated user, enforced at the Postgres layer
 
@@ -218,6 +219,12 @@ The app has two auto-healing workflows powered by Claude Code:
 5. **Feature branch**: pushes fix directly to the failing branch so the PR is updated
 6. **Main branch — low-risk**: pushes directly to `main`; **high-risk**: opens a PR for review
 
+**User feature requests → automatic implementation** (`feature-implement.yml`):
+1. User clicks **Feedback** in the navbar and submits a request → GitHub issue created with `user-requested` label (auto-fix bot ignores these)
+2. Owner reviews the issue and clicks **Assign yourself** in the GitHub sidebar
+3. `feature-implement.yml` fires: posts a "starting" comment, runs Claude Code to implement the feature, opens a PR for review — never pushes directly to `main`
+4. If Claude makes no changes, a comment is left explaining that the request may need more detail
+
 **CD failures → Vercel production build errors** (`cd-auto-fix.yml`):
 1. Vercel reports a failed production deployment → GitHub fires a `deployment_status` event
 2. `cd-auto-fix.yml` checks out the failing commit and runs `npm run build` + `npx tsc --noEmit` locally
@@ -302,7 +309,8 @@ See `TODO` comments in:
 │   ├── auth/callback/        # Exchanges Supabase PKCE code for session (magic link / signup)
 │   ├── login/page.tsx        # Auth page (email/password + magic link)
 │   ├── api/
-│   │   └── sentry-webhook/   # Validates HMAC, fires repository_dispatch to GitHub
+│   │   ├── sentry-webhook/   # Validates HMAC, fires repository_dispatch to GitHub
+│   │   └── feature-request/  # Authenticated route: creates GitHub issue with user-requested label
 │   └── dashboard/
 │       ├── layout.tsx
 │       └── page.tsx          # Server Component: fetches initial data, passes to KanbanBoard
@@ -317,7 +325,7 @@ See `TODO` comments in:
 │   │   └── ApplicationModal.tsx  # Add/edit form (tabbed: Details, Progress, JD)
 │   └── ui/
 │       ├── Badge.tsx         # Priority and type badges
-│       ├── Navbar.tsx        # Top nav: add, export, import, sign-out
+│       ├── Navbar.tsx        # Top nav: add, export, import, feedback, sign-out
 │       ├── StatsBar.tsx      # Total / Active / Interviewing / Offers
 │       └── FilterBar.tsx     # Multi-chip filters + sort selector
 ├── lib/
@@ -335,12 +343,13 @@ See `TODO` comments in:
 │   ├── helpers.ts            # Shared test utilities (env-var-driven, local Supabase defaults)
 │   └── local/                # Board + CSV tests — require supabase start, async cron only
 ├── .github/workflows/
-│   ├── auto-fix.yml          # Auto-fix Sentry bugs with Claude Code
-│   ├── ci-auto-fix.yml       # Auto-fix CI failures (lint / E2E) with Claude Code
-│   ├── cd-auto-fix.yml       # Auto-fix Vercel production build failures with Claude Code
-│   ├── e2e.yml               # Auth E2E on every PR/push (no local Supabase)
-│   ├── e2e-local.yml         # Board + CSV E2E — nightly + path-triggered (supabase start)
-│   └── lint.yml              # ESLint + tsc + actionlint on every PR
+│   ├── auto-fix.yml              # Auto-fix Sentry bugs with Claude Code
+│   ├── ci-auto-fix.yml           # Auto-fix CI failures (lint / E2E) with Claude Code
+│   ├── cd-auto-fix.yml           # Auto-fix Vercel production build failures with Claude Code
+│   ├── feature-implement.yml     # Implement approved feature requests on self-assign
+│   ├── e2e.yml                   # Auth E2E on every PR/push (no local Supabase)
+│   ├── e2e-local.yml             # Board + CSV E2E — nightly + path-triggered (supabase start)
+│   └── lint.yml                  # ESLint + tsc + actionlint on every PR
 ├── supabase/
 │   └── migrations/
 │       └── 20240101000000_initial.sql
