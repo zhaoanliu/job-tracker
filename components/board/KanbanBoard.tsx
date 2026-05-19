@@ -279,7 +279,12 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       console.error('CSV import failed:', error)
       return
     }
-    if (inserted) setApplications(prev => [...prev, ...(inserted as Application[])])
+    if (inserted) {
+      const apps = inserted as Application[]
+      apps.forEach(a => persistedStatus.current.set(a.id, a.status))
+      setApplications(prev => [...prev, ...apps])
+      await Promise.all(apps.map(a => recordStatusHistory(a.id, user.id, a.status)))
+    }
   }
 
   return (
