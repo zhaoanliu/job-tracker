@@ -107,11 +107,11 @@ describe('POST /api/invite — email sending', () => {
     )
   })
 
-  it('includes sender email in the subject', async () => {
-    mockUser('alice@example.com')
+  it('uses a fixed personal subject line', async () => {
+    mockUser()
     await POST(makeReq({ to: 'friend@example.com' }))
     const args = mockSend.mock.calls[0][0]
-    expect(args.subject).toContain('alice@example.com')
+    expect(args.subject).toContain('Zhaoan')
   })
 
   it('uses RESEND_FROM_EMAIL as the from address', async () => {
@@ -126,6 +126,20 @@ describe('POST /api/invite — email sending', () => {
     await POST(makeReq({ to: 'friend@example.com', message: 'Hey check this out!' }))
     const args = mockSend.mock.calls[0][0]
     expect(args.html).toContain('Hey check this out!')
+  })
+
+  it('uses name in greeting when provided', async () => {
+    mockUser()
+    await POST(makeReq({ to: 'friend@example.com', name: 'Alex' }))
+    const args = mockSend.mock.calls[0][0]
+    expect(args.html).toContain('Hey Alex,')
+  })
+
+  it('falls back to generic greeting when name is omitted', async () => {
+    mockUser()
+    await POST(makeReq({ to: 'friend@example.com' }))
+    const args = mockSend.mock.calls[0][0]
+    expect(args.html).toContain('Hey,')
   })
 
   it('returns ok: true on success', async () => {

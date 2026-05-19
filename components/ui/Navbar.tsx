@@ -24,6 +24,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
 
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
   const [inviteMessage, setInviteMessage] = useState('')
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
 
@@ -64,7 +65,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
       const res = await fetch('/api/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: inviteEmail, message: inviteMessage }),
+        body: JSON.stringify({ to: inviteEmail, name: inviteName, message: inviteMessage }),
       })
       if (!res.ok) throw new Error('Failed')
       setInviteStatus('success')
@@ -77,6 +78,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
     setInviteOpen(false)
     setInviteStatus('idle')
     setInviteEmail('')
+    setInviteName('')
     setInviteMessage('')
   }
 
@@ -226,6 +228,20 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
                   onChange={e => setInviteEmail(e.target.value)}
                   placeholder="friend@example.com"
                   required
+                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="invite-name">
+                  Name <span className="text-slate-400">(optional)</span>
+                </label>
+                <input
+                  id="invite-name"
+                  type="text"
+                  value={inviteName}
+                  onChange={e => setInviteName(e.target.value)}
+                  placeholder="Alex"
+                  maxLength={100}
                   className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>

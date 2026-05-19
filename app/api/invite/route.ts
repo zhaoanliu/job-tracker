@@ -4,7 +4,8 @@ import { Resend } from 'resend'
 
 const APP_URL = 'https://job-tracker-phi-tan.vercel.app'
 
-function buildEmailHtml(senderEmail: string, message?: string) {
+function buildEmailHtml(senderEmail: string, name?: string, message?: string) {
+  const greeting = name?.trim() ? `Hey ${escapeHtml(name.trim())},` : 'Hey,'
   const personalNote = message?.trim()
     ? `<p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;">${personalNote_escape(message.trim())}</p>`
     : ''
@@ -32,11 +33,19 @@ function buildEmailHtml(senderEmail: string, message?: string) {
         <!-- Body -->
         <tr>
           <td style="background:white;padding:32px;border-radius:0 0 12px 12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-            <h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#0f172a;">You&rsquo;ve been invited!</h1>
-            <p style="margin:0 0 20px;font-size:13px;color:#64748b;">${escapeHtml(senderEmail)} wants you to try Job Tracker.</p>
+            <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#0f172a;">${greeting}</h1>
+            <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;">
+              I built something I think you&rsquo;d find useful. My name is <a href="https://www.linkedin.com/in/zhaoan-liu-a7017928/" style="color:#4f46e5;text-decoration:none;font-weight:600;">Zhaoan Liu</a>. While I was job hunting, I started using AI to help build tools to make the process less painful — and <strong>Job Tracker</strong> is one of them.
+            </p>
+            <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;">
+              It&rsquo;s a personal kanban board for managing job applications — track where you applied, what stage you&rsquo;re at, and never lose sight of an opportunity. Simple, fast, and free to use.
+            </p>
+            <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;">
+              As a software engineer with a background in security, privacy is something I take seriously. The app requires sign-in, and your data is stored in an encrypted database with row-level security — only you can access your own applications, nobody else.
+            </p>
             ${personalNote}
             <p style="margin:0 0 24px;color:#374151;font-size:14px;line-height:1.6;">
-              Job Tracker is a personal kanban board for managing job applications — track where you applied, what stage you&rsquo;re at, and never lose track of an opportunity.
+              I&rsquo;d love for you to give it a try. If you run into anything or have ideas, hit the <strong>Feedback</strong> button inside the app — I read every submission.
             </p>
             <table cellpadding="0" cellspacing="0">
               <tr>
@@ -82,6 +91,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const to = (body.to ?? '').trim().toLowerCase()
+  const name = (body.name ?? '').trim().slice(0, 100)
   const message = (body.message ?? '').trim().slice(0, 500)
 
   if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
@@ -102,8 +112,8 @@ export async function POST(req: NextRequest) {
   const { error } = await resend.emails.send({
     from: `Job Tracker <${fromEmail}>`,
     to,
-    subject: `${senderEmail} invited you to Job Tracker`,
-    html: buildEmailHtml(senderEmail, message),
+    subject: `Zhaoan built a job tracker and wants you to try it`,
+    html: buildEmailHtml(senderEmail, name, message),
   })
 
   if (error) {
