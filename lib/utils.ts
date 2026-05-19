@@ -1,5 +1,3 @@
-const __intentional_lint_error: string = 123 // test: verify ci-auto-fix triggers on lint failure
-
 import {
   Application,
   ApplicationPriority,
