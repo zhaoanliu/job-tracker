@@ -269,8 +269,8 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
 
     const validRows = rows.filter(r => r.company)
     const inserts = validRows.map((r, i) => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { _statusHistory: _, ...appFields } = r
+      const { _statusHistory, ...appFields } = r
+      void _statusHistory
       return { ...appFields, user_id: user.id, order: applications.length + i }
     })
 
