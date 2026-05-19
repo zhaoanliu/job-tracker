@@ -28,7 +28,7 @@ npm run test:coverage  # unit tests + coverage report
 | Database + Auth | Supabase (Postgres, Row-Level Security) |
 | Drag-and-drop | @dnd-kit/core + @dnd-kit/sortable |
 | Styling | Tailwind CSS |
-| Error monitoring | Sentry (`captureConsoleIntegration` — forwards `console.error` to Sentry) |
+| Error monitoring | Sentry (`captureConsoleIntegration` in both `instrumentation-client.ts` and `instrumentation.ts` — forwards `console.error` to Sentry for browser and server errors) |
 | Deployment | Vercel (auto-deploys on merge to main) |
 | CI | GitHub Actions |
 
@@ -65,7 +65,7 @@ e2e/
 
 **Optimistic updates everywhere** — UI updates instantly on drag/edit/delete, DB write happens async, reverts on error. Never show a spinner for local operations.
 
-**`console.error` → Sentry** — errors in catch blocks call `console.error(err)`. `captureConsoleIntegration` picks this up automatically. Never call `Sentry.captureException` directly in application code.
+**`console.error` → Sentry** — errors in catch blocks call `console.error(err)`. `captureConsoleIntegration` in both `instrumentation-client.ts` (browser) and `instrumentation.ts` (server/edge) picks this up automatically on both sides. Never call `Sentry.captureException` directly in application code.
 
 **Transient browser-network errors are filtered from Sentry** — `Failed to fetch` / `NetworkError` / `Load failed` / `AbortError` are caused by offline state, ad blockers, page unloads, or upstream outages, not application bugs. They're listed in `ignoreErrors` in `instrumentation-client.ts` so they don't trigger the auto-fix bot. Do not remove entries from that list without a replacement plan — every removal is a recurring auto-fix noise source.
 
@@ -120,7 +120,7 @@ When a Sentry alert fires:
 
 Required secrets:
 - **Vercel**: `SENTRY_DSN`, `SENTRY_WEBHOOK_SECRET`, `GH_PAT`, `GITHUB_REPO`
-- **Vercel build** (source map upload): `SENTRY_AUTH_TOKEN` (needs `project:releases` scope — **not** the same token as GitHub Actions), `SENTRY_ORG=zhaoans-org`, `SENTRY_PROJECT=javascript-nextjs` (the Sentry project slug is `javascript-nextjs`, not the repo name — wrong value silently breaks source map uploads)
+- **Vercel build** (source map upload): `SENTRY_AUTH_TOKEN` (needs `project:releases` scope — **not** the same token as GitHub Actions), `SENTRY_ORG=zhaoans-org`, `SENTRY_PROJECT=javascript-nextjs` (the Sentry project slug is `javascript-nextjs`, not the repo name — wrong value silently breaks source map uploads). After a successful build the Sentry files API returns `fileCount: -1` for the release — that is correct and expected; it means source maps are stored as artifact bundles (the newer format), not as individual release files.
 - **GitHub Actions**: `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN` (needs Issue & Event: Read & Write)
 - **GitHub repo setting**: Actions → General → allow GitHub Actions to create PRs
 

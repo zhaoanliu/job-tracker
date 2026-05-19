@@ -232,6 +232,10 @@ The app has two auto-healing workflows powered by Claude Code:
 | Variable | Value |
 |---|---|
 | `SENTRY_DSN` | Your Sentry project DSN (from Sentry → Settings → Projects → Client Keys) |
+| `NEXT_PUBLIC_SENTRY_DSN` | Same DSN — the `NEXT_PUBLIC_` prefix makes it available in browser bundles |
+| `SENTRY_ORG` | Your Sentry org slug (e.g. `zhaoans-org`) |
+| `SENTRY_PROJECT` | Your Sentry **project slug** — check Sentry → Settings → Projects; it is auto-named and may differ from your repo name (wrong value silently breaks source map uploads) |
+| `SENTRY_AUTH_TOKEN` | Sentry token with **`project:releases`** scope — used during the Vercel build to upload source maps; **different token** from the GitHub Actions one |
 | `SENTRY_WEBHOOK_SECRET` | Secret you set when creating the Sentry webhook |
 | `VERCEL_WEBHOOK_SECRET` | Secret you set when creating the Vercel webhook (see setup below) |
 | `GH_PAT` | GitHub Personal Access Token with `repo` scope |
@@ -242,7 +246,7 @@ The app has two auto-healing workflows powered by Claude Code:
 | Secret | Value |
 |---|---|
 | `ANTHROPIC_API_KEY` | Your Anthropic API key |
-| `SENTRY_AUTH_TOKEN` | Sentry internal integration token with `issue:write` scope |
+| `SENTRY_AUTH_TOKEN` | Sentry token with **Issue & Event: Read & Write** scope (used to fetch stack traces and resolve issues via the Sentry API) |
 
 **GitHub repo setting:** Actions → General → enable "Allow GitHub Actions to create and approve pull requests"
 
