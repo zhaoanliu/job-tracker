@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export function GET() {
   // Verify both capture paths: console.error (captureConsoleIntegration) and unhandled throw
   console.error(new Error('Sentry source map verification (console.error path)'))
