@@ -90,11 +90,26 @@ jobs:
               NUMBER=$(echo "$EXISTING" | jq -r '.number')
               echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
             else
-              ISSUE_URL=$(gh issue create \
-                --title "${SENTRY_TITLE}" \
-                --body "**Sentry issue:** ${SENTRY_URL}"$'\n\n'"**Culprit:** ${SENTRY_CULPRIT}"$'\n\n'"This issue was automatically created from a Sentry alert.")
-              NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
-              echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
+              # A concurrent run may have already fixed this and closed a matching issue.
+              # Only search open issues to avoid reopening old closed ones, but check closed
+              # issues here to detect when the fix landed while we were queued.
+              RECENT_CLOSED=$(gh issue list \
+                --state closed \
+                --limit 20 \
+                --json number,title | \
+                jq --arg title "${SENTRY_TITLE}" \
+                  '[.[] | select(.title == $title)] | .[0] // empty')
+              if [[ -n "$RECENT_CLOSED" ]]; then
+                CLOSED_NUMBER=$(echo "$RECENT_CLOSED" | jq -r '.number')
+                echo "Concurrent run already fixed this (closed issue #${CLOSED_NUMBER}). Skipping."
+                echo "skip=true" >> "$GITHUB_OUTPUT"
+              else
+                ISSUE_URL=$(gh issue create \
+                  --title "${SENTRY_TITLE}" \
+                  --body "**Sentry issue:** ${SENTRY_URL}"$'\n\n'"**Culprit:** ${SENTRY_CULPRIT}"$'\n\n'"This issue was automatically created from a Sentry alert.")
+                NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+                echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
+              fi
             fi
 
             printf '%s' "${SENTRY_TITLE}" > /tmp/issue_title.txt
@@ -102,6 +117,7 @@ jobs:
           fi
 
       - name: Fetch Sentry details
+        if: steps.issue.outputs.skip != 'true'
         id: sentry_details
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -161,7 +177,7 @@ jobs:
           cat /tmp/sentry_details.txt
 
       - name: Write prompt file
-        if: steps.sentry_details.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
@@ -197,7 +213,7 @@ jobs:
           EOF
 
       - name: Run Claude Code
-        if: steps.sentry_details.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -220,7 +236,7 @@ jobs:
           done
 
       - name: Merge or open PR
-        if: steps.sentry_details.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
@@ -248,7 +264,13 @@ jobs:
             git add -A
             git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
             git fetch origin main
-            git rebase origin/main
+            if ! git rebase origin/main; then
+              git rebase --abort
+              gh issue comment "${ISSUE_NUMBER}" \
+                --body "Auto-fix skipped: a concurrent run already pushed a fix for this error, causing a rebase conflict. The fix is already in main — closing as a duplicate."
+              gh issue close "${ISSUE_NUMBER}"
+              exit 0
+            fi
             COMMITS_AHEAD=$(git rev-list origin/main..HEAD --count)
             if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
               git push origin HEAD:main
