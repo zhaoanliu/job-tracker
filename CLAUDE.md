@@ -81,14 +81,19 @@ Every schema change follows this checklist — skipping any step is what caused 
 
 1. **Create the migration file** in `supabase/migrations/` with a timestamp prefix (`YYYYMMDDHHMMSS_description.sql`). Use `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` so re-running is safe.
 
-2. **Enable RLS and add a policy** on every new table. The standard pattern:
+2. **Enable RLS and add a policy** on every new table. Use the `DO $$` pattern so the migration is safe to re-run:
    ```sql
    alter table public.<table> enable row level security;
-   create policy "Users can only access their own <table>"
-     on public.<table> for all
-     using (auth.uid() = user_id)
-     with check (auth.uid() = user_id);
+   do $$
+   begin
+     create policy "Users can only access their own <table>"
+       on public.<table> for all
+       using (auth.uid() = user_id)
+       with check (auth.uid() = user_id);
+   exception when duplicate_object then null;
+   end $$;
    ```
+   Note: dollar-quoting requires `$$` (not bare `$`) — a single `$` causes a syntax error.
 
 3. **Update `lib/types.ts`** — add the TypeScript interface and any new enum values. New enum values also need to be added to the corresponding constant arrays in the same file.
 
@@ -164,9 +169,10 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 
 **`migrate.yml`** — applies pending Supabase migrations to production automatically:
 - Triggers on every push to main (no path filter — `supabase db push` is a no-op when nothing is pending so overhead is minimal)
-- Runs `supabase db push --project-ref` via the Supabase Management API (no direct DB connection needed)
+- Runs `supabase link --project-ref "$REF"` then `supabase db push` via the Supabase Management API (no direct DB connection needed). Note: `supabase db push --project-ref` was removed in CLI v2 — link first, then push.
 - Required secrets: `SUPABASE_ACCESS_TOKEN` (generate at supabase.com → Account → Access Tokens); project ref is derived from the existing `NEXT_PUBLIC_SUPABASE_URL` secret — no additional secrets needed
 - **Every new migration file added to `supabase/migrations/` is automatically applied on merge to main** — no manual SQL steps needed
+- **Supabase CLI baseline pitfall**: when `migrate.yml` first connects to an existing Supabase project, the CLI may baseline all local migrations in `supabase_migrations.schema_migrations` without executing the SQL ("Remote database is up to date" with no "Applying..." lines). To force a specific migration to re-run: add `supabase migration repair --status reverted <timestamp>` before `supabase db push` in the workflow. Remove the repair line after it has successfully applied once — it is a one-time fix. The current workflow includes this for `20240102000000`; new migrations added going forward will not need it.
 
 **`e2e.yml`** — runs on every PR and push to main (no local Supabase needed):
 - `auth.spec.ts` — password login/logout/redirect, uses hosted Supabase via secrets
