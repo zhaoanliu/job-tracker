@@ -243,6 +243,8 @@ Bundle related changes — code and the documentation that explains them — int
 
 When doing a doc review that produces multiple small fixes across README and CLAUDE.md, bundle them all into one commit (e.g. "docs: end-of-session review fixes") rather than a separate commit per file or per fix.
 
+**Always open a PR for feature work — never push features directly to main.** Bug fixes and doc-only changes may go directly to main, but any new feature (new UI, new API route, new behaviour) must go through a PR so it can be reviewed before merging.
+
 ## Code conventions
 
 - No comments unless the WHY is non-obvious
