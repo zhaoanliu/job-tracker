@@ -249,6 +249,9 @@ jobs:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           SENTRY_ID: ${{ steps.issue.outputs.sentry_id }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: team_aTYh0oWfaRSgem4RzW5JH9c0
+          VERCEL_PROJECT_ID: prj_5J32UqKRiToXBAzDPFPym5EfnXI2
         run: |
           if [[ -z $(git diff --name-only) ]]; then
             echo "No changes made, skipping"
@@ -281,6 +284,7 @@ jobs:
             COMMITS_AHEAD=$(git rev-list origin/main..HEAD --count)
             if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
               git push origin HEAD:main
+              npx vercel deploy --prod --token="${VERCEL_TOKEN}" || true
             else
               echo "Fix already in main (another run applied it first), skipping push"
             fi
