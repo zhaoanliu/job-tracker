@@ -8,13 +8,13 @@ create table if not exists public.status_history (
 
 alter table public.status_history enable row level security;
 
-do $
+do $$
 begin
   create policy "Users can only access their own status history"
     on public.status_history for all
     using (auth.uid() = user_id)
     with check (auth.uid() = user_id);
 exception when duplicate_object then null;
-end $;
+end $$;
 
 create index if not exists status_history_application_id_idx on public.status_history (application_id, changed_at desc);
