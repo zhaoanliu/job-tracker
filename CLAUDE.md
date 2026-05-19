@@ -132,6 +132,12 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 
 ## CI workflows
 
+**`migrate.yml`** — applies pending Supabase migrations to production automatically:
+- Triggers on push to main when `supabase/migrations/**` changes, plus `workflow_dispatch` for manual runs
+- Runs `supabase db push --project-ref` via the Supabase Management API (no direct DB connection needed)
+- Required secrets: `SUPABASE_ACCESS_TOKEN` (generate at supabase.com → Account → Access Tokens), `SUPABASE_PROJECT_REF` (the ID from your project URL, e.g. `abcdefghijklmnop`)
+- **Every new migration file added to `supabase/migrations/` is automatically applied on merge to main** — no manual SQL steps needed
+
 **`e2e.yml`** — runs on every PR and push to main (no local Supabase needed):
 - `auth.spec.ts` — password login/logout/redirect, uses hosted Supabase via secrets
 - `auth.email.spec.ts` — magic link + signup confirmation via Testmail.app
