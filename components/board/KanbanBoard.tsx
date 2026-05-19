@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   DndContext,
   DragEndEvent,
@@ -41,7 +41,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
 
   const [applications, setApplications] = useState<Application[]>(initialApplications)
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
-  const [dragStartStatus, setDragStartStatus] = useState<ApplicationStatus | null>(null)
+  const dragStartStatus = useRef<ApplicationStatus | null>(null)
   const [filters, setFilters] = useState<Filters>({ priority: [], type: [], workmode: [], location: [], search: '' })
   const [sortBy, setSortBy] = useState<SortField>('order')
   const [modalOpen, setModalOpen] = useState(false)
@@ -64,7 +64,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
   function handleDragStart({ active }: DragStartEvent) {
     setActiveId(active.id)
     const card = applications.find(a => a.id === active.id)
-    setDragStartStatus(card?.status ?? null)
+    dragStartStatus.current = card?.status ?? null
   }
 
   // Live preview: when dragging a card over a different column, move it there
@@ -110,7 +110,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
     const targetStatus = resolveTargetStatus(over.id)
     if (!targetStatus) return
 
-    if (dragStartStatus === targetStatus && !overIsColumn) {
+    if (dragStartStatus.current === targetStatus && !overIsColumn) {
       // Same-column reorder
       const colCards = applications.filter(a => a.status === targetStatus)
       const oldIdx = colCards.findIndex(a => a.id === active.id)
@@ -143,7 +143,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       const { error } = await supabase
         .from('applications')
         .update({
-          status: updatedCard.status,
+          status: targetStatus,
           order: updatedCard.order,
           updated_at: new Date().toISOString(),
         })
@@ -151,7 +151,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       if (error) console.error('Cross-column move update failed:', error)
       else {
         const { data: { user } } = await supabase.auth.getUser()
-        if (user) recordStatusHistory(updatedCard.id, user.id, updatedCard.status)
+        if (user) recordStatusHistory(updatedCard.id, user.id, targetStatus)
       }
     }
   }
