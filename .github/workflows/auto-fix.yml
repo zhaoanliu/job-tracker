@@ -50,7 +50,7 @@ jobs:
         run: |
           npm config set prefix ~/.npm-global
           export PATH=~/.npm-global/bin:$PATH
-          npm install -g @anthropic-ai/claude-code
+          npm install -g @anthropic-ai/claude-code@2.1.145
           echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
 
       - name: Find or create GitHub issue
