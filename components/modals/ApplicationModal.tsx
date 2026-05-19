@@ -94,7 +94,7 @@ export default function ApplicationModal({
       .eq('application_id', application.id)
       .order('changed_at', { ascending: false })
       .then(({ data, error }) => {
-        if (error) console.error('status_history fetch failed:', error.message, error)
+        if (error && error.code !== 'PGRST205') console.error('status_history fetch failed:', error.message, error)
         if (data) setHistory(data as StatusHistoryEntry[])
       })
   }, [application?.id])
