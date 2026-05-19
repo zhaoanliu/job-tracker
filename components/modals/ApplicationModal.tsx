@@ -11,7 +11,9 @@ import {
   APPLICATION_WORKMODES,
   APPLICATION_SOURCES,
   STAGES,
+  StatusHistoryEntry,
 } from '@/lib/types'
+import { createClient } from '@/lib/supabase/client'
 
 interface ApplicationModalProps {
   application: Application | null
@@ -39,7 +41,7 @@ const EMPTY_FORM: ApplicationFormData = {
   order: 0,
 }
 
-type Section = 'details' | 'progress' | 'jd'
+type Section = 'details' | 'progress' | 'jd' | 'history'
 
 export default function ApplicationModal({
   application,
@@ -75,12 +77,24 @@ export default function ApplicationModal({
   const [error, setError] = useState<string | null>(null)
   const [section, setSection] = useState<Section>('details')
   const [jdPreview, setJdPreview] = useState(false)
+  const [history, setHistory] = useState<StatusHistoryEntry[]>([])
 
   const firstInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     firstInputRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    if (!application) return
+    const supabase = createClient()
+    supabase
+      .from('status_history')
+      .select('*')
+      .eq('application_id', application.id)
+      .order('changed_at', { ascending: false })
+      .then(({ data }) => { if (data) setHistory(data as StatusHistoryEntry[]) })
+  }, [application?.id])
 
   // Close on Escape
   useEffect(() => {
@@ -158,7 +172,7 @@ export default function ApplicationModal({
 
         {/* Section tabs */}
         <div className="flex border-b border-slate-200 px-5">
-          {([['details', 'Details'], ['progress', 'Progress'], ['jd', 'Job Description']] as [Section, string][]).map(([id, label]) => (
+          {([['details', 'Details'], ['progress', 'Progress'], ['jd', 'Job Description'], ['history', 'History']] as [Section, string][]).map(([id, label]) => (
             <button
               key={id}
               type="button"
@@ -396,6 +410,32 @@ export default function ApplicationModal({
                     placeholder="Paste the full job description here…"
                     className={`${inputClass} resize-none font-mono text-xs`}
                   />
+                )}
+              </div>
+            )}
+
+            {section === 'history' && (
+              <div className="space-y-1">
+                {history.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-6 text-center">No status history recorded yet.</p>
+                ) : (
+                  <ol className="relative border-l border-slate-200 ml-2">
+                    {history.map((entry, i) => {
+                      const stage = STAGES.find(s => s.id === entry.status)
+                      const dt = new Date(entry.changed_at)
+                      const date = dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                      const time = dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                      return (
+                        <li key={entry.id} className="mb-4 ml-4">
+                          <span className={`absolute -left-1.5 mt-1 w-3 h-3 rounded-full border-2 border-white ${stage?.dotClass ?? 'bg-slate-400'}`} />
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${stage?.headerClass ?? 'text-slate-600 bg-slate-100'}`}>
+                            {stage?.label ?? entry.status}
+                          </span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{date} · {time}{i === history.length - 1 ? ' · initial' : ''}</p>
+                        </li>
+                      )
+                    })}
+                  </ol>
                 )}
               </div>
             )}

@@ -146,6 +146,10 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
         })
         .eq('id', active.id)
       if (error) console.error(error)
+      else {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) recordStatusHistory(updatedCard.id, user.id, updatedCard.status)
+      }
     }
   }
 
@@ -162,6 +166,13 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
     setModalOpen(true)
   }, [])
 
+  async function recordStatusHistory(applicationId: string, userId: string, status: string) {
+    const { error } = await supabase
+      .from('status_history')
+      .insert({ application_id: applicationId, user_id: userId, status })
+    if (error) console.error(error)
+  }
+
   async function handleSave(data: Partial<Application>) {
     if (editingApp) {
       // Update
@@ -174,9 +185,13 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
         .eq('id', editingApp.id)
 
       if (error) {
-        // Revert on error
         setApplications(prev => prev.map(a => a.id === editingApp.id ? editingApp : a))
         throw error
+      }
+
+      if (data.status && data.status !== editingApp.status) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) recordStatusHistory(editingApp.id, user.id, data.status)
       }
     } else {
       // Insert
@@ -203,7 +218,9 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
         .single()
 
       if (error) throw error
-      setApplications(prev => [...prev, inserted as Application])
+      const insertedApp = inserted as Application
+      setApplications(prev => [...prev, insertedApp])
+      recordStatusHistory(insertedApp.id, user.id, insertedApp.status)
     }
     setModalOpen(false)
   }
