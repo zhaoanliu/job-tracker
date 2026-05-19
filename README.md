@@ -150,8 +150,7 @@ Required GitHub Actions secrets for `e2e.yml`:
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role key |
 | `TESTMAIL_API_KEY` | Testmail.app dashboard |
 | `TESTMAIL_NAMESPACE` | Testmail.app dashboard |
-| `SUPABASE_ACCESS_TOKEN` | supabase.com → Account → Access Tokens (used by `migrate.yml`) |
-| `SUPABASE_PROJECT_REF` | Your project ref from the Supabase dashboard URL (used by `migrate.yml`) |
+| `SUPABASE_ACCESS_TOKEN` | supabase.com → Account → Access Tokens (used by `migrate.yml`; project ref derived from `NEXT_PUBLIC_SUPABASE_URL`) |
 
 ### E2E tests — board + CSV (async, never blocks PRs)
 

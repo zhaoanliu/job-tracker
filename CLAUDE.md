@@ -136,7 +136,7 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 **`migrate.yml`** — applies pending Supabase migrations to production automatically:
 - Triggers on every push to main (no path filter — `supabase db push` is a no-op when nothing is pending so overhead is minimal)
 - Runs `supabase db push --project-ref` via the Supabase Management API (no direct DB connection needed)
-- Required secrets: `SUPABASE_ACCESS_TOKEN` (generate at supabase.com → Account → Access Tokens), `SUPABASE_PROJECT_REF` (the ID from your project URL, e.g. `abcdefghijklmnop`)
+- Required secrets: `SUPABASE_ACCESS_TOKEN` (generate at supabase.com → Account → Access Tokens); project ref is derived from the existing `NEXT_PUBLIC_SUPABASE_URL` secret — no additional secrets needed
 - **Every new migration file added to `supabase/migrations/` is automatically applied on merge to main** — no manual SQL steps needed
 
 **`e2e.yml`** — runs on every PR and push to main (no local Supabase needed):
