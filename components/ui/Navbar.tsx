@@ -162,12 +162,14 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
 
         <div className="flex items-center gap-2 ml-2 pl-2 border-l border-slate-200">
           <span className="text-xs text-slate-500 hidden sm:block truncate max-w-[140px]">{userEmail}</span>
+          <span className="text-slate-200">|</span>
           <button
             onClick={() => setInviteOpen(true)}
             className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
           >
             Invite
           </button>
+          <span className="text-slate-200">|</span>
           <button
             onClick={() => setFeatureOpen(true)}
             className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
@@ -175,6 +177,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
           >
             Feedback
           </button>
+          <span className="text-slate-200">|</span>
           <button
             onClick={handleSignOut}
             className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
