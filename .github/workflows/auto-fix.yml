@@ -199,6 +199,7 @@ jobs:
           cat >> /tmp/prompt.txt << 'EOF'
           Analyze the error, find the root cause in the codebase, and fix it.
           Do NOT run any git commands — just edit the files.
+          Do NOT modify any files under .github/ — workflow changes are out of scope.
           Do NOT add comments explaining what you changed.
 
           After making the fix, write a single word to /tmp/risk.txt:
@@ -234,6 +235,12 @@ jobs:
               break
             fi
           done
+
+      - name: Revert .github/ changes
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
+        run: |
+          git fetch origin main
+          git checkout origin/main -- .github/ 2>/dev/null || true
 
       - name: Merge or open PR
         if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
