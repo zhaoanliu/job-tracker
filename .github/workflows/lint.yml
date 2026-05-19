@@ -27,6 +27,20 @@ jobs:
       - name: actionlint
         uses: rhysd/actionlint@v1.7.7
 
+      - name: Deploy to Vercel (production)
+        if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: team_aTYh0oWfaRSgem4RzW5JH9c0
+          VERCEL_PROJECT_ID: prj_5J32UqKRiToXBAzDPFPym5EfnXI2
+
+      - name: Deploy to Vercel (preview)
+        if: success() && github.event_name == 'pull_request'
+        run: npx vercel deploy --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: team_aTYh0oWfaRSgem4RzW5JH9c0
+          VERCEL_PROJECT_ID: prj_5J32UqKRiToXBAzDPFPym5EfnXI2
+
       - name: Trigger CI auto-fix on failure
         if: failure() && github.actor != 'github-actions[bot]'
         uses: actions/github-script@v7

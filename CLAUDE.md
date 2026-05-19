@@ -160,8 +160,10 @@ When a Sentry alert fires:
 Required secrets:
 - **Vercel**: `SENTRY_DSN`, `SENTRY_WEBHOOK_SECRET`, `GH_PAT`, `GITHUB_REPO`
 - **Vercel build** (source map upload): `SENTRY_AUTH_TOKEN` (needs `project:releases` scope — **not** the same token as GitHub Actions), `SENTRY_ORG=zhaoans-org`, `SENTRY_PROJECT=javascript-nextjs` (the Sentry project slug is `javascript-nextjs`, not the repo name — wrong value silently breaks source map uploads). After a successful build the Sentry files API returns `fileCount: -1` for the release — that is correct and expected; it means source maps are stored as artifact bundles (the newer format), not as individual release files.
-- **GitHub Actions**: `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN` (needs Issue & Event: Read & Write)
+- **GitHub Actions**: `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN` (needs Issue & Event: Read & Write), `VERCEL_TOKEN` (generate at vercel.com → Account Settings → Tokens — needed by `lint.yml` to trigger production deploys after CI passes)
 - **GitHub repo setting**: Actions → General → allow GitHub Actions to create PRs
+
+**All Vercel deploys are gated on CI passing.** `vercel.json` sets `ignoreCommand: exit 1` to disable Vercel's auto-deploy entirely (both production and preview). `lint.yml` triggers deploys explicitly as its final step: `vercel deploy --prod` on success + push to main, `vercel deploy` (preview) on success + pull_request. `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` are hardcoded from `.vercel/project.json` — no additional secrets needed for those.
 
 Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry alert — the webhook triggers a dispatch AND `sentry[bot]` opens a GitHub issue at the same time. The concurrency group (`group: auto-fix, cancel-in-progress: false`) queues the two runs so they don't race. `on: issues` also fires for manually-created issues containing `sentry.io` in the body. GitHub only blocks workflow triggers from `github-actions[bot]` (the built-in token actor) — third-party apps like `sentry[bot]` are not restricted.
 
