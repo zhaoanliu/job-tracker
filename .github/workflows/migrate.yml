@@ -25,18 +25,13 @@ jobs:
 
       - name: Trigger CI auto-fix on failure
         if: failure() && github.actor != 'github-actions[bot]'
-        uses: actions/github-script@v9
-        with:
-          github-token: ${{ secrets.GH_PAT }}
-          script: |
-            await github.rest.repos.createDispatchEvent({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              event_type: 'ci-failure',
-              client_payload: {
-                workflow_name: '${{ github.workflow }}',
-                run_id: String(context.runId),
-                run_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-                head_branch: '${{ github.ref_name }}'
-              }
-            })
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          jq -n \
+            --arg wf "${{ github.workflow }}" \
+            --arg id "${{ github.run_id }}" \
+            --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --arg branch "${{ github.ref_name }}" \
+            '{"event_type":"ci-failure","client_payload":{"workflow_name":$wf,"run_id":$id,"run_url":$url,"head_branch":$branch}}' \
+          | gh api repos/${{ github.repository }}/dispatches --method POST --input -
