@@ -22,6 +22,11 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
   const [featureDesc, setFeatureDesc] = useState('')
   const [featureStatus, setFeatureStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
 
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteMessage, setInviteMessage] = useState('')
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
+
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
@@ -50,6 +55,29 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
     setFeatureStatus('idle')
     setFeatureTitle('')
     setFeatureDesc('')
+  }
+
+  async function handleInviteSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setInviteStatus('submitting')
+    try {
+      const res = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: inviteEmail, message: inviteMessage }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      setInviteStatus('success')
+    } catch {
+      setInviteStatus('error')
+    }
+  }
+
+  function handleInviteClose() {
+    setInviteOpen(false)
+    setInviteStatus('idle')
+    setInviteEmail('')
+    setInviteMessage('')
   }
 
   async function handleExport() {
@@ -135,6 +163,12 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
         <div className="flex items-center gap-2 ml-2 pl-2 border-l border-slate-200">
           <span className="text-xs text-slate-500 hidden sm:block truncate max-w-[140px]">{userEmail}</span>
           <button
+            onClick={() => setInviteOpen(true)}
+            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            Invite
+          </button>
+          <button
             onClick={() => setFeatureOpen(true)}
             className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
             title="Request a feature"
@@ -150,6 +184,88 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
         </div>
       </div>
     </nav>
+
+    {inviteOpen && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        onClick={handleInviteClose}
+      >
+        <div
+          className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6"
+          onClick={e => e.stopPropagation()}
+        >
+          <h2 className="text-sm font-semibold text-slate-900 mb-1">Invite a friend</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Send them a link to Job Tracker with a personal note.
+          </p>
+
+          {inviteStatus === 'success' ? (
+            <div className="text-center py-4">
+              <p className="text-sm font-medium text-green-700 mb-1">Invite sent!</p>
+              <p className="text-xs text-slate-500 mb-4">They&apos;ll receive an email with a link to get started.</p>
+              <button
+                onClick={handleInviteClose}
+                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleInviteSubmit}>
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="invite-email">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="invite-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  placeholder="friend@example.com"
+                  required
+                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="invite-message">
+                  Personal note <span className="text-slate-400">(optional)</span>
+                </label>
+                <textarea
+                  id="invite-message"
+                  value={inviteMessage}
+                  onChange={e => setInviteMessage(e.target.value)}
+                  placeholder="Hey, I've been using this to track my job search…"
+                  maxLength={500}
+                  rows={3}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+
+              {inviteStatus === 'error' && (
+                <p className="text-xs text-red-600 mb-3">Something went wrong — please try again.</p>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleInviteClose}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={inviteStatus === 'submitting' || !inviteEmail.trim()}
+                  className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {inviteStatus === 'submitting' ? 'Sending…' : 'Send invite'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    )}
 
     {featureOpen && (
 

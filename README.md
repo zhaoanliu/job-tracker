@@ -246,6 +246,8 @@ The app has two auto-healing workflows powered by Claude Code:
 | `VERCEL_WEBHOOK_SECRET` | Secret you set when creating the Vercel webhook (see setup below) |
 | `GH_PAT` | GitHub Personal Access Token with `repo` scope |
 | `GITHUB_REPO` | `owner/repo` (e.g. `zhaoanliu/job-tracker`) |
+| `RESEND_API_KEY` | Resend API key — used by `/api/invite` to send invite emails |
+| `RESEND_FROM_EMAIL` | Sender address (e.g. `noreply@applytrackr.app`) — domain must be verified in Resend |
 
 **GitHub Actions secrets** (Settings → Secrets and variables → Actions):
 

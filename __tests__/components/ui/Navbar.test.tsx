@@ -85,6 +85,68 @@ describe('Navbar', () => {
   })
 })
 
+describe('Navbar — invite', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) }))
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('renders the Invite button', () => {
+    render(<Navbar {...defaultProps} />)
+    expect(screen.getByRole('button', { name: /Invite/i })).toBeInTheDocument()
+  })
+
+  it('opens the invite modal when Invite is clicked', async () => {
+    render(<Navbar {...defaultProps} />)
+    await userEvent.click(screen.getByRole('button', { name: /Invite/i }))
+    expect(screen.getByText('Invite a friend')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Email/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Personal note/i)).toBeInTheDocument()
+  })
+
+  it('closes the modal when Cancel is clicked', async () => {
+    render(<Navbar {...defaultProps} />)
+    await userEvent.click(screen.getByRole('button', { name: /Invite/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Cancel/i }))
+    expect(screen.queryByText('Invite a friend')).not.toBeInTheDocument()
+  })
+
+  it('Send invite button is disabled when email is empty', async () => {
+    render(<Navbar {...defaultProps} />)
+    await userEvent.click(screen.getByRole('button', { name: /Invite/i }))
+    expect(screen.getByRole('button', { name: /Send invite/i })).toBeDisabled()
+  })
+
+  it('calls /api/invite with email and message on submit', async () => {
+    render(<Navbar {...defaultProps} />)
+    await userEvent.click(screen.getByRole('button', { name: /Invite/i }))
+    await userEvent.type(screen.getByLabelText(/Email/i), 'friend@example.com')
+    await userEvent.type(screen.getByLabelText(/Personal note/i), 'Check this out!')
+    await userEvent.click(screen.getByRole('button', { name: /Send invite/i }))
+    expect(fetch).toHaveBeenCalledWith('/api/invite', expect.objectContaining({ method: 'POST' }))
+    const body = JSON.parse((fetch as any).mock.calls[0][1].body)
+    expect(body.to).toBe('friend@example.com')
+    expect(body.message).toBe('Check this out!')
+  })
+
+  it('shows success message after invite is sent', async () => {
+    render(<Navbar {...defaultProps} />)
+    await userEvent.click(screen.getByRole('button', { name: /Invite/i }))
+    await userEvent.type(screen.getByLabelText(/Email/i), 'friend@example.com')
+    await userEvent.click(screen.getByRole('button', { name: /Send invite/i }))
+    expect(await screen.findByText(/Invite sent/i)).toBeInTheDocument()
+  })
+
+  it('shows error message when invite fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
+    render(<Navbar {...defaultProps} />)
+    await userEvent.click(screen.getByRole('button', { name: /Invite/i }))
+    await userEvent.type(screen.getByLabelText(/Email/i), 'friend@example.com')
+    await userEvent.click(screen.getByRole('button', { name: /Send invite/i }))
+    expect(await screen.findByText(/Something went wrong/i)).toBeInTheDocument()
+  })
+})
+
 describe('Navbar — feature request', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, url: 'https://github.com/owner/repo/issues/1' }) }))
