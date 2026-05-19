@@ -7,7 +7,9 @@ import {
 } from './types'
 
 export function filterApplications(apps: Application[], filters: Filters): Application[] {
+  const q = filters.search.trim().toLowerCase()
   return apps.filter(app => {
+    if (q && !app.company.toLowerCase().includes(q)) return false
     if (filters.priority.length && !filters.priority.includes(app.priority)) return false
     if (filters.type.length && (app.type == null || !filters.type.includes(app.type))) return false
     if (filters.workmode.length && !filters.workmode.includes(app.workmode)) return false
@@ -71,6 +73,7 @@ export function formatDate(dateStr: string | null): string {
 
 export function hasActiveFilters(filters: Filters): boolean {
   return (
+    filters.search.trim().length > 0 ||
     filters.priority.length > 0 ||
     filters.type.length > 0 ||
     filters.workmode.length > 0 ||

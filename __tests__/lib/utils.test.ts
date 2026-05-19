@@ -35,7 +35,7 @@ function makeApp(overrides: Partial<Application> = {}): Application {
   }
 }
 
-const emptyFilters: Filters = { priority: [], type: [], workmode: [], location: [] }
+const emptyFilters: Filters = { priority: [], type: [], workmode: [], location: [], search: '' }
 
 // ─── filterApplications ───────────────────────────────────────────────────────
 
@@ -90,6 +90,7 @@ describe('filterApplications', () => {
       type: ['Principal Engineer'],
       workmode: ['Remote'],
       location: ['Remote'],
+      search: '',
     })
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe('1')
@@ -98,6 +99,49 @@ describe('filterApplications', () => {
   it('returns empty array when no apps match', () => {
     const result = filterApplications(apps, { ...emptyFilters, priority: ['High'], type: ['Security Architect'] })
     expect(result).toHaveLength(0)
+  })
+
+  it('filters by search — exact match', () => {
+    const searchApps = [
+      makeApp({ id: '1', company: 'Google' }),
+      makeApp({ id: '2', company: 'Amazon' }),
+      makeApp({ id: '3', company: 'Microsoft' }),
+    ]
+    const result = filterApplications(searchApps, { ...emptyFilters, search: 'Amazon' })
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('2')
+  })
+
+  it('filters by search — case-insensitive substring', () => {
+    const searchApps = [
+      makeApp({ id: '1', company: 'Google' }),
+      makeApp({ id: '2', company: 'GoTo Meeting' }),
+      makeApp({ id: '3', company: 'Amazon' }),
+    ]
+    const result = filterApplications(searchApps, { ...emptyFilters, search: 'go' })
+    expect(result).toHaveLength(2)
+    expect(result.map(a => a.id)).toEqual(['1', '2'])
+  })
+
+  it('filters by search — no match returns empty', () => {
+    const searchApps = [makeApp({ company: 'Google' }), makeApp({ id: '2', company: 'Amazon' })]
+    expect(filterApplications(searchApps, { ...emptyFilters, search: 'Netflix' })).toHaveLength(0)
+  })
+
+  it('filters by search — blank query returns all', () => {
+    const searchApps = [makeApp({ company: 'Google' }), makeApp({ id: '2', company: 'Amazon' })]
+    expect(filterApplications(searchApps, { ...emptyFilters, search: '   ' })).toHaveLength(2)
+  })
+
+  it('combines search with chip filters', () => {
+    const searchApps = [
+      makeApp({ id: '1', company: 'Google', priority: 'High' }),
+      makeApp({ id: '2', company: 'Google', priority: 'Low' }),
+      makeApp({ id: '3', company: 'Amazon', priority: 'High' }),
+    ]
+    const result = filterApplications(searchApps, { ...emptyFilters, search: 'google', priority: ['High'] })
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('1')
   })
 })
 
@@ -203,6 +247,11 @@ describe('hasActiveFilters', () => {
     expect(hasActiveFilters({ ...emptyFilters, type: ['Other'] })).toBe(true)
     expect(hasActiveFilters({ ...emptyFilters, workmode: ['Remote'] })).toBe(true)
     expect(hasActiveFilters({ ...emptyFilters, location: ['Remote'] })).toBe(true)
+    expect(hasActiveFilters({ ...emptyFilters, search: 'Google' })).toBe(true)
+  })
+
+  it('returns false when search is blank or whitespace', () => {
+    expect(hasActiveFilters({ ...emptyFilters, search: '  ' })).toBe(false)
   })
 })
 

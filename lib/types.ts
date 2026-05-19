@@ -132,6 +132,7 @@ export interface Filters {
   type: ApplicationType[]
   workmode: ApplicationWorkmode[]
   location: ApplicationLocation[]
+  search: string
 }
 
 export type SortField = 'order' | 'date' | 'company' | 'priority'

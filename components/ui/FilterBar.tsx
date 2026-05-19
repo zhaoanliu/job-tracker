@@ -58,7 +58,7 @@ export default function FilterBar({ filters, sortBy, onFilterChange, onSortChang
   const active = hasActiveFilters(filters)
 
   function clearFilters() {
-    onFilterChange({ priority: [], type: [], workmode: [], location: [] })
+    onFilterChange({ priority: [], type: [], workmode: [], location: [], search: '' })
   }
 
   return (
@@ -66,6 +66,20 @@ export default function FilterBar({ filters, sortBy, onFilterChange, onSortChang
       className="h-[var(--filter-height)] flex items-center gap-4 px-4 bg-white border-b border-slate-200 overflow-x-auto scrollbar-none"
       style={{ height: 'var(--filter-height)' }}
     >
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+        </svg>
+        <input
+          type="text"
+          value={filters.search}
+          onChange={e => onFilterChange({ ...filters, search: e.target.value })}
+          placeholder="Search company…"
+          className="w-36 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        />
+      </div>
+
+      <div className="h-4 w-px bg-slate-200 flex-shrink-0" />
       <MultiChip
         label="Priority"
         options={APPLICATION_PRIORITIES}
