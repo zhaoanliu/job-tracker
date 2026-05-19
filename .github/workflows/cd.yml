@@ -1,0 +1,63 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  actions: write
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    secrets: inherit
+
+  unit-test:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  e2e-auth:
+    uses: ./.github/workflows/e2e.yml
+    secrets: inherit
+
+  migrate-validate:
+    uses: ./.github/workflows/migrate-validate.yml
+    secrets: inherit
+
+  deploy:
+    needs: [lint, unit-test, e2e-auth, migrate-validate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Apply migrations
+        id: apply-migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: |
+          PROJECT_REF=$(echo "$SUPABASE_URL" | sed 's|https://||;s|\.supabase\.co.*||')
+          supabase link --project-ref "$PROJECT_REF" --password ""
+          supabase db push
+
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: team_aTYh0oWfaRSgem4RzW5JH9c0
+          VERCEL_PROJECT_ID: prj_5J32UqKRiToXBAzDPFPym5EfnXI2
+        run: npx vercel deploy --prod --token="${VERCEL_TOKEN}"
+
+      - name: Trigger db-fix on migration failure
+        if: failure() && steps.apply-migrations.outcome == 'failure' && github.actor != 'github-actions[bot]'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          jq -n \
+            --arg id "${{ github.run_id }}" \
+            --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{"event_type":"db-failure","client_payload":{"run_id":$id,"run_url":$url}}' \
+          | gh api repos/${{ github.repository }}/dispatches --method POST --input -

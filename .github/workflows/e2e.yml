@@ -1,9 +1,8 @@
 name: E2E Auth Tests
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_call:
 
 jobs:
   e2e-auth:

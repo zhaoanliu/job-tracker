@@ -1,29 +1,26 @@
-name: DB migrations
+name: Validate DB migrations
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  pull_request:
+  workflow_call:
 
 jobs:
-  migrate:
+  migrate-validate:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - name: Apply pending migrations
-        run: |
-          PROJECT_REF=$(echo "$SUPABASE_URL" | sed 's|https://||;s|\.supabase\.co.*||')
-          supabase link --project-ref "$PROJECT_REF" --password ""
-          supabase migration repair --status reverted 20240102000000
-          supabase db push
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
 
       - name: Trigger CI auto-fix on failure
         if: failure() && github.actor != 'github-actions[bot]'

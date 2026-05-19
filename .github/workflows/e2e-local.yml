@@ -15,7 +15,6 @@ on:
       - 'supabase/migrations/**'
       - 'e2e/local/**'
       - 'e2e/helpers.ts'
-  pull_request:
 
 jobs:
   e2e-local:

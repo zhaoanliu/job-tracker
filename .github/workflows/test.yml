@@ -1,14 +1,12 @@
-name: Lint & type-check
+name: Unit tests
 
 on:
   pull_request:
   workflow_call:
 
 jobs:
-  lint:
+  unit-test:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
     steps:
       - uses: actions/checkout@v6
 
@@ -19,14 +17,8 @@ jobs:
 
       - run: npm ci
 
-      - name: ESLint
-        run: npm run lint
-
-      - name: TypeScript
-        run: npx tsc --noEmit
-
-      - name: actionlint
-        uses: rhysd/actionlint@v1.7.7
+      - name: Run tests with coverage
+        run: npm run test:coverage
 
       - name: Trigger CI auto-fix on failure
         if: failure() && github.actor != 'github-actions[bot]'
