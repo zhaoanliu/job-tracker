@@ -156,9 +156,10 @@ When a Sentry alert fires:
    - Skips `replay_hydration_error` issues (Sentry `issueType`) — these have no stack trace and are caused by browser extensions, not application code; the workflow comments on and closes the GitHub issue automatically
    - Runs `claude --dangerously-skip-permissions` to fix the bug
    - **Always creates a PR** — no direct-to-main pushes; every fix is verified by CI (`lint` + `unit-test` + `e2e-auth` + `migrate-validate`) before reaching production
-   - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type fix): opens a PR and enables auto-merge (`gh pr merge --auto --squash`) — merges automatically once all required CI checks pass
+   - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type fix): opens a PR and enables auto-merge (`GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash`) — merges automatically once all required CI checks pass
    - **High-risk fix**: opens a PR for review; no auto-merge — a human must approve and merge
    - In both cases the PR body contains "Closes #N", so merging closes the GitHub issue and triggers `resolve-sentry-on-close` to resolve the Sentry issue — no manual Sentry API call needed
+   - **If Claude makes no changes** (e.g. browser-extension hydration errors, environment issues not fixable in code): comments on the GitHub issue, closes it, and resolves the Sentry issue directly — does not open a PR
    - The fix branch is named `fix/issue-<N>-<timestamp>` so repeated runs for the same issue never collide
 
 Required secrets:
@@ -302,6 +303,8 @@ Then watch with `gh run list --limit 3`. This takes seconds to set up vs. trigge
 - **Rebase conflicts in the low-risk push path must be caught explicitly.** Wrap `git rebase origin/main` with `if ! git rebase ...; then git rebase --abort; comment + close the issue; exit 0; fi` — otherwise the step exits with code 1, the issue stays open with no comment, and the run appears failed with no explanation.
 - **Use `gh api` (not `actions/github-script`) for `repository_dispatch` calls.** `github-script@v9` made `github-token` a required input with no default — an empty `GH_PAT` secret causes "Input required and not supplied" and silently drops the dispatch. The `gh api` approach reads `GH_TOKEN` from env, is version-stable, and handles JSON safely via `jq`. Pattern used in all four "Trigger CI auto-fix on failure" steps: `env: GH_TOKEN: ${{ secrets.GH_PAT }}` + `jq -n ... | gh api repos/.../dispatches --method POST --input -`.
 - **`gh issue create` does not support `--json`/`--jq`** — those flags are only on read commands (`gh issue list`, `gh issue view`). Capture the URL it prints to stdout and extract the number: `NUMBER=$(gh issue create ... | grep -oE '[0-9]+$')`.
+- **`GITHUB_TOKEN` blocks `issues: closed` events it causes** — when the auto-fix bot merges a PR via `GITHUB_TOKEN`, GitHub closes the linked issue but suppresses the `issues: closed` workflow trigger. The `resolve-sentry-on-close` job therefore never fires for bot-fixed issues. Fix: use `GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash` so the merge is attributed to the repo owner (a human actor), which GitHub does not suppress.
+- **The "no changes made" path must close the issue and resolve Sentry** — when Claude finds no code fix, a bare `exit 0` leaves the GitHub issue and Sentry issue permanently open. Always comment, close the GitHub issue, and call the Sentry resolve API (`PUT /api/0/issues/<ID>/` with `{"status":"resolved"}`) before exiting.
 
 ## README
 
