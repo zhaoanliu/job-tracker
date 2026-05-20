@@ -177,7 +177,7 @@ jobs:
           git commit -m "fix: auto-fix CD failure for issue #${ISSUE_NUMBER}"
           git push origin "$BRANCH"
           PR_URL=$(gh pr create \
-            --title "fix: ${ISSUE_TITLE}" \
+            --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
             --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"$'\n\n'"**Note:** merging this PR triggers a new Vercel production deployment." \
             --base main)
           gh issue comment "${ISSUE_NUMBER}" \

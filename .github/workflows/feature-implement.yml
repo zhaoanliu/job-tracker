@@ -132,7 +132,7 @@ jobs:
           git push origin "$BRANCH"
 
           PR_URL=$(gh pr create \
-            --title "feat: ${FEATURE_TITLE}" \
+            --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
             --body "Closes #${ISSUE_NUMBER}"$'\n\n'"Implemented by Claude Code in response to approved feature request #${ISSUE_NUMBER}." \
             --base main)
 

@@ -128,7 +128,7 @@ jobs:
           git commit -m "fix: repair migration for issue #${ISSUE_NUMBER}"
           git push origin "$BRANCH"
           PR_URL=$(gh pr create \
-            --title "fix: repair DB migration (issue #${ISSUE_NUMBER})" \
+            --title "DB migration failure: production push failed (#${ISSUE_NUMBER})" \
             --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Migration fix** (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed) — requires manual review before merging." \
             --base main)
           gh issue comment "${ISSUE_NUMBER}" \

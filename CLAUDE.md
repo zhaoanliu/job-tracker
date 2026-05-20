@@ -338,7 +338,7 @@ When doing a doc review that produces multiple small fixes across README and CLA
    - `fix: Title` — bug fixes (with `bug` label)
    - Everything else (internal features, CI/infra work, docs, refactors) — **plain descriptive title, no prefix**. Examples: "Gate Vercel production deploys on CI passing", "Add slash commands for common workflows"
 2. Implement on a **new branch off main** — never code on an unrelated branch — named `fix/issue-N-<timestamp>`, `feat/issue-N-<slug>`, or `docs/issue-N-<slug>` (branch prefixes follow conventional commits; issue title prefixes do not)
-3. Open a PR with `Closes #N` in the body so merging auto-closes the issue
+3. Open a PR whose title is **`<issue title> (#N)`** — copy the issue title verbatim and append the issue number in parentheses. Example: `[Feature Request] Add dark mode (#88)`. `Closes #N` in the body auto-closes the issue on merge.
 
 ## Code conventions
 
