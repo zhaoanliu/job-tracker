@@ -5,7 +5,9 @@
 
 A full-stack kanban-based job search pipeline tracker built for senior/principal-level engineers managing a complex, multi-stage search.
 
-![Job Tracker kanban board](docs/screenshot-board.png)
+![Job Tracker login](docs/login.png)
+
+![Job Tracker kanban board](docs/screenshot.png)
 
 ## What it does
 
