@@ -2,6 +2,9 @@ name: Lint & type-check
 
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   workflow_call:
 
 jobs:

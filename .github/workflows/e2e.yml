@@ -2,6 +2,9 @@ name: E2E Auth Tests
 
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   workflow_call:
 
 jobs:
