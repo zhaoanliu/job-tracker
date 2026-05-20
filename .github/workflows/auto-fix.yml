@@ -303,6 +303,9 @@ jobs:
             --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)" \
             --base main)
 
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/update-branch" --method PUT 2>/dev/null || true
+
           if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
             # Use GH_PAT (not GITHUB_TOKEN) so the merge is attributed to the repo owner,
             # not github-actions[bot]. This allows the issues: closed event to fire and
