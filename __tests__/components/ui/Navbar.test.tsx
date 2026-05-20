@@ -83,6 +83,13 @@ describe('Navbar', () => {
     expect(input).toBeInTheDocument()
     expect(input.accept).toBe('.csv')
   })
+
+  it('renders a Roadmap link pointing to /roadmap', () => {
+    render(<Navbar {...defaultProps} />)
+    const link = screen.getByRole('link', { name: /Roadmap/i })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/roadmap')
+  })
 })
 
 describe('Navbar — invite', () => {
