@@ -58,6 +58,21 @@ describe('AuthForm — rendering', () => {
   })
 })
 
+describe('AuthForm — demo account', () => {
+  it('renders the Use demo account button', () => {
+    render(<AuthForm />)
+    expect(screen.getByRole('button', { name: /Use demo account/i })).toBeInTheDocument()
+  })
+
+  it('fills in demo credentials and switches to sign-in mode when clicked', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Magic Link' }))
+    await userEvent.click(screen.getByRole('button', { name: /Use demo account/i }))
+    expect((screen.getByPlaceholderText('you@example.com') as HTMLInputElement).value).toBe('demo@jobtracker.dev')
+    expect((screen.getByPlaceholderText('••••••••') as HTMLInputElement).value).toBe('demo1234')
+  })
+})
+
 describe('AuthForm — sign-in', () => {
   it('calls signInWithPassword with entered credentials', async () => {
     render(<AuthForm />)
