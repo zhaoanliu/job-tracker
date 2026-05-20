@@ -333,15 +333,12 @@ Bundle related changes — code and the documentation that explains them — int
 When doing a doc review that produces multiple small fixes across README and CLAUDE.md, bundle them all into one commit (e.g. "docs: end-of-session review fixes") rather than a separate commit per file or per fix.
 
 **Always open a GitHub issue before writing any code — no exceptions.** The full workflow applies to bugs, features, and doc changes alike:
-1. `gh issue create` with the appropriate label and a clear title following these title formats:
-   - User-requested features: `[Feature Request] Title` (matches the UI Feedback button format from `app/api/feature-request/route.ts`)
-   - Bug fixes: `fix: Title`
-   - Doc / infra changes: plain descriptive title
-   - For `user-requested` issues, also add the correct status label at creation time:
-     - Implementing immediately → add `status: in progress`
-     - Tracking for future → add `status: backlog`
-2. Implement on a **new branch off main** — never code on an unrelated branch — named `fix/issue-N-<timestamp>`, `feat/issue-N-<slug>`, or `docs/issue-N-<slug>`
-3. Open a PR with `Closes #N` in the body so merging auto-closes the issue
+1. `gh issue create` with the appropriate label and a clear title. Issue titles use **plain text only** — never use conventional-commit prefixes (`feat:`, `chore:`, `refactor:`, etc.) in an issue title. The only allowed prefixes are:
+   - `[Feature Request] Title` — user-submitted feature requests (with `user-requested` label). Also add the correct status label at creation time: implementing immediately → `status: in progress`; tracking for future → `status: backlog`
+   - `fix: Title` — bug fixes (with `bug` label)
+   - Everything else (internal features, CI/infra work, docs, refactors) — **plain descriptive title, no prefix**. Examples: "Gate Vercel production deploys on CI passing", "Add slash commands for common workflows"
+2. Implement on a **new branch off main** — never code on an unrelated branch — named `fix/issue-N-<timestamp>`, `feat/issue-N-<slug>`, or `docs/issue-N-<slug>` (branch prefixes follow conventional commits; issue title prefixes do not)
+3. Open a PR whose title is **`<issue title> (#N)`** — copy the issue title verbatim and append the issue number in parentheses. Example: `[Feature Request] Add dark mode (#88)`. `Closes #N` in the body auto-closes the issue on merge.
 
 ## Code conventions
 

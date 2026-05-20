@@ -299,7 +299,7 @@ jobs:
           git push origin "$BRANCH"
 
           PR_URL=$(gh pr create \
-            --title "fix: ${ISSUE_TITLE}" \
+            --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
             --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)" \
             --base main)
 
