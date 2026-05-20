@@ -89,6 +89,18 @@ jobs:
             if [[ -n "$EXISTING" ]]; then
               NUMBER=$(echo "$EXISTING" | jq -r '.number')
               echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
+              # A concurrent run may have already opened a PR for this issue.
+              # Branch names are fix/issue-N-<timestamp>, so match by prefix.
+              EXISTING_PR=$(gh pr list \
+                --state open \
+                --json number,headRefName | \
+                jq --arg prefix "fix/issue-${NUMBER}-" \
+                  '[.[] | select(.headRefName | startswith($prefix))] | .[0] // empty')
+              if [[ -n "$EXISTING_PR" ]]; then
+                PR_NUM=$(echo "$EXISTING_PR" | jq -r '.number')
+                echo "PR #${PR_NUM} already open for issue #${NUMBER}. Skipping."
+                echo "skip=true" >> "$GITHUB_OUTPUT"
+              fi
             else
               # A concurrent run may have already fixed this and closed a matching issue.
               # Only search open issues to avoid reopening old closed ones, but check closed
