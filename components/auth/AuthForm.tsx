@@ -125,13 +125,13 @@ export default function AuthForm() {
       )}
 
       {mode === 'reset' && (
-        <div className="text-right">
+        <div>
           <button
             type="button"
             onClick={() => { setMode('signin'); setMessage(null) }}
-            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+            className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
           >
-            Back to sign in
+            ← Back to sign in
           </button>
         </div>
       )}
@@ -159,9 +159,9 @@ export default function AuthForm() {
           ? 'Sign In'
           : mode === 'signup'
           ? 'Create Account'
-          : mode === 'magic'
-          ? 'Send Magic Link'
-          : 'Send reset link'}
+          : mode === 'reset'
+          ? 'Send reset link'
+          : 'Send Magic Link'}
       </button>
     </form>
   )

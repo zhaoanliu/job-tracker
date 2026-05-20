@@ -163,7 +163,7 @@ describe('AuthForm — forgot password', () => {
     render(<AuthForm />)
     await userEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
     expect(screen.getByRole('button', { name: 'Send reset link' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Back to sign in' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '← Back to sign in' })).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('••••••••')).not.toBeInTheDocument()
   })
 
@@ -191,8 +191,8 @@ describe('AuthForm — forgot password', () => {
   it('Back to sign in returns to sign-in mode', async () => {
     render(<AuthForm />)
     await userEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Back to sign in' }))
+    await userEvent.click(screen.getByRole('button', { name: '← Back to sign in' }))
     expect(screen.getByRole('button', { name: 'Forgot password?' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Back to sign in' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '← Back to sign in' })).not.toBeInTheDocument()
   })
 })
