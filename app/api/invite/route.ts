@@ -41,7 +41,7 @@ function buildEmailHtml(senderEmail: string, name?: string, message?: string) {
               It&rsquo;s a personal kanban board for managing job applications — track where you applied, what stage you&rsquo;re at, and never lose sight of an opportunity. Simple, fast, and free to use.
             </p>
             <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;">
-              As a software engineer with a background in security, privacy is something I take seriously. The app requires sign-in, and your data is stored in an encrypted database with row-level security — only you can access your own applications, nobody else.
+              As a software engineer with a background in security, user privacy and data security are something I take seriously. The app requires sign-in, and your data is stored in an encrypted database with row-level security — only you can access your own applications, nobody else.
             </p>
             ${personalNote}
             <p style="margin:0 0 24px;color:#374151;font-size:14px;line-height:1.6;">
