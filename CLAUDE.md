@@ -333,7 +333,10 @@ Bundle related changes — code and the documentation that explains them — int
 When doing a doc review that produces multiple small fixes across README and CLAUDE.md, bundle them all into one commit (e.g. "docs: end-of-session review fixes") rather than a separate commit per file or per fix.
 
 **Always open a GitHub issue before writing any code — no exceptions.** The full workflow applies to bugs, features, and doc changes alike:
-1. `gh issue create` with the appropriate label (`bug` for bugs, `user-requested` for features, `documentation` for doc-only changes) and a clear title/description
+1. `gh issue create` with the appropriate label and a clear title following these title formats:
+   - User-requested features: `[Feature Request] Title` (matches the UI Feedback button format from `app/api/feature-request/route.ts`)
+   - Bug fixes: `fix: Title`
+   - Doc / infra changes: plain descriptive title
 2. Implement on a **new branch off main** — never code on an unrelated branch — named `fix/issue-N-<timestamp>`, `feat/issue-N-<slug>`, or `docs/issue-N-<slug>`
 3. Open a PR with `Closes #N` in the body so merging auto-closes the issue
 
