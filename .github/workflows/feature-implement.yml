@@ -3,13 +3,19 @@ name: Implement approved feature request
 on:
   issues:
     types: [assigned]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to implement'
+        required: true
+        type: string
 
 jobs:
   implement:
-    if: contains(github.event.issue.labels.*.name, 'user-requested') && github.event.assignee.login == github.repository_owner
+    if: (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'user-requested') && github.event.assignee.login == github.repository_owner)
     runs-on: ubuntu-latest
     concurrency:
-      group: feature-implement-${{ github.event.issue.number }}
+      group: feature-implement-${{ github.event.issue.number || github.event.inputs.issue_number }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -32,19 +38,31 @@ jobs:
           npm install -g @anthropic-ai/claude-code@2.1.145
           echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
 
+      - name: Resolve issue metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.inputs.issue_number }}
+        run: |
+          ISSUE_NUMBER="${EVENT_ISSUE_NUMBER:-$INPUT_ISSUE_NUMBER}"
+          ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title')
+          ISSUE_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')
+          {
+            echo "ISSUE_NUMBER=$ISSUE_NUMBER"
+            echo "ISSUE_TITLE=$ISSUE_TITLE"
+            echo 'ISSUE_BODY<<BODY_EOF'
+            echo "$ISSUE_BODY"
+            echo 'BODY_EOF'
+          } >> "$GITHUB_ENV"
+
       - name: Comment that implementation is starting
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           gh issue comment "${ISSUE_NUMBER}" \
             --body "Claude Code is implementing this feature. A PR will be opened for review when done."
 
       - name: Write prompt file
-        env:
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
           FEATURE_TITLE=$(printf '%s' "${ISSUE_TITLE}" | sed 's/^\[Feature Request\] //')
           printf '%s' "${ISSUE_BODY}" > /tmp/issue_body.txt
@@ -87,8 +105,6 @@ jobs:
       - name: Open PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
         run: |
           if [[ -z $(git diff --name-only) ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
