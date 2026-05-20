@@ -29,6 +29,12 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
   const [inviteMessage, setInviteMessage] = useState('')
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
 
+  const [securityOpen, setSecurityOpen] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [securityStatus, setSecurityStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
+  const [securityError, setSecurityError] = useState('')
+
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
@@ -81,6 +87,42 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
     setInviteEmail('')
     setInviteName('')
     setInviteMessage('')
+  }
+
+  async function handleSecuritySubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSecurityError('')
+
+    if (newPassword.length < 8) {
+      setSecurityError('Password must be at least 8 characters.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setSecurityError('Passwords do not match.')
+      return
+    }
+
+    setSecurityStatus('submitting')
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) throw error
+      setSecurityStatus('success')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong'
+      console.error('updateUser password failed:', msg, err)
+      setSecurityError(msg)
+      setSecurityStatus('error')
+    }
+  }
+
+  function handleSecurityClose() {
+    setSecurityOpen(false)
+    setSecurityStatus('idle')
+    setSecurityError('')
+    setNewPassword('')
+    setConfirmPassword('')
   }
 
   async function handleExport() {
@@ -189,6 +231,14 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
           </Link>
           <span className="text-slate-200">|</span>
           <button
+            onClick={() => setSecurityOpen(true)}
+            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            title="Set or change your password"
+          >
+            Security
+          </button>
+          <span className="text-slate-200">|</span>
+          <button
             onClick={handleSignOut}
             className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
           >
@@ -286,6 +336,90 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
                   className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {inviteStatus === 'submitting' ? 'Sending…' : 'Send invite'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    )}
+
+    {securityOpen && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        onClick={handleSecurityClose}
+      >
+        <div
+          className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6"
+          onClick={e => e.stopPropagation()}
+        >
+          <h2 className="text-sm font-semibold text-slate-900 mb-1">Set or change password</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Set a password for the first time, or change your existing one.
+          </p>
+
+          {securityStatus === 'success' ? (
+            <div className="text-center py-4">
+              <p className="text-sm font-medium text-green-700 mb-1">Password updated!</p>
+              <p className="text-xs text-slate-500 mb-4">You can use it the next time you sign in.</p>
+              <button
+                onClick={handleSecurityClose}
+                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSecuritySubmit}>
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="security-new-password">
+                  New password <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="security-new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  minLength={8}
+                  required
+                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="security-confirm-password">
+                  Confirm password <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="security-confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  minLength={8}
+                  required
+                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              {securityError && (
+                <p className="text-xs text-red-600 mb-3">{securityError}</p>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleSecurityClose}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={securityStatus === 'submitting' || !newPassword || !confirmPassword}
+                  className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {securityStatus === 'submitting' ? 'Saving…' : 'Save password'}
                 </button>
               </div>
             </form>

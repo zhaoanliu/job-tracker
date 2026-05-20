@@ -7,6 +7,7 @@ const mockAuth = {
   signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
   signUp: vi.fn().mockResolvedValue({ error: null }),
   signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+  resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
   getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
   signOut: vi.fn().mockResolvedValue({}),
 }
@@ -143,5 +144,55 @@ describe('AuthForm — magic link', () => {
     await userEvent.type(screen.getByPlaceholderText('you@example.com'), 'magic@example.com')
     fireEvent.submit(document.querySelector('form')!)
     expect(await screen.findByText(/Check your email for a magic link/i)).toBeInTheDocument()
+  })
+})
+
+describe('AuthForm — forgot password', () => {
+  it('shows Forgot password? link in sign-in mode', () => {
+    render(<AuthForm />)
+    expect(screen.getByRole('button', { name: 'Forgot password?' })).toBeInTheDocument()
+  })
+
+  it('does not show Forgot password? in other modes', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Sign Up' }))
+    expect(screen.queryByRole('button', { name: 'Forgot password?' })).not.toBeInTheDocument()
+  })
+
+  it('switches to reset mode when Forgot password? is clicked', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    expect(screen.getByRole('button', { name: 'Send reset link' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '← Back to sign in' })).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('••••••••')).not.toBeInTheDocument()
+  })
+
+  it('calls resetPasswordForEmail with the redirectTo callback URL', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    await userEvent.type(screen.getByPlaceholderText('you@example.com'), 'user@example.com')
+    fireEvent.submit(document.querySelector('form')!)
+    await waitFor(() =>
+      expect(mockAuth.resetPasswordForEmail).toHaveBeenCalledWith(
+        'user@example.com',
+        { redirectTo: expect.stringContaining('/auth/callback?next=/auth/reset-password') }
+      )
+    )
+  })
+
+  it('shows ambiguous success message (does not leak whether email exists)', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    await userEvent.type(screen.getByPlaceholderText('you@example.com'), 'user@example.com')
+    fireEvent.submit(document.querySelector('form')!)
+    expect(await screen.findByText(/If that email exists/i)).toBeInTheDocument()
+  })
+
+  it('Back to sign in returns to sign-in mode', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    await userEvent.click(screen.getByRole('button', { name: '← Back to sign in' }))
+    expect(screen.getByRole('button', { name: 'Forgot password?' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '← Back to sign in' })).not.toBeInTheDocument()
   })
 })
