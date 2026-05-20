@@ -157,6 +157,34 @@ describe('POST /api/invite — email sending', () => {
     expect(res.status).toBe(500)
   })
 
+  it('logs domain-not-verified errors as warnings, not errors', async () => {
+    mockUser()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockSend.mockResolvedValue({
+      error: {
+        message: 'The applytrackr.app domain is not verified. Please, add and verify your domain on https://resend.com/domains',
+        name: 'validation_error',
+      },
+    })
+    const res = await POST(makeReq({ to: 'friend@example.com' }))
+    expect(res.status).toBe(500)
+    expect(errorSpy).not.toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
+    warnSpy.mockRestore()
+  })
+
+  it('logs other Resend errors via console.error', async () => {
+    mockUser()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockSend.mockResolvedValue({ error: { message: 'Rate limit exceeded', name: 'rate_limit_exceeded' } })
+    const res = await POST(makeReq({ to: 'friend@example.com' }))
+    expect(res.status).toBe(500)
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
   it('falls back to noreply@applytrackr.app when RESEND_FROM_EMAIL is unset', async () => {
     mockUser()
     delete process.env.RESEND_FROM_EMAIL

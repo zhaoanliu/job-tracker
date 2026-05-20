@@ -117,7 +117,12 @@ export async function POST(req: NextRequest) {
   })
 
   if (error) {
-    console.error('Resend email failed:', error.message, error)
+    const isDomainConfigError = /domain is not verified|domain is not found/i.test(error.message ?? '')
+    if (isDomainConfigError) {
+      console.warn('Resend email failed (domain config):', error.message, error)
+    } else {
+      console.error('Resend email failed:', error.message, error)
+    }
     return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
   }
 
