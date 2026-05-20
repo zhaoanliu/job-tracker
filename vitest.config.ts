@@ -20,6 +20,10 @@ export default defineConfig({
         'components/board/KanbanBoard.tsx',
         'components/board/KanbanColumn.tsx',
         'components/board/DragOverlayCard.tsx',
+        // Admin charts use Recharts (browser canvas/SVG APIs); covered by E2E tests
+        'components/admin/SignupsChart.tsx',
+        'components/admin/StageChart.tsx',
+        'components/admin/EventsChart.tsx',
       ],
       thresholds: {
         lines: 85,

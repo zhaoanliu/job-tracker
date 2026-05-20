@@ -29,6 +29,7 @@ function mockUser(email = 'sender@example.com') {
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'uid-1', email } } }),
     },
+    from: vi.fn(() => ({ insert: vi.fn().mockResolvedValue({ error: null }) })),
   })
 }
 
