@@ -217,6 +217,8 @@ Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry
 - Triggers: nightly cron (06:00 UTC), `workflow_dispatch`, and push to main (path-filtered to board/modal/CSV/migration paths)
 - Not a required CI check — async and non-blocking; path filter keeps it from running on every push
 
+**Doc-only changes skip CI and CD entirely.** `cd.yml`, `lint.yml`, `test.yml`, `e2e.yml`, and `migrate-validate.yml` all have `paths-ignore` for `**/*.md` and `docs/**`. GitHub treats path-filtered required checks as passing, so doc-only PRs can merge without CI running. `workflow_call` triggers have no path filter — when `cd.yml` triggers for a code push it still calls all 4 workflows unconditionally. When adding a new CI workflow that should also skip on doc-only changes, add the same `paths-ignore` block to its `pull_request` trigger.
+
 **When adding a new CI workflow**, add the ci-failure dispatch at the end (use `gh api + jq`, not `github-script` — see pitfalls below):
 ```yaml
 - name: Trigger CI auto-fix on failure
