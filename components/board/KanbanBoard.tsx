@@ -31,6 +31,7 @@ import Navbar from '@/components/ui/Navbar'
 import StatsBar from '@/components/ui/StatsBar'
 import FilterBar from '@/components/ui/FilterBar'
 import { createClient } from '@/lib/supabase/client'
+import { trackEvent } from '@/lib/trackEvent'
 
 interface KanbanBoardProps {
   initialApplications: Application[]
@@ -144,6 +145,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       if (error) console.error('Cross-column move update failed:', error)
       else {
         persistedStatus.current.set(String(active.id), finalStatus)
+        trackEvent('drag_drop', { from: dragStartStatus.current, to: finalStatus })
         const { data: { user } } = await supabase.auth.getUser()
         if (user) recordStatusHistory(String(active.id), user.id, finalStatus)
       }
@@ -287,6 +289,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       const apps = inserted as Application[]
       apps.forEach(a => persistedStatus.current.set(a.id, a.status))
       setApplications(prev => [...prev, ...apps])
+      trackEvent('csv_import', { count: apps.length })
       // Supabase returns inserted rows in insertion order, so apps[i] matches validRows[i]
       await Promise.all(apps.map((app, i) => {
         const history = validRows[i]?._statusHistory
@@ -312,7 +315,11 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
       <FilterBar
         filters={filters}
         sortBy={sortBy}
-        onFilterChange={setFilters}
+        onFilterChange={(f) => {
+          setFilters(f)
+          const active = f.priority.length + f.type.length + f.workmode.length + f.location.length + (f.search ? 1 : 0)
+          if (active > 0) trackEvent('filter_applied')
+        }}
         onSortChange={setSortBy}
       />
 

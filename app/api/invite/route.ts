@@ -126,5 +126,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
   }
 
+  // Record invite so admin dashboard can track usage
+  const { error: dbError } = await supabase
+    .from('invites')
+    .insert({ sender_id: user.id, recipient: to })
+  if (dbError) console.error('Failed to record invite:', dbError.message, dbError)
+
   return NextResponse.json({ ok: true })
 }
