@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-type Mode = 'signin' | 'signup' | 'magic'
+type Mode = 'signin' | 'signup' | 'magic' | 'reset'
 
 export default function AuthForm() {
   const supabase = createClient()
@@ -34,6 +34,14 @@ export default function AuthForm() {
         })
         if (error) throw error
         setMessage({ text: 'Account created! Check your email to confirm.', type: 'success' })
+      } else if (mode === 'reset') {
+        await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${location.origin}/auth/callback?next=/auth/reset-password`,
+        })
+        setMessage({
+          text: "If that email exists, you'll receive a reset link shortly.",
+          type: 'success',
+        })
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
@@ -88,7 +96,7 @@ export default function AuthForm() {
         />
       </div>
 
-      {mode !== 'magic' && (
+      {mode !== 'magic' && mode !== 'reset' && (
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
           <input
@@ -101,6 +109,30 @@ export default function AuthForm() {
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             suppressHydrationWarning
           />
+        </div>
+      )}
+
+      {mode === 'signin' && (
+        <div className="text-right">
+          <button
+            type="button"
+            onClick={() => { setMode('reset'); setMessage(null) }}
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+          >
+            Forgot password?
+          </button>
+        </div>
+      )}
+
+      {mode === 'reset' && (
+        <div className="text-right">
+          <button
+            type="button"
+            onClick={() => { setMode('signin'); setMessage(null) }}
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+          >
+            Back to sign in
+          </button>
         </div>
       )}
 
@@ -127,7 +159,9 @@ export default function AuthForm() {
           ? 'Sign In'
           : mode === 'signup'
           ? 'Create Account'
-          : 'Send Magic Link'}
+          : mode === 'magic'
+          ? 'Send Magic Link'
+          : 'Send reset link'}
       </button>
     </form>
   )
