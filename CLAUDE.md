@@ -337,6 +337,9 @@ When doing a doc review that produces multiple small fixes across README and CLA
    - User-requested features: `[Feature Request] Title` (matches the UI Feedback button format from `app/api/feature-request/route.ts`)
    - Bug fixes: `fix: Title`
    - Doc / infra changes: plain descriptive title
+   - For `user-requested` issues, also add the correct status label at creation time:
+     - Implementing immediately → add `status: in progress`
+     - Tracking for future → add `status: backlog`
 2. Implement on a **new branch off main** — never code on an unrelated branch — named `fix/issue-N-<timestamp>`, `feat/issue-N-<slug>`, or `docs/issue-N-<slug>`
 3. Open a PR with `Closes #N` in the body so merging auto-closes the issue
 
