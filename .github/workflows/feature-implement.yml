@@ -62,6 +62,14 @@ jobs:
           gh issue comment "${ISSUE_NUMBER}" \
             --body "Claude Code is implementing this feature. A PR will be opened for review when done."
 
+      - name: Mark issue as in progress
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" \
+            --remove-label "status: planned" --remove-label "status: backlog" 2>/dev/null || \
+          gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true
+
       - name: Write prompt file
         run: |
           FEATURE_TITLE=$(printf '%s' "${ISSUE_TITLE}" | sed 's/^\[Feature Request\] //')
