@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Application, CsvHistoryEntry, ImportRow } from '@/lib/types'
@@ -179,6 +180,13 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
           >
             Feedback
           </button>
+          <span className="text-slate-200">|</span>
+          <Link
+            href="/roadmap"
+            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            Roadmap
+          </Link>
           <span className="text-slate-200">|</span>
           <button
             onClick={handleSignOut}

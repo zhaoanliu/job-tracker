@@ -20,6 +20,7 @@ Track every application through a nine-stage pipeline — from passive interest 
 - **Stats bar** — at-a-glance totals: Total / Active / Interviewing / Offers
 - **CSV export & import** — backup your data or bulk-import from a spreadsheet
 - **Feature requests** — submit requests in-app via the Feedback button; owner approves by self-assigning the issue, triggering Claude Code to implement and open a PR
+- **Public roadmap** — `/roadmap` lists all open `user-requested` GitHub issues (planned) and recently closed ones (shipped); no login required; revalidates hourly via ISR
 - **Auth** — email + password or magic link via Supabase Auth
 - **Row Level Security** — every DB query is scoped to the authenticated user, enforced at the Postgres layer
 
