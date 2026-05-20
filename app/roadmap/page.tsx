@@ -8,11 +8,42 @@ export const metadata: Metadata = {
   description: 'See what features are planned and recently shipped.',
 }
 
+interface GithubLabel {
+  name: string
+}
+
 interface GithubIssue {
   number: number
   title: string
   html_url: string
+  labels: GithubLabel[]
   pull_request?: unknown
+}
+
+type StatusKey = 'in progress' | 'planned' | 'backlog' | 'triage'
+
+const STATUS_MAP: Record<StatusKey, { label: string; className: string }> = {
+  'in progress': { label: 'In progress', className: 'text-blue-700 bg-blue-50 border-blue-200' },
+  'planned':     { label: 'Planned',     className: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
+  'backlog':     { label: 'Backlog',     className: 'text-slate-600 bg-slate-50 border-slate-200' },
+  'triage':      { label: 'Waiting for triage', className: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
+}
+
+function getStatus(labels: GithubLabel[]): StatusKey {
+  const names = labels.map(l => l.name)
+  if (names.includes('status: in progress')) return 'in progress'
+  if (names.includes('status: planned')) return 'planned'
+  if (names.includes('status: backlog')) return 'backlog'
+  return 'triage'
+}
+
+function StatusBadge({ status }: { status: StatusKey }) {
+  const { label, className } = STATUS_MAP[status]
+  return (
+    <span className={`text-xs font-medium border rounded-full px-2 py-0.5 shrink-0 ${className}`}>
+      {label}
+    </span>
+  )
 }
 
 async function fetchIssues(state: 'open' | 'closed'): Promise<GithubIssue[]> {
@@ -58,11 +89,11 @@ export default async function RoadmapPage() {
           <div className="flex items-center gap-2 mb-4">
             <span className="w-2 h-2 rounded-full bg-indigo-500" />
             <h2 className="text-sm font-semibold text-slate-700">
-              Planned{planned.length > 0 ? ` (${planned.length})` : ''}
+              Pending{planned.length > 0 ? ` (${planned.length})` : ''}
             </h2>
           </div>
           {planned.length === 0 ? (
-            <p className="text-sm text-slate-400 pl-4">No features planned yet — be the first to suggest one!</p>
+            <p className="text-sm text-slate-400 pl-4">No features pending — be the first to suggest one!</p>
           ) : (
             <ul className="space-y-2">
               {planned.map(issue => (
@@ -74,6 +105,7 @@ export default async function RoadmapPage() {
                     className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all"
                   >
                     <span className="flex-1 text-sm text-slate-800">{issue.title}</span>
+                    <StatusBadge status={getStatus(issue.labels)} />
                     <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>

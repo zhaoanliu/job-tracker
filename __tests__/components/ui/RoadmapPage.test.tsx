@@ -10,10 +10,11 @@ vi.mock('next/link', () => ({
 
 import RoadmapPage from '@/app/roadmap/page'
 
-const makeIssue = (n: number, title: string) => ({
+const makeIssue = (n: number, title: string, labelNames: string[] = []) => ({
   number: n,
   title,
   html_url: `https://github.com/owner/repo/issues/${n}`,
+  labels: labelNames.map(name => ({ name })),
 })
 
 function mockFetch(open: ReturnType<typeof makeIssue>[], closed: ReturnType<typeof makeIssue>[]) {
@@ -40,13 +41,13 @@ describe('RoadmapPage', () => {
     expect(screen.getByRole('link', { name: /Back to dashboard/i })).toHaveAttribute('href', '/dashboard')
   })
 
-  it('shows the empty-state message when there are no planned features', async () => {
+  it('shows the empty-state message when there are no pending features', async () => {
     mockFetch([], [])
     render(await RoadmapPage())
-    expect(screen.getByText(/No features planned yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/No features pending/i)).toBeInTheDocument()
   })
 
-  it('renders planned features as links', async () => {
+  it('renders pending features as links', async () => {
     mockFetch(
       [makeIssue(1, 'Dark mode'), makeIssue(2, 'CSV export v2')],
       []
@@ -59,10 +60,34 @@ describe('RoadmapPage', () => {
     expect(screen.getByRole('link', { name: /CSV export v2/i })).toBeInTheDocument()
   })
 
-  it('shows planned count in section heading', async () => {
+  it('shows pending count in section heading', async () => {
     mockFetch([makeIssue(1, 'Dark mode'), makeIssue(2, 'Notifications')], [])
     render(await RoadmapPage())
-    expect(screen.getByText(/Planned \(2\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/Pending \(2\)/i)).toBeInTheDocument()
+  })
+
+  it('shows "Waiting for triage" badge when no status label is set', async () => {
+    mockFetch([makeIssue(1, 'Dark mode')], [])
+    render(await RoadmapPage())
+    expect(screen.getByText('Waiting for triage')).toBeInTheDocument()
+  })
+
+  it('shows "In progress" badge for status: in progress label', async () => {
+    mockFetch([makeIssue(1, 'Dark mode', ['user-requested', 'status: in progress'])], [])
+    render(await RoadmapPage())
+    expect(screen.getByText('In progress')).toBeInTheDocument()
+  })
+
+  it('shows "Planned" badge for status: planned label', async () => {
+    mockFetch([makeIssue(1, 'Dark mode', ['user-requested', 'status: planned'])], [])
+    render(await RoadmapPage())
+    expect(screen.getByText('Planned')).toBeInTheDocument()
+  })
+
+  it('shows "Backlog" badge for status: backlog label', async () => {
+    mockFetch([makeIssue(1, 'Dark mode', ['user-requested', 'status: backlog'])], [])
+    render(await RoadmapPage())
+    expect(screen.getByText('Backlog')).toBeInTheDocument()
   })
 
   it('renders the shipped section when closed issues exist', async () => {
@@ -83,11 +108,10 @@ describe('RoadmapPage', () => {
     const closed = Array.from({ length: 10 }, (_, i) => makeIssue(i + 100, `Feature ${i + 1}`))
     mockFetch([], closed)
     render(await RoadmapPage())
-    const shippedBadges = screen.getAllByText('Shipped')
-    expect(shippedBadges).toHaveLength(5)
+    expect(screen.getAllByText('Shipped')).toHaveLength(5)
   })
 
-  it('filters out pull requests from both sections', async () => {
+  it('filters out pull requests', async () => {
     mockFetch(
       [{ ...makeIssue(1, 'Real issue'), pull_request: {} }, makeIssue(2, 'Kept issue')],
       []
@@ -100,13 +124,13 @@ describe('RoadmapPage', () => {
   it('renders gracefully when the GitHub API fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')))
     render(await RoadmapPage())
-    expect(screen.getByText(/No features planned yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/No features pending/i)).toBeInTheDocument()
     expect(screen.queryByText(/Recently shipped/i)).not.toBeInTheDocument()
   })
 
   it('renders gracefully when the GitHub API returns non-ok', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
     render(await RoadmapPage())
-    expect(screen.getByText(/No features planned yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/No features pending/i)).toBeInTheDocument()
   })
 })
