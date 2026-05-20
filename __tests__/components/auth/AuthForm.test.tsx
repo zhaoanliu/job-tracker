@@ -102,12 +102,12 @@ describe('AuthForm — sign-up', () => {
     render(<AuthForm />)
     await userEvent.click(screen.getByRole('button', { name: 'Sign Up' }))
     await userEvent.type(screen.getByPlaceholderText('you@example.com'), 'new@example.com')
-    await userEvent.type(screen.getByPlaceholderText('••••••••'), 'pass1234')
+    await userEvent.type(screen.getByPlaceholderText('••••••••'), 'Pass1234!')
     fireEvent.submit(document.querySelector('form')!)
     await waitFor(() =>
       expect(mockAuth.signUp).toHaveBeenCalledWith({
         email: 'new@example.com',
-        password: 'pass1234',
+        password: 'Pass1234!',
         options: { emailRedirectTo: expect.stringContaining('/auth/callback') },
       })
     )
@@ -117,7 +117,7 @@ describe('AuthForm — sign-up', () => {
     render(<AuthForm />)
     await userEvent.click(screen.getByRole('button', { name: 'Sign Up' }))
     await userEvent.type(screen.getByPlaceholderText('you@example.com'), 'new@example.com')
-    await userEvent.type(screen.getByPlaceholderText('••••••••'), 'pass1234')
+    await userEvent.type(screen.getByPlaceholderText('••••••••'), 'Pass1234!')
     fireEvent.submit(document.querySelector('form')!)
     expect(await screen.findByText(/Account created/i)).toBeInTheDocument()
   })

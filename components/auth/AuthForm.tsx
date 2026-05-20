@@ -2,6 +2,11 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULES,
+  validatePassword,
+} from '@/lib/password'
 
 type Mode = 'signin' | 'signup' | 'magic'
 
@@ -13,11 +18,19 @@ export default function AuthForm() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: 'error' | 'success' } | null>(null)
 
+  const passwordCheck = validatePassword(password)
+  const blockSignupSubmit = mode === 'signup' && !passwordCheck.valid
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
     setMessage(null)
 
+    if (mode === 'signup' && !passwordCheck.valid) {
+      setMessage({ text: passwordCheck.message ?? 'Password does not meet requirements.', type: 'error' })
+      return
+    }
+
+    setLoading(true)
     try {
       if (mode === 'magic') {
         const { error } = await supabase.auth.signInWithOtp({
@@ -37,7 +50,6 @@ export default function AuthForm() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        // Middleware will detect the session and redirect to /dashboard
         window.location.href = '/dashboard'
       }
     } catch (err: unknown) {
@@ -97,10 +109,34 @@ export default function AuthForm() {
             value={password}
             onChange={e => setPassword(e.target.value)}
             placeholder="••••••••"
-            minLength={6}
+            minLength={mode === 'signup' ? PASSWORD_MIN_LENGTH : 6}
+            aria-invalid={mode === 'signup' && password.length > 0 && !passwordCheck.valid}
+            aria-describedby={mode === 'signup' ? 'password-requirements' : undefined}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             suppressHydrationWarning
           />
+          {mode === 'signup' && (
+            <ul
+              id="password-requirements"
+              role="list"
+              className="mt-2 space-y-1 text-xs"
+            >
+              {PASSWORD_RULES.map(rule => {
+                const passed = rule.test(password)
+                return (
+                  <li
+                    key={rule.id}
+                    data-testid={`password-rule-${rule.id}`}
+                    data-passed={passed}
+                    className={passed ? 'text-green-600' : 'text-slate-500'}
+                  >
+                    <span aria-hidden="true">{passed ? '✓' : '○'}</span>{' '}
+                    {rule.label}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
       )}
 
@@ -118,7 +154,7 @@ export default function AuthForm() {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || blockSignupSubmit}
         className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {loading
