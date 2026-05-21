@@ -125,7 +125,21 @@ jobs:
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
+      - name: Check for existing PR
+        id: pr_check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          EXISTING_PR=$(gh pr list --state open --json headRefName --jq '.[].headRefName' \
+            | grep "^fix/ci-issue-${ISSUE_NUMBER}-" | head -1)
+          if [[ -n "$EXISTING_PR" ]]; then
+            echo "PR already exists for issue #${ISSUE_NUMBER} ($EXISTING_PR) — skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Mark issue as in progress
+        if: steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
@@ -133,12 +147,14 @@ jobs:
           gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true
 
       - name: Run Claude Code
+        if: steps.pr_check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           claude --dangerously-skip-permissions --max-turns 20 -p "$(cat /tmp/prompt.txt)" || echo "claude exited with code $? (max-turns or error), continuing"
 
       - name: Apply fix or open PR
+        if: steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}

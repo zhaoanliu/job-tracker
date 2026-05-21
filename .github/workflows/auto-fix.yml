@@ -2,7 +2,7 @@ name: Auto-fix bugs
 
 on:
   issues:
-    types: [labeled, closed]
+    types: [opened, reopened, closed]
   repository_dispatch:
     types: [sentry-issue]
 
@@ -27,7 +27,7 @@ jobs:
           fi
 
   auto-fix:
-    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'bug' && contains(github.event.issue.body, 'sentry.io'))
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && (github.event.action == 'opened' || github.event.action == 'reopened') && contains(github.event.issue.body, 'sentry.io'))
     runs-on: ubuntu-latest
     concurrency:
       group: auto-fix
@@ -237,8 +237,22 @@ jobs:
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
-      - name: Mark issue as in progress
+      - name: Check for existing PR
+        id: pr_check
         if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          EXISTING_PR=$(gh pr list --state open --json headRefName --jq '.[].headRefName' \
+            | grep "^fix/issue-${ISSUE_NUMBER}-" | head -1)
+          if [[ -n "$EXISTING_PR" ]]; then
+            echo "PR already exists for issue #${ISSUE_NUMBER} ($EXISTING_PR) — skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mark issue as in progress
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
@@ -246,7 +260,7 @@ jobs:
           gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true
 
       - name: Run Claude Code
-        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -269,13 +283,13 @@ jobs:
           done
 
       - name: Revert .github/ changes
-        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         run: |
           git fetch origin main
           git checkout origin/main -- .github/ 2>/dev/null || true
 
       - name: Open PR
-        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}
