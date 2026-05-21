@@ -26,9 +26,13 @@ export async function middleware(request: NextRequest) {
   // Refresh the session — keeps the user logged in across tab reloads.
   // IMPORTANT: do not use getSession() here; getUser() hits the Supabase auth
   // server and validates the JWT, preventing token-smuggling attacks.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    user = null
+  }
 
   const { pathname } = request.nextUrl
 
