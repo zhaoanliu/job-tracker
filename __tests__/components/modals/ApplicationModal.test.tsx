@@ -233,6 +233,55 @@ describe('ApplicationModal — tab navigation', () => {
   })
 })
 
+describe('ApplicationModal — Job Posting URL open button', () => {
+  it('renders an open-link button next to the URL field', () => {
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    expect(screen.getByRole('button', { name: 'Open job posting in new tab' })).toBeInTheDocument()
+  })
+
+  it('opens the application link in a new tab when clicked', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      render(<ApplicationModal {...defaultProps} application={existingApp} />)
+      await userEvent.click(screen.getByRole('button', { name: 'Open job posting in new tab' }))
+      expect(openSpy).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer')
+    } finally {
+      openSpy.mockRestore()
+    }
+  })
+
+  it('opens the currently-typed URL even before saving the form', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      render(<ApplicationModal {...defaultProps} application={existingApp} />)
+      const urlInput = screen.getByDisplayValue('https://example.com')
+      await userEvent.clear(urlInput)
+      await userEvent.type(urlInput, 'https://newcompany.com/jobs/42')
+      await userEvent.click(screen.getByRole('button', { name: 'Open job posting in new tab' }))
+      expect(openSpy).toHaveBeenLastCalledWith('https://newcompany.com/jobs/42', '_blank', 'noopener,noreferrer')
+    } finally {
+      openSpy.mockRestore()
+    }
+  })
+
+  it('disables the open button when the URL is empty', () => {
+    render(<ApplicationModal {...defaultProps} />)
+    expect(screen.getByRole('button', { name: 'Open job posting in new tab' })).toBeDisabled()
+  })
+
+  it('does not open a new tab when clicked with no URL', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      render(<ApplicationModal {...defaultProps} />)
+      const btn = screen.getByRole('button', { name: 'Open job posting in new tab' })
+      await userEvent.click(btn)
+      expect(openSpy).not.toHaveBeenCalled()
+    } finally {
+      openSpy.mockRestore()
+    }
+  })
+})
+
 describe('ApplicationModal — JD preview', () => {
   it('renders HTML job description via dangerouslySetInnerHTML without React errors', async () => {
     const appWithHtml: Application = { ...existingApp, jd: '<p>Hello <strong>world</strong></p>' }
