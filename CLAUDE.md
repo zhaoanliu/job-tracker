@@ -260,7 +260,7 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - Always opens a PR (never pushes to main) — feature work always needs review
 - Branch name is `feat/issue-<N>-<timestamp>` to avoid collisions on re-runs
 - If Claude makes no changes, comments on the issue explaining that the request may need more detail
-- **Approval flow**: user submits via the in-app Feedback form → GitHub issue created with `user-requested` label → owner adds `status: auto-implement` label → this workflow runs, swaps to `status: in progress`, implements, opens PR. For owner-initiated features, use `/open-issue <title> --auto` (adds `status: auto-implement` directly, no `user-requested`). `status: planned` is informational only — it does not trigger the workflow.
+- **Approval flow**: user submits via the in-app Feedback form → GitHub issue created with `user-requested` label → owner adds `status: auto-implement` label → this workflow runs, swaps to `status: in progress`, implements, opens PR. For owner-initiated features, use `/open-issue <title> --auto-implement` (adds `status: auto-implement` directly, no `user-requested`). `status: planned` is informational only — it does not trigger the workflow.
 - **`user-requested` is reserved for the Feedback form** — the `/api/feature-request` route sets it automatically. Never add it manually to owner-initiated issues; it drives the public roadmap filter.
 - No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`
 
