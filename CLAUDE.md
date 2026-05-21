@@ -254,13 +254,14 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - **Infra error**: opens a GitHub issue with the run link for manual investigation, no code fix attempted
 - Claude is constrained to only edit files under `supabase/migrations/`
 
-**`feature-implement.yml`** — implements approved user feature requests; triggers on `issues: labeled` when the `status: planned` label is added AND the issue has the `user-requested` label:
+**`feature-implement.yml`** — implements approved feature requests; triggers on `issues: labeled` when the `status: auto-implement` label is added (the `user-requested` label is not checked, so owner-initiated issues are supported too):
 - Comments on the issue immediately so the submitter sees it's in progress
+- Swaps the `status: auto-implement` label out for `status: in progress` on start
 - Runs `claude --dangerously-skip-permissions` with the issue title and body as the prompt
 - Always opens a PR (never pushes to main) — feature work always needs review
 - Branch name is `feat/issue-<N>-<timestamp>` to avoid collisions on re-runs
 - If Claude makes no changes, comments on the issue explaining that the request may need more detail
-- **Approval flow**: user submits via the in-app Feedback form → GitHub issue created with `user-requested` label → owner adds `status: planned` label → this workflow runs, swaps to `status: in progress`, implements, opens PR
+- **Approval flow**: user submits via the in-app Feedback form → GitHub issue created with `user-requested` + `status: backlog` labels → owner adds `status: auto-implement` label to approve → this workflow runs, swaps to `status: in progress`, implements, opens PR. Owner-initiated issues (via `/open-issue --auto`) skip the `user-requested` label so they do not appear on the public roadmap.
 - No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`
 
 **`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `repository_dispatch` with `event_type: cd-failure` (fired by `cd-filter.yml`, which filters `deployment_status` events to Production failures only; or by `/api/vercel-webhook` for Vercel Pro users):
@@ -334,7 +335,7 @@ When doing a doc review that produces multiple small fixes across README and CLA
 
 **Always open a GitHub issue before writing any code — no exceptions.** The full workflow applies to bugs, features, and doc changes alike:
 1. `gh issue create` with the appropriate label and a clear title. Issue titles use **plain text only** — never use conventional-commit prefixes (`feat:`, `chore:`, `refactor:`, etc.) in an issue title. The only allowed prefixes are:
-   - `[Feature Request] Title` — user-submitted feature requests (with `user-requested` label). Also add the correct status label at creation time: implementing immediately → `status: in progress`; tracking for future → `status: backlog`
+   - `[Feature Request] Title` — feature request issues. Use `user-requested` only for genuine user-submitted requests (the in-app Feedback form sets this; the public `/roadmap` filters on it). Owner-initiated feature issues (via `/open-issue` or `/implement`) omit `user-requested`. Also add the correct status label at creation time: implementing immediately → `status: in progress`; auto-implementing via `feature-implement.yml` → `status: auto-implement`; tracking for future → `status: backlog`
    - `fix: Title` — bug fixes (with `bug` label)
    - Everything else (internal features, CI/infra work, docs, refactors) — **plain descriptive title, no prefix**. Examples: "Gate Vercel production deploys on CI passing", "Add slash commands for common workflows"
 2. Implement on a **new branch off main** — never code on an unrelated branch — named `fix/issue-N-<timestamp>`, `feat/issue-N-<slug>`, or `docs/issue-N-<slug>` (branch prefixes follow conventional commits; issue title prefixes do not)
