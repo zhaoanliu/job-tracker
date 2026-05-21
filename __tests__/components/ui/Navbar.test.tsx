@@ -31,9 +31,9 @@ const defaultProps = {
 beforeEach(() => vi.clearAllMocks())
 
 describe('Navbar', () => {
-  it('renders the app logo text', () => {
+  it('renders the app logo image', () => {
     render(<Navbar {...defaultProps} />)
-    expect(screen.getByText('Job Tracker')).toBeInTheDocument()
+    expect(screen.getAllByAltText('ApplyTrackr').length).toBeGreaterThan(0)
   })
 
   it('shows the user email', () => {
