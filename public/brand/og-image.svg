@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img">
+  <title>ApplyTrackr — Track your job search pipeline</title>
+  <desc>Open Graph image for ApplyTrackr</desc>
+  <rect width="1200" height="630" fill="#1e1b4b"/>
+  <!-- Subtle grid pattern -->
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.04"/>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+  <!-- Icon mark large -->
+  <g transform="translate(360, 140)">
+    <rect width="180" height="180" rx="36" fill="#4f46e5"/>
+    <rect x="21" y="27" width="30" height="12" rx="3.5" fill="white" opacity="0.25"/>
+    <rect x="21" y="45" width="30" height="12" rx="3.5" fill="white" opacity="0.25"/>
+    <rect x="21" y="63" width="30" height="12" rx="3.5" fill="white" opacity="0.42"/>
+    <rect x="75" y="27" width="30" height="12" rx="3.5" fill="white" opacity="0.45"/>
+    <rect x="75" y="45" width="30" height="12" rx="3.5" fill="white" opacity="0.65"/>
+    <rect x="129" y="27" width="30" height="12" rx="3.5" fill="white" opacity="1"/>
+    <rect x="129" y="45" width="30" height="12" rx="3.5" fill="white" opacity="0.75"/>
+    <rect x="21" y="93" width="138" height="5" rx="2.5" fill="white" opacity="0.12"/>
+    <rect x="21" y="93" width="92" height="5" rx="2.5" fill="white" opacity="0.65"/>
+    <circle cx="36" cy="147" r="9" fill="white" opacity="0.25"/>
+    <line x1="45" y1="147" x2="81" y2="147" stroke="white" stroke-width="1.5" opacity="0.18"/>
+    <circle cx="90" cy="147" r="9" fill="white" opacity="0.52"/>
+    <line x1="99" y1="147" x2="135" y2="147" stroke="white" stroke-width="1.5" opacity="0.18"/>
+    <circle cx="144" cy="147" r="9" fill="white" opacity="1"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="600" y="290" font-family="Inter, system-ui, sans-serif" font-size="80" font-weight="700" fill="white" text-anchor="middle">Apply<tspan fill="#818cf8" font-weight="400">Trackr</tspan></text>
+  <!-- Tagline -->
+  <text x="600" y="360" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="400" fill="#a5b4fc" text-anchor="middle">Track your job search pipeline</text>
+  <!-- Domain -->
+  <text x="600" y="520" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="400" fill="#4338ca" text-anchor="middle">applytrackr.app</text>
+</svg>

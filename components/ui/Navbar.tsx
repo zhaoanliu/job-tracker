@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Application, CsvHistoryEntry, ImportRow } from '@/lib/types'
@@ -166,13 +167,23 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
       className="h-[var(--nav-height)] flex items-center justify-between px-4 bg-white border-b border-slate-200 z-10"
       style={{ height: 'var(--nav-height)' }}
     >
-      <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
-          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-        </div>
-        <span className="font-semibold text-slate-900 text-sm">Job Tracker</span>
+      <div className="flex items-center">
+        <Image
+          src="/brand/lockup-light.svg"
+          alt="ApplyTrackr"
+          width={200}
+          height={40}
+          priority
+          className="block dark:hidden"
+        />
+        <Image
+          src="/brand/lockup-dark.svg"
+          alt="ApplyTrackr"
+          width={200}
+          height={40}
+          priority
+          className="hidden dark:block"
+        />
       </div>
 
       <div className="flex items-center gap-2">
