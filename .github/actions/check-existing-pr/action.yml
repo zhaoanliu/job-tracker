@@ -1,0 +1,29 @@
+name: Check for existing PR
+description: Set skip=true if an open PR with the given branch prefix already exists
+
+inputs:
+  branch-prefix:
+    description: 'Branch name prefix to match (e.g. fix/issue-42-)'
+    required: true
+
+outputs:
+  skip:
+    description: 'true if a matching open PR already exists'
+    value: ${{ steps.check.outputs.skip }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check
+      id: check
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BRANCH_PREFIX: ${{ inputs.branch-prefix }}
+      run: |
+        EXISTING_PR=$(gh pr list --state open --json headRefName --jq '.[].headRefName' \
+          | grep "^${BRANCH_PREFIX}" | head -1 || true)
+        if [[ -n "$EXISTING_PR" ]]; then
+          echo "PR already exists ($EXISTING_PR) — skipping"
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+        fi

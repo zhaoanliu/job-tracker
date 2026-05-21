@@ -2,7 +2,7 @@ name: Auto-fix bugs
 
 on:
   issues:
-    types: [labeled, closed]
+    types: [opened, reopened, closed]
   repository_dispatch:
     types: [sentry-issue]
 
@@ -27,7 +27,7 @@ jobs:
           fi
 
   auto-fix:
-    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'bug' && contains(github.event.issue.body, 'sentry.io'))
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && (github.event.action == 'opened' || github.event.action == 'reopened') && contains(github.event.issue.body, 'sentry.io'))
     runs-on: ubuntu-latest
     concurrency:
       group: auto-fix
@@ -40,18 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Cache Claude Code
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm-global
-          key: claude-code-${{ runner.os }}
-
-      - name: Install Claude Code
-        run: |
-          npm config set prefix ~/.npm-global
-          export PATH=~/.npm-global/bin:$PATH
-          npm install -g @anthropic-ai/claude-code@2.1.145
-          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/install-claude
 
       - name: Find or create GitHub issue
         id: issue
@@ -237,16 +226,19 @@ jobs:
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
-      - name: Mark issue as in progress
+      - uses: ./.github/actions/check-existing-pr
+        id: pr_check
         if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-        run: |
-          gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true
+        with:
+          branch-prefix: fix/issue-${{ steps.issue.outputs.number }}-
+
+      - uses: ./.github/actions/mark-in-progress
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
+        with:
+          issue-number: ${{ steps.issue.outputs.number }}
 
       - name: Run Claude Code
-        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -269,13 +261,13 @@ jobs:
           done
 
       - name: Revert .github/ changes
-        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         run: |
           git fetch origin main
           git checkout origin/main -- .github/ 2>/dev/null || true
 
       - name: Open PR
-        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}

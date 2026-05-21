@@ -19,18 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Cache Claude Code
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm-global
-          key: claude-code-${{ runner.os }}
-
-      - name: Install Claude Code
-        run: |
-          npm config set prefix ~/.npm-global
-          export PATH=~/.npm-global/bin:$PATH
-          npm install -g @anthropic-ai/claude-code@2.1.145
-          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/install-claude
 
       - name: Capture issue details
         id: issue
@@ -95,14 +84,18 @@ jobs:
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
-      - name: Mark issue as in progress
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-        run: |
-          gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true
+      - uses: ./.github/actions/check-existing-pr
+        id: pr_check
+        with:
+          branch-prefix: fix/issue-${{ steps.issue.outputs.number }}-
+
+      - uses: ./.github/actions/mark-in-progress
+        if: steps.pr_check.outputs.skip != 'true'
+        with:
+          issue-number: ${{ steps.issue.outputs.number }}
 
       - name: Run Claude Code
+        if: steps.pr_check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -125,11 +118,13 @@ jobs:
           done
 
       - name: Revert .github/ changes
+        if: steps.pr_check.outputs.skip != 'true'
         run: |
           git fetch origin main
           git checkout origin/main -- .github/ 2>/dev/null || true
 
       - name: Open PR
+        if: steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}

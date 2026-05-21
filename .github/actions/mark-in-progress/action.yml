@@ -1,0 +1,30 @@
+name: Mark issue as in progress
+description: Add status:in-progress label and optionally remove other status labels
+
+inputs:
+  issue-number:
+    description: 'GitHub issue number'
+    required: true
+  labels-to-remove:
+    description: 'Newline-separated list of labels to remove (optional)'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Update labels
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ISSUE_NUMBER: ${{ inputs.issue-number }}
+        LABELS_TO_REMOVE: ${{ inputs.labels-to-remove }}
+      run: |
+        REMOVE_ARGS=()
+        while IFS= read -r label; do
+          [[ -z "$label" ]] && continue
+          REMOVE_ARGS+=(--remove-label "$label")
+        done <<< "$LABELS_TO_REMOVE"
+        gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" \
+          "${REMOVE_ARGS[@]}" 2>/dev/null || \
+        gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true

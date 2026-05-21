@@ -22,17 +22,7 @@ jobs:
           ref: ${{ github.event.client_payload.head_branch }}
           fetch-depth: 0
 
-      - name: Cache Claude Code
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm-global
-          key: claude-code-${{ runner.os }}
-
-      - name: Install Claude Code
-        run: |
-          npm config set prefix "$HOME/.npm-global"
-          npm install -g @anthropic-ai/claude-code@2.1.145
-          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/install-claude
 
       - name: Get failure logs
         env:
@@ -125,20 +115,25 @@ jobs:
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
-      - name: Mark issue as in progress
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-        run: |
-          gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true
+      - uses: ./.github/actions/check-existing-pr
+        id: pr_check
+        with:
+          branch-prefix: fix/ci-issue-${{ steps.issue.outputs.number }}-
+
+      - uses: ./.github/actions/mark-in-progress
+        if: steps.pr_check.outputs.skip != 'true'
+        with:
+          issue-number: ${{ steps.issue.outputs.number }}
 
       - name: Run Claude Code
+        if: steps.pr_check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           claude --dangerously-skip-permissions --max-turns 20 -p "$(cat /tmp/prompt.txt)" || echo "claude exited with code $? (max-turns or error), continuing"
 
       - name: Apply fix or open PR
+        if: steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}
