@@ -10,11 +10,12 @@ vi.mock('next/link', () => ({
 
 import RoadmapPage from '@/app/roadmap/page'
 
-const makeIssue = (n: number, title: string, labelNames: string[] = []) => ({
+const makeIssue = (n: number, title: string, labelNames: string[] = [], state: 'open' | 'closed' = 'open') => ({
   number: n,
   title,
   html_url: `https://github.com/owner/repo/issues/${n}`,
   labels: labelNames.map(name => ({ name })),
+  state,
 })
 
 function mockFetch(open: ReturnType<typeof makeIssue>[], closed: ReturnType<typeof makeIssue>[]) {
@@ -88,6 +89,15 @@ describe('RoadmapPage', () => {
     mockFetch([makeIssue(1, 'Dark mode', ['user-requested', 'status: backlog'])], [])
     render(await RoadmapPage())
     expect(screen.getByText('Backlog')).toBeInTheDocument()
+  })
+
+  it('does not show "In progress" badge when a stale label is on a closed issue', async () => {
+    mockFetch(
+      [makeIssue(1, 'Dark mode', ['user-requested', 'status: in progress'], 'closed')],
+      [],
+    )
+    render(await RoadmapPage())
+    expect(screen.queryByText('In progress')).not.toBeInTheDocument()
   })
 
   it('renders the shipped section when closed issues exist', async () => {
