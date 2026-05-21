@@ -185,6 +185,7 @@ jobs:
               echo "Fix pushed to \`${HEAD_BRANCH}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
             } > /tmp/issue_comment.txt
             gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+            gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" 2>/dev/null || true
             gh issue close "${ISSUE_NUMBER}"
           else
             # CI failed on main — always open a PR so CI (lint + e2e-auth) verifies the fix before merging
