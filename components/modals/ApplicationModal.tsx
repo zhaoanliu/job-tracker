@@ -322,13 +322,29 @@ export default function ApplicationModal({
                   </div>
                   <div>
                     <label className={labelClass}>Job Posting URL</label>
-                    <input
-                      type="url"
-                      value={form.link ?? ''}
-                      onChange={e => set('link', e.target.value || null)}
-                      placeholder="https://..."
-                      className={inputClass}
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={form.link ?? ''}
+                        onChange={e => set('link', e.target.value || null)}
+                        placeholder="https://..."
+                        className={inputClass}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (form.link) window.open(form.link, '_blank', 'noopener,noreferrer')
+                        }}
+                        disabled={!form.link}
+                        aria-label="Open job posting in new tab"
+                        title={form.link ? 'Open in new tab' : 'Enter a URL first'}
+                        className="flex-shrink-0 rounded-lg border border-slate-300 px-2.5 flex items-center justify-center text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors disabled:text-slate-300 disabled:hover:bg-transparent disabled:hover:text-slate-300 disabled:cursor-not-allowed"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
