@@ -102,15 +102,25 @@ jobs:
           cat >> /tmp/prompt.txt << 'EOF'
           Analyze the CI failure above. Find the root cause in the codebase and fix it.
           Do NOT run any git commands — just edit the files.
-          Do NOT add comments explaining what you changed.
+          Do NOT add code comments explaining what you changed.
 
-          After making the fix, write a single word to /tmp/risk.txt:
-          - Write "low" if ALL of the following are true:
+          After making the fix, write two output files:
+
+          1. /tmp/summary.txt — a markdown summary with exactly these sections:
+          ## Problem
+          One or two sentences: what the CI failure was and what caused it.
+          ## Root cause
+          One sentence: where in the code the issue lives.
+          ## Fix
+          Bullet list — one line per file changed, explaining what was changed and why.
+
+          2. /tmp/risk.txt — a single word: low or high.
+          Write "low" if ALL of the following are true:
             - 1 or 2 files changed
             - The fix is a null guard, type safety fix, lint error, type error, or simple value correction
             - No new functions, classes, or logic flows were added
             - No auth, database schema, or API surface was touched
-          - Write "high" for anything else; when in doubt use "high"
+          Write "high" for anything else; when in doubt use "high"
 
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
@@ -159,8 +169,14 @@ jobs:
             else
               echo "Fix already applied by another run, skipping push"
             fi
-            gh issue comment "${ISSUE_NUMBER}" \
-              --body "Fix pushed to \`${HEAD_BRANCH}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
+            {
+              if [[ -s /tmp/summary.txt ]]; then
+                cat /tmp/summary.txt
+                echo ""
+              fi
+              echo "Fix pushed to \`${HEAD_BRANCH}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
+            } > /tmp/issue_comment.txt
+            gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
             gh issue close "${ISSUE_NUMBER}"
           else
             # CI failed on main — always open a PR so CI (lint + e2e-auth) verifies the fix before merging
@@ -169,16 +185,37 @@ jobs:
             git add -A
             git commit -m "fix: auto-fix CI failure for issue #${ISSUE_NUMBER}"
             git push origin "$BRANCH"
+            {
+              echo "Closes #${ISSUE_NUMBER}"
+              echo ""
+              echo "**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"
+              if [[ -s /tmp/summary.txt ]]; then
+                echo ""
+                cat /tmp/summary.txt
+              fi
+            } > /tmp/pr_body.txt
             PR_URL=$(gh pr create \
               --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
-              --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)" \
+              --body-file /tmp/pr_body.txt \
               --base main)
             if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
               gh pr merge --auto --squash "$PR_URL" || true
-              gh issue comment "${ISSUE_NUMBER}" \
-                --body "Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes."
+              {
+                if [[ -s /tmp/summary.txt ]]; then
+                  cat /tmp/summary.txt
+                  echo ""
+                fi
+                echo "Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes."
+              } > /tmp/issue_comment.txt
+              gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
             else
-              gh issue comment "${ISSUE_NUMBER}" \
-                --body "A fix has been proposed: $PR_URL — please review before merging."
+              {
+                if [[ -s /tmp/summary.txt ]]; then
+                  cat /tmp/summary.txt
+                  echo ""
+                fi
+                echo "A fix has been proposed: $PR_URL — please review before merging."
+              } > /tmp/issue_comment.txt
+              gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
             fi
           fi
