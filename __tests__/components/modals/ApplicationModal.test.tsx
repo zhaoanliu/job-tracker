@@ -229,7 +229,15 @@ describe('ApplicationModal — tab navigation', () => {
   it('switches to Job Description tab on click', async () => {
     render(<ApplicationModal {...defaultProps} />)
     await userEvent.click(screen.getByRole('button', { name: 'Job Description' }))
-    expect(screen.getByPlaceholderText(/paste the full job description/i)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Job description editor' })).toBeInTheDocument()
+  })
+
+  it('shows rich-text formatting toolbar in the Job Description tab', async () => {
+    render(<ApplicationModal {...defaultProps} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Job Description' }))
+    expect(screen.getByRole('button', { name: 'Bold' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Italic' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bullet list' })).toBeInTheDocument()
   })
 })
 

@@ -14,6 +14,7 @@ import {
   StatusHistoryEntry,
 } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import RichTextEditor from '@/components/modals/RichTextEditor'
 
 interface ApplicationModalProps {
   application: Application | null
@@ -406,12 +407,10 @@ export default function ApplicationModal({
                     </div>
                   )
                 ) : (
-                  <textarea
-                    rows={18}
+                  <RichTextEditor
                     value={form.jd ?? ''}
-                    onChange={e => set('jd', e.target.value || null)}
+                    onChange={html => set('jd', html || null)}
                     placeholder="Paste the full job description here…"
-                    className={`${inputClass} resize-none font-mono text-xs`}
                   />
                 )}
               </div>
