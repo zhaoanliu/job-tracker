@@ -27,7 +27,7 @@ jobs:
           fi
 
   auto-fix:
-    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'bug')
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'bug' && contains(github.event.issue.body, 'sentry.io'))
     runs-on: ubuntu-latest
     concurrency:
       group: auto-fix
