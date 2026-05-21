@@ -1,4 +1,4 @@
-name: Auto-fix Sentry issues
+name: Auto-fix bugs
 
 on:
   issues:
