@@ -66,9 +66,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SHA: ${{ github.event.client_payload.sha }}
           DEPLOY_URL: ${{ github.event.client_payload.deployment_url }}
+          VERCEL_ERROR: ${{ github.event.client_payload.vercel_error }}
+          REPRODUCIBLE: ${{ steps.build.outputs.reproducible }}
         run: |
           SHORT_SHA="${SHA:0:7}"
-          TITLE="CD failure: Production deployment of ${SHORT_SHA} failed"
+          if [[ "$REPRODUCIBLE" == "true" ]]; then
+            TITLE="CD failure: Production deployment of ${SHORT_SHA} failed"
+            IS_INFRA=false
+          else
+            if echo "$VERCEL_ERROR" | grep -qiE "deployment.?limit|monthly.?limit|quota.?exceeded|rate.?limit"; then
+              TITLE="CD failure: Vercel deployment limit exceeded"
+            else
+              TITLE="CD failure: Vercel production deployment unreachable"
+            fi
+            IS_INFRA=true
+          fi
           printf '%s' "$TITLE" > /tmp/issue_title.txt
           EXISTING=$(gh issue list \
             --state open \
@@ -78,23 +90,34 @@ jobs:
               '[.[] | select(.title == $title)] | .[0] // empty')
           if [[ -n "$EXISTING" ]]; then
             NUMBER=$(echo "$EXISTING" | jq -r '.number')
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            if [[ "$IS_INFRA" == "true" ]]; then
+              gh issue comment "$NUMBER" \
+                --body "Another deployment failure — commit \`${SHORT_SHA}\`"$'\n'"**Run:** ${DEPLOY_URL}"
+            fi
           else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+            if [[ "$IS_INFRA" == "true" ]]; then
+              BODY="**First failure:** commit \`${SHA}\`"$'\n\n'"**Run:** ${DEPLOY_URL}"$'\n\n'"This issue tracks Vercel production deployment failures that are not reproducible locally (platform/infra errors). It will be auto-closed when a deployment succeeds."
+            else
+              BODY="**Commit:** \`${SHA}\`"$'\n\n'"**Vercel logs:** ${DEPLOY_URL}"$'\n\n'"This issue was automatically created from a Vercel production deployment failure."
+            fi
             ISSUE_URL=$(gh issue create \
               --title "$TITLE" \
-              --body "**Commit:** \`${SHA}\`"$'\n\n'"**Vercel logs:** ${DEPLOY_URL}"$'\n\n'"This issue was automatically created from a Vercel production deployment failure.")
+              --body "$BODY")
             NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
           fi
           echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Comment and stop if not locally reproducible
-        if: steps.build.outputs.reproducible == 'false'
+        if: steps.build.outputs.reproducible == 'false' && steps.issue.outputs.hit != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           DEPLOY_URL: ${{ github.event.client_payload.deployment_url }}
         run: |
           gh issue comment "${ISSUE_NUMBER}" \
-            --body "The build succeeds locally — this is likely a Vercel environment variable or configuration issue, not a code bug. Check: ${DEPLOY_URL}"$'\n\n'"Manual investigation required."
+            --body "The build succeeds locally — this is likely a Vercel environment variable or configuration issue, not a code bug. Check: ${DEPLOY_URL}"$'\n\n'"Manual investigation required. This issue will be auto-closed when a deployment succeeds."
 
       - name: Write prompt
         if: steps.build.outputs.reproducible == 'true'

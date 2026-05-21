@@ -354,6 +354,26 @@ Two lessons documented in CLAUDE.md:
 
 ---
 
+### CD Failure Issue Deduplication
+
+A burst of five rapid merges overnight each hit Vercel's deployment limit. Because `cd-auto-fix.yml` used the commit SHA in the issue title (`"CD failure: Production deployment of <sha> failed"`), five separate issues were created for the same root cause. The deduplication logic — which matches on title — never fired because every SHA is unique.
+
+Two separate problems:
+
+1. **SHA-specific titles prevent deduplication across commits for infra failures.** A Vercel deployment limit, network hiccup, or platform outage is a *category* problem, not a per-commit code bug. Code bugs legitimately need per-SHA issues (each commit is a different change). Infra failures do not.
+
+2. **No auto-close on recovery.** When subsequent deploys succeeded, the stale issues stayed open indefinitely.
+
+The fix introduces a distinction between the two failure types:
+
+- **Infra/platform failure** (`reproducible=false`): uses a stable category title — `"CD failure: Vercel deployment limit exceeded"` or `"CD failure: Vercel production deployment unreachable"` — so all failures of the same type land on one issue. Repeated hits add a comment (`Another deployment failure — commit \`abc1234\``) rather than opening duplicates. The Vercel CLI output (last 30 lines) is now passed in the dispatch payload as `vercel_error` so the workflow can classify the error type.
+
+- **Code bug** (`reproducible=true`): behavior unchanged — SHA-specific title, Claude runs, PR opened. These are genuinely distinct per commit.
+
+`cd.yml` now also closes all open `CD failure:` issues automatically when a production deploy succeeds, commenting with the commit SHA that resolved the situation.
+
+---
+
 ## What This Project Demonstrates
 
 For a principal-level engineering portfolio, this project shows:
