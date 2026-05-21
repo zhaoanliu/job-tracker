@@ -1,4 +1,5 @@
 Create a GitHub feature request issue, implement it on a branch, and open a PR.
+Runs Claude in the current session — for async bot implementation use `/open-issue <title> --auto-implement` instead.
 
 Usage: /implement <title> — optionally followed by a description after a newline
 
@@ -6,8 +7,8 @@ Steps:
 1. Parse the title from $ARGUMENTS (first line). Use remaining lines as the issue body if present.
 2. Create the GitHub issue:
    - Title: `[Feature Request] <title>`
-   - Labels: `user-requested`, `status: in progress`
-   - Command: `gh issue create --title "[Feature Request] <title>" --label "user-requested" --label "status: in progress" [--body "<body>"]`
+   - Labels: `status: in progress`
+   - Command: `gh issue create --title "[Feature Request] <title>" --label "status: in progress" [--body "<body>"]`
    - Capture the issue number from the URL printed to stdout.
 3. Ensure you are on main and it is up to date: `git checkout main && git pull origin main`
 4. Create a feature branch: `git checkout -b feat/issue-<N>-<slug>` where `<slug>` is the title lowercased with spaces replaced by hyphens, trimmed to ~30 chars.
