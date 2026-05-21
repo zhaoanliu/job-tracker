@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       title: `[Feature Request] ${title}`,
       body: issueBody,
-      labels: ['feature-request', 'user-requested'],
+      labels: ['user-requested'],
     }),
   })
 
