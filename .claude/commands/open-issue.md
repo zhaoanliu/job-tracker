@@ -1,12 +1,19 @@
-Create a GitHub feature request issue for future tracking (backlog).
+Create a GitHub issue for future tracking or automated bot implementation.
 
-Usage: /open-issue <title>
+Usage: /open-issue <title> [--auto]
 
 Steps:
-1. The title argument is the feature description. If no title is provided, ask the user for one.
-2. Create the issue with:
-   - Title: `[Feature Request] $ARGUMENTS`
-   - Labels: `user-requested`, `status: backlog`
-   - No body required unless the user provided extra detail.
-   - Command: `gh issue create --title "[Feature Request] $ARGUMENTS" --label "user-requested" --label "status: backlog"`
-3. Report the issue URL and number to the user.
+1. Parse $ARGUMENTS. Check if `--auto` is present anywhere in the string; if so, set `has_auto=true` and strip `--auto` from the title (trim whitespace).
+2. If no title remains after stripping, ask the user for one.
+3. Create the issue:
+   - If `has_auto`:
+     - Title: `[Feature Request] <title>`
+     - Labels: `status: auto-implement`
+     - Command: `gh issue create --title "[Feature Request] <title>" --label "status: auto-implement"`
+     - Note: the `feature-implement.yml` bot will pick this up automatically and open a PR.
+   - Else:
+     - Title: `[Feature Request] <title>`
+     - Labels: `status: backlog`
+     - Command: `gh issue create --title "[Feature Request] <title>" --label "status: backlog"`
+   - Do NOT add `user-requested` — that label is reserved for issues submitted via the in-app Feedback form.
+4. Report the issue URL and number to the user.

@@ -12,7 +12,7 @@ on:
 
 jobs:
   implement:
-    if: "(github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'issues' && github.event.label.name == 'status: planned' && contains(github.event.issue.labels.*.name, 'user-requested'))"
+    if: "(github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'issues' && github.event.label.name == 'status: auto-implement')"
     runs-on: ubuntu-latest
     concurrency:
       group: feature-implement-${{ github.event.issue.number || github.event.inputs.issue_number }}
@@ -67,7 +67,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" \
-            --remove-label "status: planned" --remove-label "status: backlog" 2>/dev/null || \
+            --remove-label "status: auto-implement" --remove-label "status: planned" --remove-label "status: backlog" 2>/dev/null || \
           gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true
 
       - name: Write prompt file
