@@ -58,7 +58,7 @@ export default function AuthForm() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        window.location.href = '/dashboard'
+        window.location.href = '/'
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong'
