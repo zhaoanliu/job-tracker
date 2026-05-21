@@ -1,0 +1,49 @@
+name: Test composite actions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-install-claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/install-claude
+      - name: Verify claude is on PATH
+        run: claude --version
+
+  test-check-existing-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: No-match case — nonexistent prefix should not set skip
+        id: no_match
+        uses: ./.github/actions/check-existing-pr
+        with:
+          branch-prefix: definitely-nonexistent-xyz-99999-
+
+      - name: Assert skip is not set
+        run: |
+          if [[ "${{ steps.no_match.outputs.skip }}" == "true" ]]; then
+            echo "FAIL: expected no skip for nonexistent prefix"
+            exit 1
+          fi
+          echo "PASS: skip not set for nonexistent prefix"
+
+  test-mark-in-progress:
+    # Dry-run: verifies the action resolves and the multiline labels-to-remove
+    # input parses correctly. Uses issue 0 which does not exist — gh edit fails
+    # silently due to || true in the action body.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/mark-in-progress
+        with:
+          issue-number: '0'
+          labels-to-remove: |
+            status: auto-implement
+            status: planned
+            status: backlog

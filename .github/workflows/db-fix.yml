@@ -15,17 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Cache Claude Code
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm-global
-          key: claude-code-${{ runner.os }}
-
-      - name: Install Claude Code
-        run: |
-          npm config set prefix "$HOME/.npm-global"
-          npm install -g @anthropic-ai/claude-code@2.1.145
-          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/install-claude
 
       - name: Get failure logs
         id: logs
@@ -105,13 +95,10 @@ jobs:
           Bullet list — one line per file changed, explaining what was corrected and why.
           EOF
 
-      - name: Mark issue as in progress
+      - uses: ./.github/actions/mark-in-progress
         if: steps.logs.outputs.error_type == 'code'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
-        run: |
-          gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true
+        with:
+          issue-number: ${{ steps.issue.outputs.number }}
 
       - name: Run Claude Code
         if: steps.logs.outputs.error_type == 'code'
