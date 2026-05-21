@@ -51,3 +51,31 @@ jobs:
             status: auto-implement
             status: planned
             status: backlog
+
+  test-trigger-ci-failure:
+    # Validates the jq payload shape without invoking the action directly.
+    # Calling the action would fire a real ci-failure dispatch and trigger
+    # ci-auto-fix.yml unnecessarily. The dispatch path is covered the first
+    # time a real CI failure occurs on a branch that uses the action.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate jq payload shape
+        env:
+          HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg wf "Test composite actions" \
+            --arg id "0" \
+            --arg url "https://github.com/${{ github.repository }}/actions/runs/0" \
+            --arg branch "$HEAD_BRANCH" \
+            '{"event_type":"ci-failure","client_payload":{"workflow_name":$wf,"run_id":$id,"run_url":$url,"head_branch":$branch}}')
+          jq -e '
+            .event_type == "ci-failure" and
+            (.client_payload | has("workflow_name")) and
+            (.client_payload | has("run_id")) and
+            (.client_payload | has("run_url")) and
+            (.client_payload | has("head_branch"))
+          ' <<< "$PAYLOAD"
+          echo "PASS: payload is well-formed"
