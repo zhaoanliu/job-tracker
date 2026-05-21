@@ -75,6 +75,8 @@ e2e/
 
 **dnd-kit column ordering** — `order` field is an integer per-column index. `handleDragOver` updates local state optimistically; `handleDragEnd` persists to DB.
 
+**Env-var guards must never be removed** — patterns like `if (!process.env.X) { notFound() }` or `if (!process.env.X) { redirect(...) }` are intentional failure modes for missing configuration, not dead code. If such a guard is triggering, the fix is to ensure the env var is set in the deployment environment, not to remove the guard. Removing a guard turns a clean 404/redirect into an unhandled runtime error.
+
 ## DB schema changes
 
 Every schema change follows this checklist — skipping any step is what caused the `status_history` incident (table deployed to prod days after the code that needed it, with no visible errors because Supabase `PostgrestError` objects log as `[object Object]` in Sentry).

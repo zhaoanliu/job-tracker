@@ -214,6 +214,7 @@ jobs:
           Do NOT run any git commands — just edit the files.
           Do NOT modify any files under .github/ — workflow changes are out of scope.
           Do NOT add code comments explaining what you changed.
+          Do NOT remove env-var guards such as `if (!process.env.X) { notFound() }` or `if (!process.env.X) { redirect(...) }` — these are intentional failure modes for missing configuration, not dead code. If such a guard is triggering, the fix is to ensure the env var is set, not to remove the guard.
 
           After making the fix, write two output files:
 
