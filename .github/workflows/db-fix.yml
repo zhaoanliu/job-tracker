@@ -94,7 +94,15 @@ jobs:
           Do NOT run any git commands — just edit the files.
           Do NOT modify any files under .github/ — workflow changes are out of scope.
           Do NOT modify any files outside supabase/migrations/.
-          Do NOT add comments explaining what you changed.
+          Do NOT add code comments explaining what you changed.
+
+          After making the fix, write a markdown summary to /tmp/summary.txt with these sections:
+          ## Problem
+          One or two sentences: what the migration error was and what caused it.
+          ## Root cause
+          One sentence: which migration file had the issue and why.
+          ## Fix
+          Bullet list — one line per file changed, explaining what was corrected and why.
           EOF
 
       - name: Run Claude Code
@@ -127,9 +135,24 @@ jobs:
           git add supabase/migrations/
           git commit -m "fix: repair migration for issue #${ISSUE_NUMBER}"
           git push origin "$BRANCH"
+          {
+            echo "Closes #${ISSUE_NUMBER}"
+            echo ""
+            echo "**Migration fix** (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed) — requires manual review before merging."
+            if [[ -s /tmp/summary.txt ]]; then
+              echo ""
+              cat /tmp/summary.txt
+            fi
+          } > /tmp/pr_body.txt
           PR_URL=$(gh pr create \
             --title "DB migration failure: production push failed (#${ISSUE_NUMBER})" \
-            --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Migration fix** (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed) — requires manual review before merging." \
+            --body-file /tmp/pr_body.txt \
             --base main)
-          gh issue comment "${ISSUE_NUMBER}" \
-            --body "A migration fix has been proposed: $PR_URL — please review carefully before merging as this affects the production database."
+          {
+            if [[ -s /tmp/summary.txt ]]; then
+              cat /tmp/summary.txt
+              echo ""
+            fi
+            echo "A migration fix has been proposed: $PR_URL — please review carefully before merging as this affects the production database."
+          } > /tmp/issue_comment.txt
+          gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt

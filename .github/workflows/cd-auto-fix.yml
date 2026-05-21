@@ -124,15 +124,25 @@ jobs:
           - Do NOT modify package.json, package-lock.json, or any config outside the error trace
           - Do NOT make improvements unrelated to the build error
           - Do NOT run any git commands — just edit the files
-          - Do NOT add comments explaining what you changed
+          - Do NOT add code comments explaining what you changed
 
-          After making the fix, write a single word to /tmp/risk.txt:
-          - Write "low" if ALL of the following are true:
+          After making the fix, write two output files:
+
+          1. /tmp/summary.txt — a markdown summary with exactly these sections:
+          ## Problem
+          One or two sentences: what the build error was and what caused it.
+          ## Root cause
+          One sentence: where in the code the issue lives.
+          ## Fix
+          Bullet list — one line per file changed, explaining what was changed and why.
+
+          2. /tmp/risk.txt — a single word: low or high.
+          Write "low" if ALL of the following are true:
             - 1 or 2 files changed
             - The fix is a null guard, type safety fix, lint error, type error, or simple value correction
             - No new functions, classes, or logic flows were added
             - No auth, database schema, or API surface was touched
-          - Write "high" for anything else; when in doubt use "high"
+          Write "high" for anything else; when in doubt use "high"
 
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
@@ -176,9 +186,26 @@ jobs:
           git add -A
           git commit -m "fix: auto-fix CD failure for issue #${ISSUE_NUMBER}"
           git push origin "$BRANCH"
+          {
+            echo "Closes #${ISSUE_NUMBER}"
+            echo ""
+            echo "**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"
+            echo ""
+            echo "**Note:** merging this PR triggers a new Vercel production deployment."
+            if [[ -s /tmp/summary.txt ]]; then
+              echo ""
+              cat /tmp/summary.txt
+            fi
+          } > /tmp/pr_body.txt
           PR_URL=$(gh pr create \
             --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
-            --body "Closes #${ISSUE_NUMBER}"$'\n\n'"**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"$'\n\n'"**Note:** merging this PR triggers a new Vercel production deployment." \
+            --body-file /tmp/pr_body.txt \
             --base main)
-          gh issue comment "${ISSUE_NUMBER}" \
-            --body "A fix has been proposed: $PR_URL — review before merging (merging triggers a new production deployment)."
+          {
+            if [[ -s /tmp/summary.txt ]]; then
+              cat /tmp/summary.txt
+              echo ""
+            fi
+            echo "A fix has been proposed: $PR_URL — review before merging (merging triggers a new production deployment)."
+          } > /tmp/issue_comment.txt
+          gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
