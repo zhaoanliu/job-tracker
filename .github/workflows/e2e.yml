@@ -47,11 +47,12 @@ jobs:
         if: failure() && github.actor != 'github-actions[bot]'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
+          HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           jq -n \
             --arg wf "${{ github.workflow }}" \
             --arg id "${{ github.run_id }}" \
             --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --arg branch "${{ github.ref_name }}" \
+            --arg branch "$HEAD_BRANCH" \
             '{"event_type":"ci-failure","client_payload":{"workflow_name":$wf,"run_id":$id,"run_url":$url,"head_branch":$branch}}' \
           | gh api repos/${{ github.repository }}/dispatches --method POST --input -
