@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reset your ApplyTrackr password</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="480" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;border:1px solid #e2e8f0;padding:40px;">
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <img src="https://applytrackr.app/brand/lockup-light@2x.png"
+                   alt="ApplyTrackr"
+                   width="160" height="32"
+                   style="display:block;border:0;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="color:#0f172a;font-size:18px;font-weight:600;padding-bottom:12px;">
+              Reset your password
+            </td>
+          </tr>
+          <tr>
+            <td style="color:#475569;font-size:15px;line-height:1.6;padding-bottom:32px;">
+              We received a request to reset the password for your account. Click the button below to choose a new password. This link expires in 1 hour.
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <a href="{{ .ConfirmationURL }}"
+                 style="display:inline-block;background-color:#2563eb;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;padding:12px 28px;">
+                Reset password
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="color:#94a3b8;font-size:13px;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:24px;">
+              If you didn't request a password reset, you can safely ignore this email. Your password will not change.<br />
+              This link was requested for <strong>{{ .Email }}</strong>.
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-top:24px;">
+              <a href="{{ .SiteURL }}" style="color:#94a3b8;font-size:12px;text-decoration:none;">applytrackr.app</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

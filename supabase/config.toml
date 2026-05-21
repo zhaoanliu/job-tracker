@@ -231,12 +231,31 @@ otp_expiry = 3600
 # Use a production-ready SMTP server
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# host = "smtp.resend.com"
+# port = 465
+# user = "resend"
+# pass = "env(RESEND_SMTP_API_KEY)"
+# admin_email = "noreply@applytrackr.app"
+# sender_name = "ApplyTrackr"
+# Note: RESEND_SMTP_API_KEY is a separate key from RESEND_API_KEY — create it at
+# resend.com/api-keys scoped to Sending access for applytrackr.app.
+# Production SMTP is configured in Supabase Dashboard → Authentication → Email Auth → SMTP Settings.
+
+[auth.email.template.magic_link]
+subject = "Sign in to ApplyTrackr"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.confirmation]
+subject = "Confirm your ApplyTrackr account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your ApplyTrackr password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email address"
+content_path = "./supabase/templates/email_change.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
