@@ -7,7 +7,8 @@ Steps:
    - If $ARGUMENTS is a number, use it directly.
    - Otherwise, detect it from the current branch: `gh pr view --json number --jq '.number'`
    - If no PR is found, report that and stop.
-2. Show current checks: `gh pr checks <N>`
+2. Show current checks: `gh pr checks <N> || true`
+   (exit code 8 means checks are pending/failing — not a real error; `|| true` prevents a red error block)
 3. Evaluate the result:
    a. **All checks pass** → merge with squash and delete the branch:
       ```
