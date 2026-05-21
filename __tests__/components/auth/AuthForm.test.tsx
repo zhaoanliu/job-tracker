@@ -114,6 +114,14 @@ describe('AuthForm — sign-in', () => {
     )
   })
 
+  it('redirects to / after successful sign-in so middleware can route admin vs user', async () => {
+    render(<AuthForm />)
+    await userEvent.type(screen.getByPlaceholderText('you@example.com'), 'admin@example.com')
+    await userEvent.type(screen.getByPlaceholderText('••••••••'), 'secret123')
+    fireEvent.submit(document.querySelector('form')!)
+    await waitFor(() => expect(window.location.pathname).toBe('/'))
+  })
+
   it('shows an error message when sign-in fails', async () => {
     mockAuth.signInWithPassword.mockResolvedValue({ error: new Error('Invalid credentials') })
     render(<AuthForm />)
