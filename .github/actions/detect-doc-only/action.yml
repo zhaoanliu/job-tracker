@@ -1,0 +1,25 @@
+name: Detect doc-only changes
+description: Outputs skip=true when a pull_request touches only .md/docs files
+
+outputs:
+  skip:
+    description: 'true if all changed files are docs — callers should skip expensive jobs'
+    value: ${{ steps.check.outputs.skip }}
+
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        BASE_REF: ${{ github.base_ref }}
+      run: |
+        if [[ "$EVENT_NAME" == "pull_request" ]]; then
+          NON_DOC=$(git diff --name-only "origin/${BASE_REF}...HEAD" \
+            | grep -Ev '\.md$|^docs/' | wc -l | tr -d ' ')
+          if [[ "$NON_DOC" -eq 0 ]]; then
+            echo "Doc-only change — skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+        fi
