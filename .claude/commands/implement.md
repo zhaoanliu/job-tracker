@@ -1,4 +1,5 @@
 Create a GitHub feature request issue, implement it on a branch, and open a PR.
+Runs Claude in the current session — for async bot implementation use `/open-issue <title> --auto-implement` instead.
 
 Usage: /implement <title> — optionally followed by a description after a newline
 
