@@ -8,8 +8,8 @@ Steps:
 3. Create the issue:
    - Title: `fix: <title>`
    - Labels: `bug`
-   - Body: the description if provided, otherwise omit
-   - Command: `gh issue create --title "fix: <title>" --label "bug" [--body "<description>"]`
+   - Body: the description if provided, otherwise fall back to the title (never omit — `gh issue create` requires `--body` when running non-interactively).
+   - Command: `gh issue create --title "fix: <title>" --label "bug" --body "<description-or-title>"`
    - Capture the issue number from the URL printed to stdout.
 4. Report the issue URL and number. Note that `auto-fix.yml` will pick it up automatically and open a PR.
 5. If the user wants to discuss the bug further (reproduce steps, stack traces, additional context), add that information as a comment on the issue:
