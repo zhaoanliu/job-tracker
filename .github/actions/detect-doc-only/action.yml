@@ -17,7 +17,7 @@ runs:
       run: |
         if [[ "$EVENT_NAME" == "pull_request" ]]; then
           NON_DOC=$(git diff --name-only "origin/${BASE_REF}...HEAD" \
-            | grep -Ev '\.md$|^docs/' | wc -l | tr -d ' ')
+            | { grep -Ev '\.md$|^docs/' || true; } | wc -l | tr -d ' ')
           if [[ "$NON_DOC" -eq 0 ]]; then
             echo "Doc-only change — skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
