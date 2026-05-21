@@ -17,6 +17,7 @@ interface GithubIssue {
   title: string
   html_url: string
   labels: GithubLabel[]
+  state?: 'open' | 'closed'
   pull_request?: unknown
 }
 
@@ -29,9 +30,9 @@ const STATUS_MAP: Record<StatusKey, { label: string; className: string }> = {
   'triage':      { label: 'Waiting for triage', className: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
 }
 
-function getStatus(labels: GithubLabel[]): StatusKey {
-  const names = labels.map(l => l.name)
-  if (names.includes('status: in progress')) return 'in progress'
+function getStatus(issue: GithubIssue): StatusKey {
+  const names = issue.labels.map(l => l.name)
+  if (issue.state !== 'closed' && names.includes('status: in progress')) return 'in progress'
   if (names.includes('status: planned')) return 'planned'
   if (names.includes('status: backlog')) return 'backlog'
   return 'triage'
@@ -105,7 +106,7 @@ export default async function RoadmapPage() {
                     className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all"
                   >
                     <span className="flex-1 text-sm text-slate-800">{issue.title}</span>
-                    <StatusBadge status={getStatus(issue.labels)} />
+                    <StatusBadge status={getStatus(issue)} />
                     <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
