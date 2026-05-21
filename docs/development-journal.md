@@ -151,13 +151,217 @@ This came to a head when Zhaoan opened the tracker in Claude.ai and found it sho
 
 ---
 
+## The Production Phase
+
+Once the app was live at https://applytrackr.app, the goal shifted from "build features" to "operate reliably and keep improving." This section covers everything built after launch.
+
+---
+
+### Building the Auto-Fix Pipeline
+
+The first priority after launch was making sure bugs got fixed fast — ideally without manual intervention. The idea: use Claude Code inside GitHub Actions to automatically diagnose and fix Sentry alerts.
+
+**How it works end-to-end:**
+
+```
+Runtime error captured by console.error
+    │
+    ├─► captureConsoleIntegration forwards to Sentry
+    │
+    └─► Sentry fires simultaneously:
+            │
+            ├─► sentry[bot] opens GitHub issue (with 'bug' label)
+            │
+            └─► POST /api/sentry-webhook (HMAC verified)
+                    │
+                    ▼
+                repository_dispatch: sentry-issue
+                    │
+                    ▼
+                auto-fix.yml
+                    │
+                    ├─ Is replay_hydration_error? → close + resolve Sentry
+                    │
+                    ├─ Fetch Sentry event (stack trace, culprit, error type)
+                    ├─ Find or create GitHub issue
+                    │
+                    └─ Run Claude Code
+                            │
+                            ├─ No changes? → close issue + resolve Sentry
+                            │
+                            ├─ Low-risk fix → PR + auto-merge
+                            │
+                            └─ High-risk fix → PR (manual review)
+                                    │
+                                    ▼
+                            CI passes → merge
+                                    │
+                                    ▼
+                            resolve-sentry-on-close fires
+                                    │
+                                    ▼
+                            Sentry issue resolved
+```
+
+**Key design decision — always create a PR:** Early versions pushed fixes directly to `main`. This was fast but bypassed CI — the fix could break a test or introduce a lint error. The pipeline was redesigned so every auto-fix goes through a PR with full CI (lint + type-check + unit tests + E2E auth + migration validation) before merging. Low-risk fixes (≤2 files, ≤20 lines) get auto-merge enabled so they land automatically once CI passes. High-risk fixes wait for a human.
+
+**Key design decision — inject the Sentry event:** The initial implementation only gave Claude the GitHub issue title (e.g. "TypeError: Cannot read properties of undefined"). Claude would exhaust its turn limit looking for the bug without the stack trace. The fix: fetch the full Sentry event (stack trace, culprit URL, error type) via the Sentry REST API and inject it directly into Claude's prompt. Time to fix dropped dramatically.
+
+**Browser-extension noise filtering:** Sentry was firing on hydration errors caused by password managers injecting `data-1password-filled` attributes into the DOM. These have no stack frames inside `/_next/` because the mismatch originates outside app code. A `beforeSend` callback was added to `instrumentation-client.ts` to drop hydration errors with no app-code frames. Real hydration errors (which DO have `/_next/` frames) are still reported.
+
+**`Failed to fetch` transient errors** — caused by offline state, ad blockers, and page unloads — were added to the `ignoreErrors` list so they don't trigger the auto-fix bot on every user who has a brief network hiccup.
+
+---
+
+### CI/CD Redesign
+
+The original setup auto-deployed to Vercel on every push to `main`. This meant a typo or a broken migration could go to production instantly.
+
+**The redesigned pipeline:**
+
+```
+Push to main
+    │
+    ▼
+cd.yml orchestrates all checks in parallel:
+    │
+    ├── lint.yml (ESLint + tsc + actionlint)
+    ├── test.yml (Vitest + coverage thresholds)
+    ├── e2e.yml (auth E2E via Playwright + Testmail.app)
+    └── migrate-validate.yml (supabase start + all migrations)
+    │
+    ▼
+All 4 pass?
+    │
+    ├─ supabase db push (production)  ← migrations land first
+    │
+    └─ vercel deploy --prod           ← new code served after
+```
+
+This guarantees the migration is in the database before the code that depends on it is live — closing the race condition that caused the `status_history` incident (table deployed days after the code needed it, with silent failures because `PostgrestError` objects logged as `[object Object]`).
+
+**Vercel's `ignoreCommand` exit code semantics are inverted from Unix convention:** `exit 0` means "skip this build", `exit 1` means "proceed". `vercel.json` sets `ignoreCommand: exit 0` to disable Vercel's auto-deploy entirely. `cd.yml` owns all deployments.
+
+**Version pinning:** Every tool version in every workflow is pinned exactly — Supabase CLI at `2.100.1`, `@anthropic-ai/claude-code` at `2.1.145`. Using `latest` makes a GitHub API call per run and fails with rate-limit errors on busy runners. A Renovate config was added to open PRs automatically when new versions are available.
+
+---
+
+### GitHub Actions Pitfalls (Learned the Hard Way)
+
+Running workflows 100+ times surfaced a long list of non-obvious GitHub Actions behaviors:
+
+**`if:` expressions must be a single line.** Using `|` (block scalar) adds a trailing newline that the expression parser silently rejects. The job is skipped with no error message — one of the hardest bugs to diagnose.
+
+**Blank lines inside `run: |` blocks terminate the block scalar** if the line that follows starts at column 0. Use `echo ""` for blank lines in shell output.
+
+**`gh issue list --search` has non-deterministic lag on new issues.** The full-text search index takes seconds to minutes to index a freshly-created issue. Using the list REST API (`gh issue list --state open --limit 50 --json number,title`) returns current data immediately. Filter with `jq` locally.
+
+**The second queued auto-fix run fails to push** if the first already committed. After making the fix, the workflow must `git fetch origin main && git rebase origin/main`, then check if `COMMITS_AHEAD` is 0 — if so, the fix was already applied and the push is skipped.
+
+**`GITHUB_TOKEN` pushes block `on: issues: closed` triggers.** When the bot merges a PR via `GITHUB_TOKEN`, GitHub closes the linked issue but suppresses the `issues: closed` workflow trigger. Fix: use `GH_PAT` (the repo owner's personal token) for auto-merge so the merge is attributed to a human actor, which GitHub does not suppress.
+
+**`gh issue create` does not support `--json`.** Capture the URL it prints to stdout and extract the number with `grep -oE '[0-9]+$'`.
+
+**`actions/github-script@v9` made `github-token` a required input with no default.** An empty `GH_PAT` secret causes "Input required and not supplied" and silently drops the `repository_dispatch`. Replaced with `gh api` + `jq -n ... | gh api repos/.../dispatches --method POST --input -` — more explicit and version-stable.
+
+---
+
+### The Label-Based Feature Request Flow
+
+The original feature-implement workflow triggered on "self-assign" (`issues: assigned`). This was fragile — GitHub's event only fires when you assign someone *else*, not yourself via the UI's "Assign yourself" shortcut. It was replaced with a label-based flow that's explicit and visible.
+
+**Current flow:**
+
+```
+User submits Feedback in navbar
+    │ POST /api/feature-request → creates GitHub issue
+    ▼
+Issue: 'user-requested' + 'status: backlog'
+    │
+    │ Owner reviews the request
+    ▼
+Owner adds 'status: planned' label
+    │
+    ▼
+feature-implement.yml triggers
+    │
+    ├─ Comment: "Claude Code is implementing this…"
+    ├─ Swap label: 'status: backlog' → 'status: in progress'
+    ├─ Run Claude Code (implements the feature)
+    │
+    ├─ No changes? → comment "needs more detail"
+    │
+    └─ Changes made → open PR
+            │
+            ▼
+        Owner reviews and merges
+            │
+            ▼
+        Issue closes → roadmap shows as "Shipped"
+```
+
+**Issue status states:**
+
+| Label | Meaning | Who sets it |
+|---|---|---|
+| `status: backlog` | Received, not yet planned | Auto-set on submission |
+| `status: planned` | Approved, queued for implementation | Owner |
+| `status: in progress` | Claude Code is working on it | Workflow |
+| *(closed)* | Shipped or rejected | PR merge or owner |
+
+The `/roadmap` page reads these labels live from the GitHub API (with 1-hour ISR) and shows a badge for each state.
+
+---
+
+### The `label-pr.yml` Workflow
+
+Auto-fix PRs get auto-merge enabled so CI can land them without human interaction. Human-authored PRs don't have auto-merge — and it's easy to forget they're ready to merge after CI goes green.
+
+`label-pr.yml` solves this by watching for all four required CI checks to pass on a PR, then adding a `manual merge required` label if auto-merge is not enabled. The label is removed automatically when a new commit is pushed (so it resets when the author makes changes). This creates a visible signal: if a PR has this label, it's ready to merge right now.
+
+---
+
+### New Features Added Post-Launch
+
+**Forgot password / change password** — the original auth form only supported magic link and email/password. Users who signed up via magic link had no way to set a password. Added: a "Forgot password?" link on the sign-in tab that sends a Supabase password reset email, and a `/auth/reset-password` page where the link lands to complete the reset. Magic link users can also use this flow to set a password for the first time.
+
+**Strong password requirements** — minimum length, character variety, and strength score validated client-side (with a visual meter) and enforced server-side. Prevents weak passwords like "password123" from being accepted.
+
+**Invite-a-friend** — an "Invite" button in the navbar opens a modal where the user can enter a friend's name and email. Sends a personalized HTML email via Resend with Zhaoan's personal introduction and a link to the app. The invite is recorded in a Supabase `invites` table for the admin dashboard funnel.
+
+**Demo account** — a "Use demo account" button on the login page fills in `demo@jobtracker.dev` / `demo1234` automatically. Eliminates the friction for anyone trying the app — no sign-up required. The demo account's data is seeded with realistic job applications across all pipeline stages.
+
+**Public roadmap** — `/roadmap` fetches open `user-requested` GitHub issues and renders them with status badges (Backlog / Planned / In Progress). Recently closed issues appear as "Shipped". No login required. Implemented with ISR (`revalidate: 3600`) so it stays current without re-fetching on every page load.
+
+**Admin metrics dashboard** — `/admin` requires the `SUPABASE_SERVICE_ROLE_KEY` to access auth admin APIs. Shows: total users, signups per day (30-day bar chart), total applications, applications per day, stage distribution, activation rate (users who created ≥1 application), and invite funnel (total invites sent, unique inviters). Not linked from the app UI — accessed directly.
+
+**Claude Code slash commands** — three commands added to `.claude/commands/`:
+- `/open-issue` — creates a GitHub issue with the right labels and title format
+- `/implement` — creates an issue, implements it on a branch, opens a PR
+- `/ship` — checks CI status on the current PR and merges if all checks pass
+
+---
+
+### Supabase `PostgrestError` Logging Incident
+
+Supabase returns structured `PostgrestError` objects when a query fails. A bare `console.error(error)` logs the object as `[object Object]` — completely useless in Sentry. The fix was to always log `error.message` alongside the raw object: `console.error('context:', error.message, error)`.
+
+The `status_history` incident exposed this: a new table was referenced in application code before the migration had been applied in production. The queries silently returned empty results (RLS returned nothing for a table that didn't exist), and Sentry showed `[object Object]` in the logs. It took hours to diagnose what would have been a 2-second fix if the error message had been logged.
+
+Two lessons documented in CLAUDE.md:
+1. Always log `error.message` alongside the raw error object in every Supabase error handler
+2. Follow the DB schema checklist (migration → RLS → types → code → merge) without skipping steps
+
+---
+
 ## What This Project Demonstrates
 
 For a principal-level engineering portfolio, this project shows:
 
-- **Full-stack ownership** — from data model to UI to deployment
-- **Security thinking** — RLS, auth, per-user data isolation
-- **Iterative problem solving** — drag and drop went through 5+ rewrites to get right
-- **Product sense** — the pipeline stages, field choices, and UX decisions reflect real job search experience
-- **AI integration readiness** — Claude API stub is already planned and scaffolded
-- **Documentation** — thorough README explaining architecture decisions, not just setup steps
+- **Full-stack ownership** — from data model to UI to deployment to operations
+- **Security thinking** — RLS, auth, per-user data isolation, HMAC webhook verification
+- **Iterative problem solving** — drag and drop went through 5+ rewrites to get right; the auto-fix pipeline went through a dozen iterations to handle concurrency, deduplication, and noise filtering correctly
+- **Product sense** — the pipeline stages, field choices, UX decisions, and feature prioritization reflect real job search experience
+- **AI integration in production** — Claude Code is embedded in the CI/CD pipeline as an active operator, not just a dev tool; the auto-fix, CI-auto-fix, CD-auto-fix, and feature-implement workflows all use it to reduce manual toil
+- **Operational maturity** — Sentry for error monitoring, auto-healing pipelines, version pinning via Renovate, CI coverage thresholds, actionlint for workflow validation
+- **Documentation** — thorough README and CLAUDE.md explaining architecture decisions and operational gotchas, not just setup steps
