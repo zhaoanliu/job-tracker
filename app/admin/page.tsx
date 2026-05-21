@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/service'
 import MetricCard from '@/components/admin/MetricCard'
 import SignupsChart from '@/components/admin/SignupsChart'
@@ -31,9 +30,6 @@ function groupByDay(timestamps: string[], days = 30): { day: string; count: numb
 }
 
 export default async function AdminPage() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    notFound()
-  }
   const admin = createServiceClient()
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
