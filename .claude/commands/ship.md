@@ -1,4 +1,4 @@
-Check CI on a PR and merge it if all checks pass.
+Check CI on a PR and merge it (or queue it for auto-merge if checks are still running).
 
 Usage: /ship <PR-number>  (or /ship with no argument to detect the PR for the current branch)
 
@@ -11,11 +11,15 @@ Steps:
 3. Evaluate the result:
    a. **All checks pass** → merge with squash and delete the branch:
       ```
-      gh pr merge <N> --squash --delete-branch
+      gh pr merge <N> --squash --delete-branch --repo <owner>/<repo>
       ```
       Report the merge as successful and include the PR URL.
-   b. **Some checks are pending** → report which ones are still running and suggest trying again when they finish.
+   b. **Some checks are pending** → enable auto-merge so it merges automatically once all checks pass:
+      ```
+      gh pr merge <N> --auto --squash --delete-branch --repo <owner>/<repo>
+      ```
+      Report which checks are still running and confirm auto-merge is enabled.
    c. **Some checks have failed** → list the failing checks by name, do NOT merge. Ask the user whether to investigate the failures.
-4. After a successful merge, check whether the linked issue (from "Closes #N" in the PR body) was automatically closed:
+4. After a successful merge (case a), check whether the linked issue (from "Closes #N" in the PR body) was automatically closed:
    - `gh pr view <N> --json closingIssuesReferences --jq '.closingIssuesReferences[].number'`
    - If the issue is still open, close it: `gh issue close <issue-N>`
