@@ -19,9 +19,13 @@ Track every application through a nine-stage pipeline — from passive interest 
 - **Filters & sort** — filter by priority, role type, work mode, and location simultaneously; sort by date, company, priority, or manual order
 - **Stats bar** — at-a-glance totals: Total / Active / Interviewing / Offers
 - **CSV export & import** — backup your data or bulk-import from a spreadsheet
-- **Feature requests** — submit requests in-app via the Feedback button; owner approves by self-assigning the issue, triggering Claude Code to implement and open a PR
-- **Public roadmap** — `/roadmap` lists all open `user-requested` GitHub issues (planned) and recently closed ones (shipped); no login required; revalidates hourly via ISR
-- **Auth** — email + password or magic link via Supabase Auth
+- **Forgot password / change password** — reset via email or set a password if you signed up via magic link
+- **Strong password enforcement** — minimum strength validated on the client and server
+- **Invite a friend** — send a personalized invite email via Resend directly from the navbar
+- **Feature requests** — submit requests in-app via the Feedback button; owner approves by adding the `status: planned` label, triggering Claude Code to implement and open a PR
+- **Public roadmap** — `/roadmap` lists all open `user-requested` GitHub issues with status badges (Backlog / Planned / In Progress); recently closed items shown as shipped; revalidates hourly via ISR
+- **Admin dashboard** — `/admin` shows total users, signups per day, applications per day, stage distribution, activation rate, and invite funnel (requires service-role key)
+- **Auth** — email + password, magic link, or one-click demo account via Supabase Auth
 - **Row Level Security** — every DB query is scoped to the authenticated user, enforced at the Postgres layer
 
 > See [Development Journal](docs/development-journal.md) for the full story of how this project evolved — original intention, features added step by step, problems encountered and how they were solved, and the architecture decisions behind the production version.
@@ -103,7 +107,7 @@ npx supabase link --project-ref <your-project-ref>
 npx supabase db push
 ```
 
-In production, migrations are applied automatically by `migrate.yml` on every push to `main` that changes files under `supabase/migrations/` — no manual step needed after the initial setup.
+In production, migrations are applied automatically by `cd.yml` on every push to `main` — no manual step needed after the initial setup.
 
 ### 4. Run the dev server
 
@@ -135,7 +139,7 @@ npm run test:watch       # watch mode
 npm run test:coverage    # with coverage report
 ```
 
-Uses Vitest + jsdom + Testing Library. Coverage thresholds enforced in CI (lines 85%, branches 80%).
+Uses Vitest + jsdom + Testing Library. Coverage thresholds enforced in CI (lines 85%, branches 80%, functions 65%).
 
 ### E2E tests — auth (runs in CI on every PR and push to main)
 
@@ -154,7 +158,7 @@ Required GitHub Actions secrets for `e2e.yml`:
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role key |
 | `TESTMAIL_API_KEY` | Testmail.app dashboard |
 | `TESTMAIL_NAMESPACE` | Testmail.app dashboard |
-| `SUPABASE_ACCESS_TOKEN` | supabase.com → Account → Access Tokens (used by `migrate.yml`; project ref derived from `NEXT_PUBLIC_SUPABASE_URL`) |
+| `SUPABASE_ACCESS_TOKEN` | supabase.com → Account → Access Tokens (used by `cd.yml`; project ref derived from `NEXT_PUBLIC_SUPABASE_URL`) |
 
 ### E2E tests — board + CSV (async, never blocks PRs)
 
@@ -202,37 +206,132 @@ After deploying, update the **Supabase Auth → URL Configuration** with your pr
 
 ---
 
+## CI / CD pipeline
+
+All deployments are gated on four required CI checks passing. The pipeline is orchestrated by `cd.yml`.
+
+```mermaid
+flowchart TD
+    push["Push to main"] --> cd["cd.yml (orchestrator)"]
+
+    cd --> lint["lint.yml\nESLint + tsc + actionlint"]
+    cd --> test["test.yml\nVitest + coverage\n(lines ≥85%, branches ≥80%)"]
+    cd --> e2e["e2e.yml\nAuth E2E\n(Playwright + Testmail.app)"]
+    cd --> migrate["migrate-validate.yml\nsupabase start +\nall migrations"]
+
+    lint & test & e2e & migrate --> gate{All 4 pass?}
+
+    gate -->|"yes"| dbpush["supabase db push\n(prod migrations)"]
+    gate -->|"any fail"| cifix["ci-auto-fix.yml\nClaude Code fixes\n→ pushes to branch"]
+
+    dbpush --> deploy["vercel deploy --prod"]
+    deploy -->|"build fails"| cdfix["cd-auto-fix.yml\nClaude Code fixes\n→ opens PR"]
+```
+
+**Pull request flow:**
+
+```mermaid
+flowchart LR
+    pr["PR opened"] --> ci["CI runs\n(lint + unit-test + e2e-auth + migrate-validate)"]
+    ci -->|"fail"| autofix["ci-auto-fix.yml\npushes fix to branch\n→ CI re-runs"]
+    ci -->|"pass + auto-merge"| automerge["Merges automatically"]
+    ci -->|"pass + no auto-merge"| label["label-pr.yml adds\n'manual merge required'"]
+    label --> human["Owner merges manually"]
+```
+
+---
+
 ## Error monitoring & auto-fix pipeline
 
-The app has two auto-healing workflows powered by Claude Code:
+The app has four auto-healing workflows powered by Claude Code:
 
-**Sentry → production runtime errors** (`auto-fix.yml`):
-1. A runtime error is caught by Sentry (`captureConsoleIntegration` forwards any `console.error` call)
-2. Sentry POSTs to `/api/sentry-webhook` on Vercel
-3. The webhook validates the HMAC signature and fires a `repository_dispatch` event to GitHub
-4. `sentry[bot]` simultaneously opens a GitHub issue
-5. `auto-fix.yml` runs Claude Code to find and fix the root cause, then either pushes directly to `main` (low-risk fixes: ≤2 files, ≤20 lines) or opens a PR for review
-6. On a direct push, the Sentry issue is automatically resolved via the Sentry API
+### Sentry → production runtime errors (`auto-fix.yml`)
 
-**CI failures → lint / type / test errors** (`ci-auto-fix.yml`):
-1. `lint.yml`, `e2e.yml`, or `e2e-local.yml` fails and fires a `repository_dispatch` event
-2. `ci-auto-fix.yml` opens (or reuses) a GitHub issue titled `"CI failure: <workflow> on <branch>"`
-3. Fetches up to 500 lines of failed-step logs and, for PR branches, the diff vs `main`
-4. Runs Claude Code to analyze and fix the root cause
-5. **Feature branch**: pushes fix directly to the failing branch so the PR is updated
-6. **Main branch — low-risk**: pushes directly to `main`; **high-risk**: opens a PR for review
+```mermaid
+flowchart TD
+    err["Runtime error caught by Sentry\ncaptureConsoleIntegration → console.error"] --> parallel
 
-**User feature requests → automatic implementation** (`feature-implement.yml`):
-1. User clicks **Feedback** in the navbar and submits a request → GitHub issue created with `user-requested` label (auto-fix bot ignores these)
-2. Owner reviews the issue and clicks **Assign yourself** in the GitHub sidebar
-3. `feature-implement.yml` fires: posts a "starting" comment, runs Claude Code to implement the feature, opens a PR for review — never pushes directly to `main`
-4. If Claude makes no changes, a comment is left explaining that the request may need more detail
+    subgraph parallel["fired simultaneously"]
+        webhook["POST /api/sentry-webhook\nHMAC verify"] --> dispatch["repository_dispatch\nsentry-issue"]
+        sentrybot["sentry[bot] opens\nGitHub issue with 'bug' label"]
+    end
 
-**CD failures → Vercel production build errors** (`cd-auto-fix.yml`):
-1. Vercel reports a failed production deployment → GitHub fires a `deployment_status` event
-2. `cd-auto-fix.yml` checks out the failing commit and runs `npm run build` + `npx tsc --noEmit` locally
-3. **Not locally reproducible**: opens an issue noting it's likely a Vercel config/env-var problem
-4. **Locally reproducible**: runs Claude Code with the build output, opens a PR (never pushes directly to `main` — merging the PR is what triggers the next production deployment)
+    dispatch & sentrybot --> autofix["auto-fix.yml"]
+
+    autofix --> hydration{"replay_hydration_error?"}
+    hydration -->|"yes"| skip["comment + close issue\n+ resolve Sentry"]
+    hydration -->|"no"| findissue["Find or create\nGitHub issue"]
+
+    findissue --> dupcheck{"PR already open\nfor this issue?"}
+    dupcheck -->|"yes"| done["skip — already in progress"]
+    dupcheck -->|"no"| sentry_event["Fetch Sentry event\n(stack trace + culprit)"]
+
+    sentry_event --> claude["Run Claude Code"]
+    claude --> changed{"Code changed?"}
+    changed -->|"no"| nofix["comment + close issue\n+ resolve Sentry"]
+    changed -->|"yes"| risk{"Risk level?"}
+
+    risk -->|"≤2 files, ≤20 lines"| pr_auto["Open PR\n+ enable auto-merge"]
+    risk -->|"high risk"| pr_manual["Open PR\n(manual review)"]
+
+    pr_auto & pr_manual --> merge["CI passes → merge"]
+    merge --> close["Closes #N\n→ resolve-sentry-on-close\n→ Sentry resolved"]
+```
+
+### CI failures → lint / type / test errors (`ci-auto-fix.yml`)
+
+```mermaid
+flowchart LR
+    fail["lint.yml / test.yml / e2e.yml /\nmigrate-validate.yml fails"] --> dispatch["repository_dispatch\nci-failure"]
+    dispatch --> cifix["ci-auto-fix.yml\nfetch 500 lines of logs\n+ diff vs main"]
+    cifix --> claude["Run Claude Code"]
+    claude --> branch{"Which branch?"}
+    branch -->|"feature branch"| push["Push fix to\nfailing branch\n→ CI re-runs"]
+    branch -->|"main"| risk{"Risk level?"}
+    risk -->|"low"| autopr["PR + auto-merge"]
+    risk -->|"high"| manualpr["PR (manual review)"]
+```
+
+### User feature requests → automatic implementation (`feature-implement.yml`)
+
+```mermaid
+flowchart TD
+    user["User clicks Feedback in navbar\n→ submits request"] --> api["POST /api/feature-request\ncreates GitHub issue"]
+    api --> issue["Issue: 'user-requested'\n+ 'status: backlog' labels"]
+    issue --> review["Owner reviews"]
+    review -->|"approve"| planned["Owner adds\n'status: planned' label"]
+    planned --> implement["feature-implement.yml triggers\n• comment 'starting'\n• swap label → 'status: in progress'"]
+    implement --> claude["Run Claude Code\n(implements feature)"]
+    claude --> changed{"Code changed?"}
+    changed -->|"no"| comment["comment 'needs more detail'"]
+    changed -->|"yes"| pr["Open PR\n(never pushes directly to main)"]
+    pr --> owner["Owner reviews PR"]
+    owner --> merge["Merge → closes issue"]
+```
+
+**Issue status flow:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> backlog : user submits Feedback
+    backlog --> planned : owner adds 'status: planned'
+    planned --> in_progress : feature-implement.yml starts
+    in_progress --> [*] : PR merged → issue closed
+    backlog --> [*] : owner closes (won't fix)
+    planned --> backlog : owner changes mind
+```
+
+### CD failures → Vercel production build errors (`cd-auto-fix.yml`)
+
+```mermaid
+flowchart LR
+    fail["Vercel production\ndeployment fails"] --> filter["cd-filter.yml\nfilters production events only"]
+    filter --> cdfix["cd-auto-fix.yml\ncheckout failing commit\n+ npm run build locally"]
+    cdfix --> repro{"Locally\nreproducible?"}
+    repro -->|"no"| issue["Open issue:\nlikely Vercel config / env var problem"]
+    repro -->|"yes"| claude["Run Claude Code\nwith build error output"]
+    claude --> pr["Open PR\n(never auto-merges —\nmerge triggers next deploy)"]
+```
 
 ### Required secrets
 
@@ -258,8 +357,12 @@ The app has two auto-healing workflows powered by Claude Code:
 |---|---|
 | `ANTHROPIC_API_KEY` | Your Anthropic API key |
 | `SENTRY_AUTH_TOKEN` | Sentry token with **Issue & Event: Read & Write** scope (used to fetch stack traces and resolve issues via the Sentry API) |
+| `VERCEL_TOKEN` | Vercel token from Account Settings → Tokens (used by `cd.yml` to deploy) |
 
-**GitHub repo setting:** Actions → General → enable "Allow GitHub Actions to create and approve pull requests"
+**GitHub repo settings** (required for auto-merge and branch protection):
+- Actions → General → enable "Allow GitHub Actions to create and approve pull requests"
+- General → enable "Allow auto-merge"
+- Branches → Add branch protection rule for `main` → require status checks: `lint`, `unit-test`, `e2e-auth`, `migrate-validate`
 
 ### Sentry webhook setup
 
@@ -295,6 +398,20 @@ Select the **Deployment Failed** (`deployment.error`) event. Copy the signing se
 
 ---
 
+## Claude Code slash commands
+
+Three slash commands are available in Claude Code for common dev tasks:
+
+| Command | What it does |
+|---|---|
+| `/open-issue` | Creates a GitHub issue with appropriate labels and a branch-ready title |
+| `/implement` | Creates a GitHub issue, implements it on a branch, and opens a PR |
+| `/ship` | Checks CI status on the current PR and merges if all checks pass |
+
+Run any of them from Claude Code with `/open-issue`, `/implement`, or `/ship`.
+
+---
+
 ## Phase 2 roadmap (scaffolded, not yet implemented)
 
 See `TODO` comments in:
@@ -311,16 +428,28 @@ See `TODO` comments in:
 ├── app/
 │   ├── layout.tsx            # Root HTML shell, Inter font, global CSS
 │   ├── page.tsx              # Redirects → /dashboard
-│   ├── auth/callback/        # Exchanges Supabase PKCE code for session (magic link / signup)
-│   ├── login/page.tsx        # Auth page (email/password + magic link)
+│   ├── auth/
+│   │   ├── callback/         # Exchanges Supabase PKCE code for session (magic link / signup)
+│   │   └── reset-password/   # Set/change password after clicking reset email link
+│   ├── login/page.tsx        # Auth page (email/password + magic link + demo account)
+│   ├── roadmap/page.tsx      # Public roadmap — GitHub issues with status badges (ISR hourly)
+│   ├── admin/page.tsx        # Metrics dashboard (users, signups, stage distribution, invites)
 │   ├── api/
 │   │   ├── sentry-webhook/   # Validates HMAC, fires repository_dispatch to GitHub
-│   │   └── feature-request/  # Authenticated route: creates GitHub issue with user-requested label
+│   │   ├── vercel-webhook/   # Validates Vercel webhook, fires cd-failure dispatch
+│   │   ├── feature-request/  # Authenticated route: creates GitHub issue with user-requested label
+│   │   ├── invite/           # Sends personalized invite email via Resend
+│   │   └── events/           # Logs behavioural events (used by admin dashboard)
 │   └── dashboard/
 │       ├── layout.tsx
 │       └── page.tsx          # Server Component: fetches initial data, passes to KanbanBoard
 ├── components/
-│   ├── auth/AuthForm.tsx     # Client-side Supabase auth form
+│   ├── admin/
+│   │   ├── MetricCard.tsx    # Single stat tile
+│   │   ├── SignupsChart.tsx  # Signups per day (30-day bar chart)
+│   │   ├── StageChart.tsx    # Stage distribution bar chart
+│   │   └── EventsChart.tsx   # Behavioural events over time
+│   ├── auth/AuthForm.tsx     # Client-side Supabase auth form (sign in/up/magic link/demo)
 │   ├── board/
 │   │   ├── KanbanBoard.tsx   # DndContext, state management, CRUD handlers
 │   │   ├── KanbanColumn.tsx  # SortableContext + useDroppable per stage
@@ -330,13 +459,14 @@ See `TODO` comments in:
 │   │   └── ApplicationModal.tsx  # Add/edit form (tabbed: Details, Progress, JD)
 │   └── ui/
 │       ├── Badge.tsx         # Priority and type badges
-│       ├── Navbar.tsx        # Top nav: add, export, import, feedback, sign-out
+│       ├── Navbar.tsx        # Top nav: add, export, import, invite, feedback, sign-out
 │       ├── StatsBar.tsx      # Total / Active / Interviewing / Offers
 │       └── FilterBar.tsx     # Multi-chip filters + sort selector
 ├── lib/
 │   ├── supabase/
 │   │   ├── client.ts         # Browser Supabase client (@supabase/ssr)
 │   │   ├── server.ts         # Server Supabase client (cookies-based)
+│   │   ├── service.ts        # Service-role client (admin dashboard only)
 │   │   └── database.types.ts # Hand-written DB types (generate with supabase CLI)
 │   ├── types.ts              # Application interface, Stage config, enums
 │   ├── utils.ts              # Filter, sort, stats, formatting helpers
@@ -351,14 +481,26 @@ See `TODO` comments in:
 │   ├── auto-fix.yml              # Auto-fix Sentry bugs with Claude Code
 │   ├── ci-auto-fix.yml           # Auto-fix CI failures (lint / E2E) with Claude Code
 │   ├── cd-auto-fix.yml           # Auto-fix Vercel production build failures with Claude Code
-│   ├── feature-implement.yml     # Implement approved feature requests on self-assign
+│   ├── cd-filter.yml             # Filters deployment_status events → production failures only
+│   ├── cd.yml                    # CD orchestrator: 4 CI checks → db push → vercel deploy
+│   ├── db-fix.yml                # Auto-fix supabase db push failures with Claude Code
+│   ├── feature-implement.yml     # Implement approved feature requests on status: planned label
+│   ├── label-pr.yml              # Adds 'manual merge required' when all CI passes, no auto-merge
 │   ├── e2e.yml                   # Auth E2E on every PR/push (no local Supabase)
 │   ├── e2e-local.yml             # Board + CSV E2E — nightly + path-triggered (supabase start)
-│   └── lint.yml                  # ESLint + tsc + actionlint on every PR
+│   ├── lint.yml                  # ESLint + tsc + actionlint on every PR
+│   ├── migrate-validate.yml      # Validate all migrations against local Supabase stack
+│   └── test.yml                  # Vitest unit tests + coverage on every PR
+├── .claude/commands/
+│   ├── open-issue.md             # /open-issue slash command
+│   ├── implement.md              # /implement slash command
+│   └── ship.md                   # /ship slash command
 ├── supabase/
-│   └── migrations/
-│       └── 20240101000000_initial.sql
+│   └── migrations/               # Timestamped SQL migration files
 ├── middleware.ts             # Session refresh + auth redirects
+├── instrumentation.ts        # Sentry server/edge init (captureConsoleIntegration)
+├── instrumentation-client.ts # Sentry browser init (captureConsoleIntegration + filters)
+├── renovate.json             # Auto-updates pinned workflow tool versions
 └── README.md
 ```
 
@@ -367,4 +509,3 @@ See `TODO` comments in:
 ## License
 
 MIT
-
