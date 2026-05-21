@@ -115,12 +115,11 @@ describe('POST /api/feature-request — GitHub issue creation', () => {
     expect(body.title).toBe('[Feature Request] Dark mode')
   })
 
-  it('applies feature-request and user-requested labels', async () => {
+  it('applies only the user-requested label', async () => {
     mockUser()
     await POST(makeReq({ title: 'Dark mode' }))
     const body = JSON.parse((fetch as any).mock.calls[0][1].body)
-    expect(body.labels).toContain('feature-request')
-    expect(body.labels).toContain('user-requested')
+    expect(body.labels).toEqual(['user-requested'])
   })
 
   it('includes the user email in the issue body', async () => {
