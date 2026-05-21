@@ -247,6 +247,7 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - Concurrency group is per-branch (`ci-auto-fix-<branch>`) so simultaneous failures on the same branch queue rather than race
 - The fix branch is named `fix/ci-issue-<N>-<timestamp>` so repeated runs never collide
 - **No infinite-fix loop** — two layers: (1) GitHub blocks `on: push` / `on: pull_request` triggers for `GITHUB_TOKEN` pushes; (2) the job `if:` skips runs where `actor.login == 'github-actions[bot]'`
+- **Always use `GH_TOKEN="${GH_PAT}" gh pr create`** — if `gh pr create` runs with the default `GITHUB_TOKEN`, the PR is opened by `github-actions[bot]` and GitHub suppresses the `on: pull_request` trigger. Required CI checks never run, and the PR stays blocked with no checks forever. Use `GH_PAT` (the personal token) for both `gh pr create` and `gh pr merge --auto` in every auto-fix workflow.
 
 **`db-fix.yml`** — auto-healing for production DB migration failures; triggers on `repository_dispatch` with `event_type: db-failure` (fired by `cd.yml` when `supabase db push` fails):
 - Fetches the failure logs and classifies the error: PostgreSQL errors (syntax, constraint, policy conflicts) are code-fixable; auth/network errors are infrastructure issues
