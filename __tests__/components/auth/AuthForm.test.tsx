@@ -60,17 +60,43 @@ describe('AuthForm — rendering', () => {
 })
 
 describe('AuthForm — demo account', () => {
-  it('renders the Use demo account button', () => {
+  it('renders the Use demo account button in sign-in mode', () => {
     render(<AuthForm />)
     expect(screen.getByRole('button', { name: /Use demo account/i })).toBeInTheDocument()
   })
 
-  it('fills in demo credentials and switches to sign-in mode when clicked', async () => {
+  it('fills in demo credentials when clicked in sign-in mode', async () => {
     render(<AuthForm />)
-    await userEvent.click(screen.getByRole('button', { name: 'Magic Link' }))
     await userEvent.click(screen.getByRole('button', { name: /Use demo account/i }))
     expect((screen.getByPlaceholderText('you@example.com') as HTMLInputElement).value).toBe('demo@jobtracker.dev')
     expect((screen.getByPlaceholderText('••••••••') as HTMLInputElement).value).toBe('demo1234')
+  })
+
+  it('does not render the Use demo account button in sign-up mode', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Sign Up' }))
+    expect(screen.queryByRole('button', { name: /Use demo account/i })).not.toBeInTheDocument()
+  })
+
+  it('does not render the Use demo account button in magic-link mode', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Magic Link' }))
+    expect(screen.queryByRole('button', { name: /Use demo account/i })).not.toBeInTheDocument()
+  })
+
+  it('does not render the Use demo account button in reset mode', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    expect(screen.queryByRole('button', { name: /Use demo account/i })).not.toBeInTheDocument()
+  })
+
+  it('reappears when returning to sign-in mode from another tab', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Magic Link' }))
+    expect(screen.queryByRole('button', { name: /Use demo account/i })).not.toBeInTheDocument()
+    const signInTab = screen.getAllByText('Sign In').find(el => el.tagName === 'BUTTON')!
+    await userEvent.click(signInTab)
+    expect(screen.getByRole('button', { name: /Use demo account/i })).toBeInTheDocument()
   })
 })
 
