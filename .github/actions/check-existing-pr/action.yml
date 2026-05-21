@@ -22,7 +22,7 @@ runs:
         BRANCH_PREFIX: ${{ inputs.branch-prefix }}
       run: |
         EXISTING_PR=$(gh pr list --state open --json headRefName --jq '.[].headRefName' \
-          | grep "^${BRANCH_PREFIX}" | head -1)
+          | grep "^${BRANCH_PREFIX}" | head -1 || true)
         if [[ -n "$EXISTING_PR" ]]; then
           echo "PR already exists ($EXISTING_PR) — skipping"
           echo "skip=true" >> "$GITHUB_OUTPUT"
