@@ -124,6 +124,7 @@ jobs:
         if: steps.logs.outputs.error_type == 'code'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           if [[ -z $(git diff --name-only) ]]; then
@@ -152,7 +153,7 @@ jobs:
               cat /tmp/summary.txt
             fi
           } > /tmp/pr_body.txt
-          PR_URL=$(gh pr create \
+          PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
             --title "DB migration failure: production push failed (#${ISSUE_NUMBER})" \
             --body-file /tmp/pr_body.txt \
             --base main)

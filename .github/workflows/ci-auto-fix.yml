@@ -141,6 +141,7 @@ jobs:
       - name: Apply fix or open PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           HEAD_BRANCH: ${{ github.event.client_payload.head_branch }}
         run: |
@@ -201,12 +202,12 @@ jobs:
                 cat /tmp/summary.txt
               fi
             } > /tmp/pr_body.txt
-            PR_URL=$(gh pr create \
+            PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
               --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
               --body-file /tmp/pr_body.txt \
               --base main)
             if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
-              gh pr merge --auto --squash "$PR_URL" || true
+              GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL" || true
               {
                 if [[ -s /tmp/summary.txt ]]; then
                   cat /tmp/summary.txt
