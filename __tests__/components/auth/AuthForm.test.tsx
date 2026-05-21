@@ -114,6 +114,35 @@ describe('AuthForm — sign-in', () => {
     )
   })
 
+  it('redirects to / on successful sign-in so admin routing is honored', async () => {
+    const hrefSetter = vi.fn()
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        set href(value: string) {
+          hrefSetter(value)
+        },
+        get href() {
+          return originalLocation.href
+        },
+      },
+    })
+    try {
+      render(<AuthForm />)
+      await userEvent.type(screen.getByPlaceholderText('you@example.com'), 'admin@example.com')
+      await userEvent.type(screen.getByPlaceholderText('••••••••'), 'secret123')
+      fireEvent.submit(document.querySelector('form')!)
+      await waitFor(() => expect(hrefSetter).toHaveBeenCalledWith('/'))
+    } finally {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation,
+      })
+    }
+  })
+
   it('shows an error message when sign-in fails', async () => {
     mockAuth.signInWithPassword.mockResolvedValue({ error: new Error('Invalid credentials') })
     render(<AuthForm />)
