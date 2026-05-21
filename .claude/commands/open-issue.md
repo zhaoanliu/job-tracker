@@ -1,9 +1,9 @@
 Create a GitHub issue for future tracking or automated bot implementation.
 
-Usage: /open-issue <title> [--auto]
+Usage: /open-issue <title> [--auto-implement]
 
 Steps:
-1. Parse $ARGUMENTS. Check if `--auto` is present anywhere in the string; if so, set `has_auto=true` and strip `--auto` from the title (trim whitespace).
+1. Parse $ARGUMENTS. Check if `--auto-implement` is present anywhere in the string; if so, set `has_auto=true` and strip `--auto-implement` from the title (trim whitespace).
 2. If no title remains after stripping, ask the user for one.
 3. Create the issue:
    - If `has_auto`:
