@@ -52,6 +52,24 @@ jobs:
             status: planned
             status: backlog
 
+  test-detect-doc-only:
+    # Verifies the action resolves and outputs nothing (no skip) when run
+    # outside a pull_request event (workflow_dispatch has no base_ref).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/detect-doc-only
+        id: detect
+      - name: Assert skip is not set for non-PR context
+        run: |
+          if [[ "${{ steps.detect.outputs.skip }}" == "true" ]]; then
+            echo "FAIL: expected no skip outside pull_request context"
+            exit 1
+          fi
+          echo "PASS: skip not set outside pull_request context"
+
   test-trigger-ci-failure:
     # Validates the jq payload shape without invoking the action directly.
     # Calling the action would fire a real ci-failure dispatch and trigger

@@ -2,13 +2,23 @@ name: Lint & type-check
 
 on:
   pull_request:
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
   workflow_call:
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.detect.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/detect-doc-only
+        id: detect
+
   lint:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.skip != 'true'
     runs-on: ubuntu-latest
     permissions:
       actions: write
