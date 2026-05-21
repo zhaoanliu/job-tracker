@@ -1,0 +1,24 @@
+name: Trigger CI auto-fix on failure
+description: Fire a ci-failure repository_dispatch so ci-auto-fix.yml can heal the failing branch
+
+inputs:
+  gh-pat:
+    description: 'PAT with repo scope (secrets.GH_PAT) — required to trigger workflow dispatches'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Dispatch ci-failure event
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.gh-pat }}
+        HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+      run: |
+        jq -n \
+          --arg wf "${{ github.workflow }}" \
+          --arg id "${{ github.run_id }}" \
+          --arg url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          --arg branch "$HEAD_BRANCH" \
+          '{"event_type":"ci-failure","client_payload":{"workflow_name":$wf,"run_id":$id,"run_url":$url,"head_branch":$branch}}' \
+        | gh api repos/${{ github.repository }}/dispatches --method POST --input -
