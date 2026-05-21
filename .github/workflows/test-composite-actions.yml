@@ -1,6 +1,10 @@
 name: Test composite actions
 
 on:
+  pull_request:
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/test-composite-actions.yml'
   workflow_dispatch:
 
 jobs:
