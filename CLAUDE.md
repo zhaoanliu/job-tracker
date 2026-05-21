@@ -206,7 +206,8 @@ Sentry alerts fire `repository_dispatch` (primary path). The `on: issues: labele
 2. `vercel deploy --prod` — deploys the app
 - Sequential order guarantees migrations land before new code is served
 - If `supabase db push` fails: fires `db-failure` dispatch → `db-fix.yml`
-- If `vercel deploy` fails: Vercel updates deployment status → `cd-filter.yml` → `cd-auto-fix.yml`
+- If `vercel deploy` fails: fires `cd-failure` dispatch → `cd-auto-fix.yml`; also captures the last 30 lines of Vercel CLI output and passes them as `vercel_error` in the payload for error classification
+- On successful deploy: closes all open `CD failure:` GitHub issues automatically and comments with the succeeding commit SHA
 - Required secrets: `SUPABASE_ACCESS_TOKEN`, `NEXT_PUBLIC_SUPABASE_URL`, `VERCEL_TOKEN`
 - **Supabase CLI note**: `supabase db push --project-ref` was removed in CLI v2 — `cd.yml` uses `supabase link` first, then `supabase db push`
 - **Supabase CLI baseline pitfall**: when first connecting to an existing project, the CLI may baseline all local migrations without executing the SQL. To force a specific migration to re-run: add `supabase migration repair --status reverted <timestamp>` before `supabase db push` in the deploy job. Remove it after one successful run.
@@ -266,15 +267,19 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - **`user-requested` is reserved for the Feedback form** — the `/api/feature-request` route sets it automatically. Never add it manually to owner-initiated issues; it drives the public roadmap filter.
 - No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`
 
-**`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `repository_dispatch` with `event_type: cd-failure` (fired by `cd-filter.yml`, which filters `deployment_status` events to Production failures only; or by `/api/vercel-webhook` for Vercel Pro users):
+**`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `repository_dispatch` with `event_type: cd-failure` (fired by `cd.yml` when `vercel deploy` fails):
 - Checks out the failing commit, runs `npm run build` + `npx tsc --noEmit` locally to reproduce the error
-- **Not locally reproducible** (build succeeds locally): opens an issue and comments that it is likely a Vercel environment variable or configuration problem — no code fix is attempted
-- **Locally reproducible**: finds or creates a GitHub issue titled `"CD failure: Production deployment of <sha7> failed"`, runs Claude with the build output, and opens a PR — never pushes directly to main
-- Always opens a PR (never direct-push to main) to prevent an auto-merge from immediately triggering another Vercel production deployment before a human reviews the fix
-- **No infinite-fix loop**: the fix PR pushes to a branch via `GITHUB_TOKEN`, which Vercel deploys as a Preview (environment = "Preview"); the `environment == 'Production'` filter ignores Preview failures, so the loop is broken
+- **Not locally reproducible** (build succeeds locally — platform/infra error): uses a **category-based issue title** for deduplication instead of a per-SHA title:
+  - `"CD failure: Vercel deployment limit exceeded"` — when `vercel_error` payload matches limit/quota keywords
+  - `"CD failure: Vercel production deployment unreachable"` — all other infra failures
+  - If an issue with that title already exists: adds a **hit comment** (`Another deployment failure — commit \`<sha>\``) instead of opening a duplicate
+  - If the issue is new: comments "build succeeds locally — manual investigation required; will auto-close on next successful deploy"
+- **Locally reproducible** (code bug): uses a commit-specific title `"CD failure: Production deployment of <sha7> failed"`, runs Claude with the build output, opens a PR — never pushes directly to main
+- Always opens a PR for code fixes (never direct-push to main) to prevent auto-merge from triggering another deployment before a human reviews
+- **No infinite-fix loop**: fix PR pushes via `GITHUB_TOKEN` → Preview deployment; the Production filter ignores Preview failures
 - **Claude prompt is scoped to the error stack trace only** — Claude is explicitly told not to modify `.github/` files or make unrelated improvements. Without this constraint, Claude modifies workflow files (adding retry logic, etc.) instead of fixing the actual broken file.
 - **Safeguard step after Claude runs**: `git checkout origin/main -- .github/ 2>/dev/null || true` — reverts `.github/` to `origin/main` before committing the PR branch. This prevents Claude's workflow modifications from appearing in the PR even if it ignores the prompt constraint. Always revert to `origin/main`, not `HEAD`, because the checked-out SHA may have older workflow versions.
-- Reuses existing secrets `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GH_PAT`, and `GITHUB_REPO`
+- Reuses existing secrets `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GH_PAT`
 
 **Run tests proactively — do not wait to be asked, and do not ask permission first.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication, smoke-testing a new route's error path), just run it and report the result. Never offer to run a test as a question — just run it. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
 
