@@ -46,7 +46,8 @@ export async function middleware(request: NextRequest) {
   // Redirect authenticated users away from the login page
   if (user && pathname === '/login') {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    const adminEmail = process.env.ADMIN_EMAIL
+    url.pathname = adminEmail && user.email === adminEmail ? '/admin' : '/dashboard'
     return NextResponse.redirect(url)
   }
 
