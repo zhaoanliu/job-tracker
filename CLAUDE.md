@@ -173,7 +173,7 @@ Required secrets:
 
 **All Vercel deploys are gated on all CI passing.** `vercel.json` sets `ignoreCommand: exit 0` to disable Vercel's auto-deploy entirely. Note: Vercel's exit code semantics are the opposite of Unix convention — `exit 0` means **skip the build**, `exit 1` means **proceed**. `cd.yml` owns all deployments — it calls all 4 CI workflows in parallel on push to main, then runs the deploy job only when all pass: first `supabase db push`, then `vercel deploy --prod`. This guarantees migrations land before the new code is served. No preview deploys — not needed for a single-reviewer project. `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` are hardcoded in `cd.yml` — no additional secrets needed for those.
 
-Both `repository_dispatch` and `on: issues` fire simultaneously for every Sentry alert — the webhook triggers a dispatch AND `sentry[bot]` opens a GitHub issue at the same time. The concurrency group (`group: auto-fix, cancel-in-progress: false`) queues the two runs so they don't race. `on: issues` also fires for manually-created issues containing `sentry.io` in the body. GitHub only blocks workflow triggers from `github-actions[bot]` (the built-in token actor) — third-party apps like `sentry[bot]` are not restricted.
+Sentry alerts fire `repository_dispatch` (primary path). The `on: issues: labeled` path fires for any issue where the `bug` label is added — covering both manually-created bug issues and any issue labelled by `sentry[bot]`. The concurrency group (`group: auto-fix, cancel-in-progress: false`) queues concurrent runs so they don't race. GitHub only blocks workflow triggers from `github-actions[bot]` (the built-in token actor) — third-party apps like `sentry[bot]` are not restricted.
 
 ## CI workflows
 
@@ -254,13 +254,13 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - **Infra error**: opens a GitHub issue with the run link for manual investigation, no code fix attempted
 - Claude is constrained to only edit files under `supabase/migrations/`
 
-**`feature-implement.yml`** — implements approved user feature requests; triggers on `issues: assigned` when the assignee is the repo owner AND the issue has the `user-requested` label:
+**`feature-implement.yml`** — implements approved user feature requests; triggers on `issues: labeled` when the `status: planned` label is added AND the issue has the `user-requested` label:
 - Comments on the issue immediately so the submitter sees it's in progress
 - Runs `claude --dangerously-skip-permissions` with the issue title and body as the prompt
 - Always opens a PR (never pushes to main) — feature work always needs review
 - Branch name is `feat/issue-<N>-<timestamp>` to avoid collisions on re-runs
 - If Claude makes no changes, comments on the issue explaining that the request may need more detail
-- **Approval flow**: user submits via the in-app Feedback form → GitHub issue created with `user-requested` label → owner assigns the issue to themselves → this workflow runs
+- **Approval flow**: user submits via the in-app Feedback form → GitHub issue created with `user-requested` label → owner adds `status: planned` label → this workflow runs, swaps to `status: in progress`, implements, opens PR
 - No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`
 
 **`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `repository_dispatch` with `event_type: cd-failure` (fired by `cd-filter.yml`, which filters `deployment_status` events to Production failures only; or by `/api/vercel-webhook` for Vercel Pro users):

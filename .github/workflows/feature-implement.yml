@@ -2,7 +2,7 @@ name: Implement approved feature request
 
 on:
   issues:
-    types: [assigned]
+    types: [labeled]
   workflow_dispatch:
     inputs:
       issue_number:
@@ -12,7 +12,7 @@ on:
 
 jobs:
   implement:
-    if: (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'user-requested') && github.event.assignee.login == github.repository_owner)
+    if: "(github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'issues' && github.event.label.name == 'status: planned' && contains(github.event.issue.labels.*.name, 'user-requested'))"
     runs-on: ubuntu-latest
     concurrency:
       group: feature-implement-${{ github.event.issue.number || github.event.inputs.issue_number }}
