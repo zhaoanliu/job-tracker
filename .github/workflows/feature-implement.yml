@@ -152,6 +152,7 @@ jobs:
             --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
             --body-file /tmp/pr_body.txt \
             --base main)
+          GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
 
           {
             if [[ -s /tmp/summary.txt ]]; then

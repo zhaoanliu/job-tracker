@@ -213,6 +213,7 @@ jobs:
               } > /tmp/issue_comment.txt
               gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
             else
+              GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
               {
                 if [[ -s /tmp/summary.txt ]]; then
                   cat /tmp/summary.txt
