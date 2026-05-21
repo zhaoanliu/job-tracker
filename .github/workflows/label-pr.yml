@@ -1,0 +1,95 @@
+name: Label PR for manual merge
+
+on:
+  workflow_run:
+    workflows: ["Lint & type-check", "Unit tests", "E2E Auth Tests", "Validate DB migrations"]
+    types: [completed]
+  pull_request:
+    types: [synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  remove-label:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Remove label on new commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr edit "${{ github.event.pull_request.number }}" \
+            --remove-label "manual merge required" \
+            --repo "${{ github.repository }}" 2>/dev/null || true
+
+  add-label:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Add label when all checks pass and no auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          PR_NUMBER=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --head "$HEAD_BRANCH" \
+            --state open \
+            --json number \
+            --jq '.[0].number // ""')
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No open PR found for branch $HEAD_BRANCH"
+            exit 0
+          fi
+
+          PR_INFO=$(gh pr view "$PR_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --json state,isDraft,autoMergeRequest,headRefOid)
+
+          IS_DRAFT=$(echo "$PR_INFO" | jq -r '.isDraft')
+          HAS_AUTO_MERGE=$(echo "$PR_INFO" | jq -r 'if .autoMergeRequest == null then "false" else "true" end')
+          PR_HEAD_SHA=$(echo "$PR_INFO" | jq -r '.headRefOid')
+
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "PR is draft, skipping"
+            exit 0
+          fi
+
+          if [ "$PR_HEAD_SHA" != "$HEAD_SHA" ]; then
+            echo "Stale run (PR is at $PR_HEAD_SHA, this run is for $HEAD_SHA), skipping"
+            exit 0
+          fi
+
+          if [ "$HAS_AUTO_MERGE" = "true" ]; then
+            echo "Auto-merge is enabled, no manual label needed"
+            exit 0
+          fi
+
+          CHECKS=$(gh api \
+            "repos/${{ github.repository }}/commits/$HEAD_SHA/check-runs?per_page=100" \
+            --jq '.check_runs')
+
+          ALL_PASS=true
+          for check in lint unit-test e2e-auth migrate-validate; do
+            CONCLUSION=$(echo "$CHECKS" | jq -r --arg n "$check" \
+              '.[] | select(.name == $n) | .conclusion // "pending"')
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "Check '$check': ${CONCLUSION:-not found}"
+              ALL_PASS=false
+            fi
+          done
+
+          if [ "$ALL_PASS" = "true" ]; then
+            gh label create "manual merge required" \
+              --color "e4e669" \
+              --description "All CI checks passed; needs manual merge" \
+              --repo "${{ github.repository }}" 2>/dev/null || true
+            gh pr edit "$PR_NUMBER" \
+              --add-label "manual merge required" \
+              --repo "${{ github.repository }}"
+            echo "Labeled PR #$PR_NUMBER as 'manual merge required'"
+          fi
