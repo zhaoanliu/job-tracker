@@ -245,6 +245,18 @@ otp_expiry = 3600
 subject = "Sign in to ApplyTrackr"
 content_path = "./supabase/templates/magic_link.html"
 
+[auth.email.template.confirmation]
+subject = "Confirm your ApplyTrackr account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your ApplyTrackr password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email address"
+content_path = "./supabase/templates/email_change.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
