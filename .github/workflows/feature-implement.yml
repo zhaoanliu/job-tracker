@@ -84,8 +84,16 @@ jobs:
 
           Implement this feature following the project's existing patterns and conventions.
           Do NOT run any git commands — just edit the files.
-          Do NOT add comments explaining what you changed.
+          Do NOT add code comments explaining what you changed.
           Include tests for the new behaviour.
+
+          After implementing the feature, write a markdown summary to /tmp/summary.txt with these sections:
+          ## Implementation overview
+          Two or three sentences: what was built and how it works.
+          ## Files changed
+          Bullet list — one line per file, explaining what was added or changed and why.
+          ## Tests added
+          One sentence describing what tests cover the new behaviour.
           EOF
 
       - name: Run Claude Code
@@ -131,10 +139,25 @@ jobs:
           git commit -m "feat: ${FEATURE_TITLE} (closes #${ISSUE_NUMBER})"
           git push origin "$BRANCH"
 
+          {
+            echo "Closes #${ISSUE_NUMBER}"
+            echo ""
+            echo "Implemented by Claude Code in response to approved feature request #${ISSUE_NUMBER}."
+            if [[ -s /tmp/summary.txt ]]; then
+              echo ""
+              cat /tmp/summary.txt
+            fi
+          } > /tmp/pr_body.txt
           PR_URL=$(gh pr create \
             --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
-            --body "Closes #${ISSUE_NUMBER}"$'\n\n'"Implemented by Claude Code in response to approved feature request #${ISSUE_NUMBER}." \
+            --body-file /tmp/pr_body.txt \
             --base main)
 
-          gh issue comment "${ISSUE_NUMBER}" \
-            --body "Implementation ready for review: ${PR_URL}"
+          {
+            if [[ -s /tmp/summary.txt ]]; then
+              cat /tmp/summary.txt
+              echo ""
+            fi
+            echo "Implementation ready for review: ${PR_URL}"
+          } > /tmp/issue_comment.txt
+          gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
