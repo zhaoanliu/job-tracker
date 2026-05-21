@@ -2,7 +2,7 @@ name: Auto-fix Sentry issues
 
 on:
   issues:
-    types: [opened, reopened, closed]
+    types: [labeled, closed]
   repository_dispatch:
     types: [sentry-issue]
 
@@ -27,7 +27,7 @@ jobs:
           fi
 
   auto-fix:
-    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && github.event.action != 'closed' && contains(github.event.issue.body, 'sentry.io') && !contains(github.event.issue.labels.*.name, 'user-requested'))
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'bug')
     runs-on: ubuntu-latest
     concurrency:
       group: auto-fix
@@ -194,7 +194,7 @@ jobs:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           cat > /tmp/prompt.txt << 'EOF'
-          A bug was caught by Sentry and reported as a GitHub issue.
+          A bug has been reported as a GitHub issue.
           EOF
           {
             echo "Issue #${ISSUE_NUMBER}: $(cat /tmp/issue_title.txt)"
