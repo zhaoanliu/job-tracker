@@ -1,0 +1,190 @@
+name: Auto-fix self-reported bugs
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  bug-fix:
+    if: github.event.action == 'labeled' && github.event.label.name == 'bug' && !contains(github.event.issue.body, 'sentry.io')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: bug-fix
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache Claude Code
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm-global
+          key: claude-code-${{ runner.os }}
+
+      - name: Install Claude Code
+        run: |
+          npm config set prefix ~/.npm-global
+          export PATH=~/.npm-global/bin:$PATH
+          npm install -g @anthropic-ai/claude-code@2.1.145
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+
+      - name: Capture issue details
+        id: issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          echo "number=${ISSUE_NUMBER}" >> "$GITHUB_OUTPUT"
+          printf '%s' "${ISSUE_TITLE}" > /tmp/issue_title.txt
+          printf '%s' "${ISSUE_BODY}" > /tmp/issue_body.txt
+          gh issue view "${ISSUE_NUMBER}" \
+            --json comments \
+            --jq '.comments[] | .body' \
+            > /tmp/issue_comments.txt 2>/dev/null || true
+
+      - name: Write prompt file
+        env:
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          cat > /tmp/prompt.txt << 'EOF'
+          A bug has been self-reported as a GitHub issue (no Sentry stack trace available).
+          EOF
+          {
+            echo "Issue #${ISSUE_NUMBER}: $(cat /tmp/issue_title.txt)"
+            echo ""
+            echo "Description:"
+            cat /tmp/issue_body.txt
+            echo ""
+            if [[ -s /tmp/issue_comments.txt ]]; then
+              echo "Additional context from comments:"
+              cat /tmp/issue_comments.txt
+              echo ""
+            fi
+          } >> /tmp/prompt.txt
+          cat >> /tmp/prompt.txt << 'EOF'
+          Start by using grep/search to find code relevant to the issue title and description — do NOT read files at random. Search for the specific component names, feature names, or terms mentioned in the issue, then read only the files that match.
+          Analyze the description, find the root cause in the codebase, and fix it.
+          Do NOT run any git commands — just edit the files.
+          Do NOT modify any files under .github/ — workflow changes are out of scope.
+          Do NOT add code comments explaining what you changed.
+
+          After making the fix, write two output files:
+
+          1. /tmp/summary.txt — a markdown summary with exactly these sections:
+          ## Problem
+          One or two sentences: what the bug was and how it manifested.
+          ## Root cause
+          One sentence: where in the code the issue lives.
+          ## Fix
+          Bullet list — one line per file changed, explaining what was changed and why.
+
+          2. /tmp/risk.txt — a single word: low or high.
+          Write "low" if ALL of the following are true:
+            - 1 or 2 files changed
+            - The fix is a null guard, type safety fix, or simple value correction
+            - No new functions, classes, or logic flows were added
+            - No auth, database schema, or API surface was touched
+          Write "high" for anything else, when in doubt use "high"
+
+          Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
+          EOF
+
+      - name: Mark issue as in progress
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          gh issue edit "${ISSUE_NUMBER}" --add-label "status: in progress" 2>/dev/null || true
+
+      - name: Run Claude Code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          DELAY=30
+          for attempt in 1 2 3; do
+            claude --dangerously-skip-permissions --max-turns 30 -p "$(cat /tmp/prompt.txt)" \
+              2>&1 | tee /tmp/claude_output.txt
+            CLAUDE_EXIT=${PIPESTATUS[0]}
+            if [[ $CLAUDE_EXIT -eq 0 ]]; then
+              break
+            fi
+            if grep -q "529\|Overloaded\|at capacity" /tmp/claude_output.txt && [[ $attempt -lt 3 ]]; then
+              echo "API overloaded (attempt $attempt/3), retrying in ${DELAY}s..."
+              sleep $DELAY
+              DELAY=$((DELAY * 2))
+            else
+              echo "claude exited with code $CLAUDE_EXIT (attempt $attempt/3), continuing"
+              break
+            fi
+          done
+
+      - name: Revert .github/ changes
+        run: |
+          git fetch origin main
+          git checkout origin/main -- .github/ 2>/dev/null || true
+
+      - name: Open PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          if [[ -z $(git diff --name-only) ]]; then
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "No code change was identified. To help the bot find the fix, please add more context: reproduction steps, which page or feature is affected, expected vs actual behavior, and any error messages you saw."
+            exit 0
+          fi
+          ISSUE_TITLE=$(cat /tmp/issue_title.txt)
+          RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+          RISK=${RISK:-high}
+          FILES_CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
+          STATS=$(git diff --shortstat)
+          INSERTIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+          DELETIONS=$(echo "$STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+          TOTAL_LINES=$(( ${INSERTIONS:-0} + ${DELETIONS:-0} ))
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="fix/issue-${ISSUE_NUMBER}-$(date +%s)"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
+          git push origin "$BRANCH"
+          {
+            echo "Closes #${ISSUE_NUMBER}"
+            echo ""
+            echo "**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"
+            if [[ -s /tmp/summary.txt ]]; then
+              echo ""
+              cat /tmp/summary.txt
+            fi
+          } > /tmp/pr_body.txt
+          PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
+            --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
+            --body-file /tmp/pr_body.txt \
+            --base main)
+          if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
+            GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL" || true
+            {
+              if [[ -s /tmp/summary.txt ]]; then
+                cat /tmp/summary.txt
+                echo ""
+              fi
+              echo "Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes."
+            } > /tmp/issue_comment.txt
+            gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+          else
+            {
+              if [[ -s /tmp/summary.txt ]]; then
+                cat /tmp/summary.txt
+                echo ""
+              fi
+              echo "A fix has been proposed: $PR_URL — please review before merging."
+            } > /tmp/issue_comment.txt
+            gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+          fi
