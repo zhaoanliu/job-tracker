@@ -13,56 +13,55 @@ function buildEmailHtml(senderEmail: string, name?: string, message?: string) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 16px;">
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:40px 0;">
     <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
-        <!-- Header -->
+      <table width="480" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;border:1px solid #e2e8f0;padding:40px;">
         <tr>
-          <td style="background:#4f46e5;border-radius:12px 12px 0 0;padding:24px 32px;">
-            <table cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="background:#6366f1;border-radius:8px;width:32px;height:32px;text-align:center;vertical-align:middle;">
-                  <span style="color:white;font-size:16px;">&#128203;</span>
-                </td>
-                <td style="padding-left:10px;color:white;font-size:16px;font-weight:600;">Job Tracker</td>
-              </tr>
-            </table>
+          <td align="center" style="padding-bottom:32px;">
+            <img src="${APP_URL}/brand/lockup-light@2x.png"
+                 alt="ApplyTrackr"
+                 width="160" height="32"
+                 style="display:block;border:0;" />
           </td>
         </tr>
-        <!-- Body -->
         <tr>
-          <td style="background:white;padding:32px;border-radius:0 0 12px 12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-            <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#0f172a;">${greeting}</h1>
-            <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;">
-              I built something I think you&rsquo;d find useful. My name is <a href="https://www.linkedin.com/in/zhaoan-liu-a7017928/" style="color:#4f46e5;text-decoration:none;font-weight:600;">Zhaoan Liu</a>. While I was job hunting, I started using AI to help build tools to make the process less painful — and <strong>Job Tracker</strong> is one of them.
-            </p>
-            <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;">
-              It&rsquo;s a personal kanban board for managing job applications — track where you applied, what stage you&rsquo;re at, and never lose sight of an opportunity. Simple, fast, and free to use.
-            </p>
-            <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;">
-              As a software engineer with a background in security, user privacy and data security are something I take seriously. The app requires sign-in, and your data is stored in an encrypted database with row-level security — only you can access your own applications, nobody else.
-            </p>
-            ${personalNote}
-            <p style="margin:0 0 24px;color:#374151;font-size:14px;line-height:1.6;">
-              I&rsquo;d love for you to give it a try. If you run into anything or have ideas, hit the <strong>Feedback</strong> button inside the app — I read every submission. And if you find it useful, feel free to invite your friends to try it out too!
-            </p>
-            <table cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="border-radius:8px;background:#4f46e5;">
-                  <a href="${APP_URL}" style="display:inline-block;padding:12px 24px;color:white;font-size:14px;font-weight:600;text-decoration:none;">Try Job Tracker →</a>
-                </td>
-              </tr>
-            </table>
-            <p style="margin:24px 0 0;font-size:12px;color:#94a3b8;">
-              Or copy this link: <a href="${APP_URL}" style="color:#4f46e5;">${APP_URL}</a>
-            </p>
+          <td style="color:#0f172a;font-size:18px;font-weight:600;padding-bottom:12px;">
+            ${greeting}
           </td>
         </tr>
-        <!-- Footer -->
         <tr>
-          <td style="padding:16px 0;text-align:center;font-size:11px;color:#94a3b8;">
-            Sent via Job Tracker &middot; <a href="${APP_URL}" style="color:#94a3b8;">applytrackr.app</a>
+          <td style="color:#475569;font-size:15px;line-height:1.6;padding-bottom:16px;">
+            I built something I think you&rsquo;d find useful. My name is <a href="https://www.linkedin.com/in/zhaoan-liu-a7017928/" style="color:#2563eb;text-decoration:none;font-weight:600;">Zhaoan Liu</a>. While I was job hunting, I started using AI to help build tools to make the process less painful — and <strong>ApplyTrackr</strong> is one of them.
+          </td>
+        </tr>
+        <tr>
+          <td style="color:#475569;font-size:15px;line-height:1.6;padding-bottom:16px;">
+            It&rsquo;s a personal kanban board for managing job applications — track where you applied, what stage you&rsquo;re at, and never lose sight of an opportunity. Simple, fast, and free to use.
+          </td>
+        </tr>
+        <tr>
+          <td style="color:#475569;font-size:15px;line-height:1.6;padding-bottom:16px;">
+            As a software engineer with a background in security, user privacy and data security are something I take seriously. The app requires sign-in, and your data is stored in an encrypted database with row-level security — only you can access your own applications, nobody else.
+          </td>
+        </tr>
+        ${personalNote ? `<tr><td style="padding-bottom:16px;">${personalNote}</td></tr>` : ''}
+        <tr>
+          <td style="color:#475569;font-size:15px;line-height:1.6;padding-bottom:32px;">
+            I&rsquo;d love for you to give it a try. If you run into anything or have ideas, hit the <strong>Feedback</strong> button inside the app — I read every submission. And if you find it useful, feel free to invite your friends to try it out too!
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding-bottom:24px;">
+            <a href="${APP_URL}"
+               style="display:inline-block;background-color:#2563eb;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;padding:12px 28px;">
+              Try ApplyTrackr →
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="color:#94a3b8;font-size:13px;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:24px;">
+            Sent by <strong>${escapeHtml(senderEmail)}</strong> via ApplyTrackr &middot; <a href="${APP_URL}" style="color:#94a3b8;text-decoration:none;">applytrackr.app</a>
           </td>
         </tr>
       </table>
@@ -110,7 +109,7 @@ export async function POST(req: NextRequest) {
   const senderEmail = user.email ?? 'A friend'
 
   const { error } = await resend.emails.send({
-    from: `Job Tracker <${fromEmail}>`,
+    from: `ApplyTrackr <${fromEmail}>`,
     to,
     subject: `Zhaoan built a job tracker and wants you to try it`,
     html: buildEmailHtml(senderEmail, name, message),
