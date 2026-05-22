@@ -154,6 +154,43 @@ async function highlightClick(page: Page, locator: Locator, pauseMs = 600) {
   await clearAllOutlines(page)
 }
 
+// Show a fixed caption bar at the bottom of the viewport.
+// Replaces any existing caption so callers don't need to hide first.
+// Captions are naturally destroyed by page navigation — re-inject after
+// waitForLoadState when a scene starts on a new page.
+async function showCaption(page: Page, text: string) {
+  await page.evaluate((caption) => {
+    document.getElementById('demo-caption')?.remove()
+    const el = document.createElement('div')
+    el.id = 'demo-caption'
+    el.textContent = caption
+    Object.assign(el.style, {
+      position: 'fixed',
+      bottom: '36px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      background: 'rgba(15,15,15,0.82)',
+      color: '#fff',
+      padding: '10px 28px',
+      borderRadius: '9999px',
+      fontSize: '17px',
+      fontWeight: '600',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      letterSpacing: '0.01em',
+      zIndex: '99999',
+      pointerEvents: 'none',
+      backdropFilter: 'blur(6px)',
+      whiteSpace: 'nowrap',
+      boxShadow: '0 4px 24px rgba(0,0,0,0.35)',
+    })
+    document.body.appendChild(el)
+  }, text)
+}
+
+async function hideCaption(page: Page) {
+  await page.evaluate(() => document.getElementById('demo-caption')?.remove()).catch(() => {})
+}
+
 // ── Main test ────────────────────────────────────────────────────────────────
 
 test('ApplyTrackr product demo', async ({ page }) => {
@@ -177,6 +214,7 @@ test('ApplyTrackr product demo', async ({ page }) => {
 
   // ── Scene 1: Login ────────────────────────────────────────────────────────
   await page.goto('/login')
+  await showCaption(page, 'Signing in to ApplyTrackr')
   await wait(page, 300)
 
   await page.fill('input[type="email"]', DEMO_EMAIL)
@@ -235,6 +273,7 @@ test('ApplyTrackr product demo', async ({ page }) => {
   try {
 
     // ── Scene 2: Add "Google" via navbar button ──────────────────────────────
+    await showCaption(page, 'Adding a new job application')
     await highlightClick(page, page.locator('nav button:has-text("Add Application")'))
     await expect(page.locator('h2:has-text("New Application")')).toBeVisible()
     await wait(page, 800)
@@ -254,6 +293,7 @@ test('ApplyTrackr product demo', async ({ page }) => {
     await wait(page, 2000)
 
     // ── Scene 3: Add "Amazon" via Applied column + button ────────────────────
+    await showCaption(page, 'Adding directly to the Applied column')
     await highlightClick(page, page.locator('[title="Add to Applied"]'))
     await expect(page.locator('h2:has-text("New Application")')).toBeVisible()
     await wait(page, 700)
@@ -273,6 +313,7 @@ test('ApplyTrackr product demo', async ({ page }) => {
     await wait(page, 2000)
 
     // ── Scene 4: Edit Google — add next step + notes ─────────────────────────
+    await showCaption(page, 'Editing an application — next steps & notes')
     await highlightClick(page, page.locator('.bg-white.rounded-xl.border').filter({ hasText: 'Google' }).first())
     await expect(page.locator('h2:has-text("Edit Application")')).toBeVisible()
     await wait(page, 700)
@@ -300,10 +341,12 @@ test('ApplyTrackr product demo', async ({ page }) => {
     await wait(page, 1000)
 
     // ── Scene 5: Drag Google from Future → Applied ───────────────────────────
+    await showCaption(page, 'Drag and drop to move between stages')
     await dragCard(page, 'Google', 'Applied')
     await wait(page, 1500)
 
     // ── Scene 6: History tab on Google card ──────────────────────────────────
+    await showCaption(page, 'Full status history for each application')
     await highlightClick(page, page.locator('.bg-white.rounded-xl.border').filter({ hasText: 'Google' }).first())
     await expect(page.locator('h2:has-text("Edit Application")')).toBeVisible()
     await wait(page, 700)
@@ -315,6 +358,7 @@ test('ApplyTrackr product demo', async ({ page }) => {
     await wait(page, 1500)
 
     // ── Scene 7: Search → open Amazon → promote to Offer → scroll to column ───
+    await showCaption(page, 'Search by company, then promote to Offer')
     const searchInput = page.locator('input[placeholder="Search company…"]')
     await highlight(page, searchInput)
     await searchInput.click()
@@ -347,6 +391,7 @@ test('ApplyTrackr product demo', async ({ page }) => {
     // Mock the API so Submit shows the real "Invite sent!" success screen.
     await page.route('**/api/invite', route => route.fulfill({ status: 200, body: '{}', contentType: 'application/json' }))
 
+    await showCaption(page, 'Invite a friend to ApplyTrackr')
     await highlightClick(page, page.locator('button:has-text("Invite")'))
     await expect(page.locator('h2:has-text("Invite a friend")')).toBeVisible()
     await wait(page, 500)
@@ -372,6 +417,7 @@ test('ApplyTrackr product demo', async ({ page }) => {
     // Mock the API so Submit shows the real "Request submitted!" success screen.
     await page.route('**/api/feature-request', route => route.fulfill({ status: 200, body: '{}', contentType: 'application/json' }))
 
+    await showCaption(page, 'Submit a feature request')
     await highlightClick(page, page.locator('button:has-text("Feedback")'))
     await expect(page.locator('h2:has-text("Request a feature")')).toBeVisible()
     await wait(page, 500)
@@ -393,6 +439,8 @@ test('ApplyTrackr product demo', async ({ page }) => {
     // ── Scene 10: Roadmap ────────────────────────────────────────────────────
     await highlightClick(page, page.locator('a:has-text("Roadmap")'))
     await page.waitForLoadState('networkidle')
+    // Caption is destroyed by navigation — re-inject on the new page.
+    await showCaption(page, 'Explore the public roadmap')
     await wait(page, 800)
     // Scroll from top to bottom so the viewer can read the roadmap
     await page.evaluate(() => window.scrollTo({ top: 0 }))
@@ -408,6 +456,8 @@ test('ApplyTrackr product demo', async ({ page }) => {
     // ── Fin — stop your screen recorder here ─────────────────────────────────
 
   } finally {
+
+    await hideCaption(page)
 
     // ── Restore original data ─────────────────────────────────────────────────
     if (supabaseUrl && anonKey && accessToken) {
