@@ -244,7 +244,44 @@ flowchart LR
 
 ## Error monitoring & auto-fix pipeline
 
-The app has four auto-healing workflows powered by Claude Code:
+Eight self-healing and self-implementing workflows are powered by Claude Code. Every path ends in a PR — never a direct push to `main`.
+
+```mermaid
+flowchart TD
+    subgraph triggers["Triggers"]
+        T1["Runtime error\ncaptured by Sentry"]
+        T2["Bug reported via\n/report-bug"]
+        T3["CI check fails\non a PR branch"]
+        T4["CI check fails on main\nor nightly E2E fails"]
+        T5["vercel deploy fails"]
+        T6["supabase db push fails"]
+        T7["Feature request approved\nvia status: auto-implement"]
+    end
+
+    T1 --> AF["auto-fix.yml\nfetch Sentry stack trace\nRun Claude Code"]
+    T2 --> BF["bug-fix.yml\nRun Claude Code"]
+    T3 --> CIF["ci-auto-fix.yml\npush fix to PR branch\n→ CI re-runs"]
+    T4 --> CIM["ci-auto-fix.yml\nopen fix PR"]
+    T5 --> CD["cd-auto-fix.yml\nreproduce build locally\nRun Claude Code"]
+    T6 --> DB["db-fix.yml\nRun Claude Code\n(migrations only)"]
+    T7 --> FI["feature-implement.yml\nRun Claude Code\nopen feature PR"]
+
+    AF & BF --> risk{"Risk level?"}
+    CIM --> risk
+
+    risk -->|"low ≤2 files ≤20 lines"| auto["PR + auto-merge\nCI passes → merge → deploy"]
+    risk -->|high| manual["PR + manual review\n→ merge → deploy"]
+
+    CD --> repro{"Reproducible\nlocally?"}
+    repro -->|"yes — code bug"| manual
+    repro -->|"no — infra/quota"| infra["Category issue\nauto-closes on\nnext successful deploy"]
+
+    DB --> dbtype{"Error type?"}
+    dbtype -->|"SQL / schema"| manual
+    dbtype -->|"infra / network"| infra
+
+    FI --> manual
+```
 
 ### Sentry → production runtime errors (`auto-fix.yml`)
 
@@ -279,18 +316,31 @@ flowchart TD
     merge --> close["Closes #N\n→ resolve-sentry-on-close\n→ Sentry resolved"]
 ```
 
+### Self-reported bugs (`bug-fix.yml`)
+
+```mermaid
+flowchart LR
+    cmd["/report-bug slash command\nor 'bug' label added manually\n(no Sentry URL in body)"] --> bugfix["bug-fix.yml\nread issue title + description\n+ any comments"]
+    bugfix --> claude["Run Claude Code"]
+    claude --> changed{"Code changed?"}
+    changed -->|"no"| detail["comment:\n'needs more detail'"]
+    changed -->|"yes"| risk{"Risk level?"}
+    risk -->|"low ≤2 files ≤20 lines"| autopr["PR + auto-merge\n→ CI passes → deploy"]
+    risk -->|"high"| manualpr["PR\n(manual review)"]
+```
+
 ### CI failures → lint / type / test errors (`ci-auto-fix.yml`)
 
 ```mermaid
 flowchart LR
-    fail["lint.yml / test.yml / e2e.yml /\nmigrate-validate.yml fails"] --> dispatch["repository_dispatch\nci-failure"]
+    fail["lint.yml / test.yml / e2e.yml /\nmigrate-validate.yml fails\n(PR branch, main, or nightly E2E)"] --> dispatch["repository_dispatch\nci-failure"]
     dispatch --> cifix["ci-auto-fix.yml\nfetch 500 lines of logs\n+ diff vs main"]
     cifix --> claude["Run Claude Code"]
     claude --> branch{"Which branch?"}
-    branch -->|"feature branch"| push["Push fix to\nfailing branch\n→ CI re-runs"]
-    branch -->|"main"| risk{"Risk level?"}
-    risk -->|"low"| autopr["PR + auto-merge"]
-    risk -->|"high"| manualpr["PR (manual review)"]
+    branch -->|"PR branch"| push["Push fix to\nfailing branch\n→ CI re-runs"]
+    branch -->|"main / nightly"| risk{"Risk level?"}
+    risk -->|"low"| autopr["PR + auto-merge\n→ CI passes → deploy"]
+    risk -->|"high"| manualpr["PR\n(manual review)"]
 ```
 
 ### User feature requests → automatic implementation (`feature-implement.yml`)
@@ -324,14 +374,36 @@ stateDiagram-v2
 
 ### CD failures → Vercel production build errors (`cd-auto-fix.yml`)
 
+Two independent triggers fire when `vercel deploy --prod` fails: `cd.yml` dispatches directly (with the Vercel CLI error text), and `cd-filter.yml` triggers on Vercel's `deployment_status: failure` GitHub event. Both route to `cd-auto-fix.yml`.
+
+```mermaid
+flowchart TD
+    cdyml["cd.yml: vercel deploy exits non-zero\n(dispatches with CLI error text)"] --> cdfix
+    filter["cd-filter.yml: deployment_status\nfailure event from Vercel"] --> cdfix
+
+    cdfix["cd-auto-fix.yml\ncheckout failing commit\nnpm run build + tsc locally"]
+
+    cdfix --> repro{"Reproducible\nlocally?"}
+
+    repro -->|"yes — code bug"| claude["Run Claude Code\nwith build output"]
+    claude --> pr["PR (manual review)\nmerge triggers redeploy\nnever auto-merges"]
+
+    repro -->|"no — infra / platform"| classify{"Error type?"}
+    classify -->|"quota / limit"| quota["Issue: 'CD failure:\nVercel deployment limit exceeded'"]
+    classify -->|"other"| unreachable["Issue: 'CD failure:\nVercel production deployment unreachable'"]
+    quota & unreachable --> hit["Repeated failures add\nhit comment on same issue\n→ auto-closes on next successful deploy"]
+```
+
+### DB migration failures (`db-fix.yml`)
+
 ```mermaid
 flowchart LR
-    fail["Vercel production\ndeployment fails"] --> filter["cd-filter.yml\nfilters production events only"]
-    filter --> cdfix["cd-auto-fix.yml\ncheckout failing commit\n+ npm run build locally"]
-    cdfix --> repro{"Locally\nreproducible?"}
-    repro -->|"no"| issue["Open issue:\nlikely Vercel config / env var problem"]
-    repro -->|"yes"| claude["Run Claude Code\nwith build error output"]
-    claude --> pr["Open PR\n(never auto-merges —\nmerge triggers next deploy)"]
+    fail["supabase db push fails\nin cd.yml"] --> dispatch["repository_dispatch\ndb-failure"]
+    dispatch --> dbfix["db-fix.yml\nfetch failure logs\nclassify error"]
+    dbfix --> etype{"Error type?"}
+    etype -->|"SQL / schema error"| claude["Run Claude Code\n(migrations only)"]
+    etype -->|"infra / network"| issue["Open issue\nfor manual investigation"]
+    claude --> pr["PR (manual review)\nnever auto-merges —\nmigration touches prod DB"]
 ```
 
 ### Required secrets
