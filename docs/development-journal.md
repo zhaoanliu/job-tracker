@@ -161,6 +161,8 @@ Once the app was live at https://applytrackr.app, the goal shifted from "build f
 
 The production system grew into eight distinct self-healing and self-implementing scenarios. Every path ends in a PR gated on full CI — never a direct push to `main`.
 
+![ApplyTrackr self-healing pipeline](applytrackr-pipeline.svg)
+
 **1. Production error → Sentry → auto-fix**
 
 `console.error` → `captureConsoleIntegration` forwards to Sentry → two events fire simultaneously: `sentry[bot]` opens a GitHub issue (with `bug` label), and the Sentry webhook POSTs to `/api/sentry-webhook` (HMAC verified) → `repository_dispatch: sentry-issue` → `auto-fix.yml`:
