@@ -199,7 +199,7 @@ When `vercel deploy --prod` fails, two independent events fire: `cd.yml` dispatc
 
 **8. Feature request → implementation → review**
 
-User submits in-app Feedback → `POST /api/feature-request` → GitHub issue with `user-requested` + `status: backlog` → owner adds `status: auto-implement` label → `feature-implement.yml`: comment "implementing…", run Claude Code → no changes: requests more detail. Changes → PR with `manual merge required` → merge → `cd.yml` → redeploy.
+User submits in-app Feedback → `POST /api/feature-request` → GitHub issue with `user-requested` label only (no status label) → owner reviews and adds either `status: backlog` (track for later) or `status: auto-implement` (implement now) → `feature-implement.yml` triggers on `status: auto-implement`: comment "implementing…", run Claude Code → no changes: requests more detail. Changes → PR with `manual merge required` → merge → `cd.yml` → redeploy.
 
 ---
 
@@ -304,7 +304,7 @@ feature-implement.yml triggers
 
 | Label | Meaning | Who sets it |
 |---|---|---|
-| `status: backlog` | Received, not yet planned | Auto-set on submission |
+| `status: backlog` | Tracking for later — not ready to implement | Owner (optional) |
 | `status: auto-implement` | Approved — triggers Claude Code to implement | Owner |
 | `status: in progress` | Claude Code is working on it | Workflow |
 | *(closed)* | Shipped or rejected | PR merge or owner |

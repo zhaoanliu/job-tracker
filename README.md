@@ -348,9 +348,12 @@ flowchart LR
 ```mermaid
 flowchart TD
     user["User clicks Feedback in navbar\n→ submits request"] --> api["POST /api/feature-request\ncreates GitHub issue"]
-    api --> issue["Issue: 'user-requested'\n+ 'status: backlog' labels"]
+    api --> issue["Issue: 'user-requested' label only\n(no status label)"]
     issue --> review["Owner reviews"]
-    review -->|"approve"| planned["Owner adds\n'status: auto-implement' label"]
+    review -->|"implement now"| planned["Owner adds\n'status: auto-implement' label"]
+    review -->|"track for later"| backlog["Owner adds\n'status: backlog' label"]
+    backlog --> review2["Owner revisits\nand adds 'status: auto-implement'\nwhen ready"]
+    review2 --> planned
     planned --> implement["feature-implement.yml triggers\n• comment 'starting'\n• swap label → 'status: in progress'"]
     implement --> claude["Run Claude Code\n(implements feature)"]
     claude --> changed{"Code changed?"}
@@ -364,12 +367,14 @@ flowchart TD
 
 ```mermaid
 stateDiagram-v2
-    [*] --> backlog : user submits Feedback
-    backlog --> auto_implement : owner adds 'status: auto-implement'
+    [*] --> unlabeled : user submits Feedback\n(only 'user-requested' label set)
+    unlabeled --> backlog : owner adds 'status: backlog'\n(tracking for later)
+    unlabeled --> auto_implement : owner adds 'status: auto-implement'\n(implement now)
+    backlog --> auto_implement : owner adds 'status: auto-implement'\nwhen ready
     auto_implement --> in_progress : feature-implement.yml starts
     in_progress --> [*] : PR merged → issue closed
+    unlabeled --> [*] : owner closes (won't fix)
     backlog --> [*] : owner closes (won't fix)
-    auto_implement --> backlog : owner changes mind
 ```
 
 ### CD failures → Vercel production build errors (`cd-auto-fix.yml`)
