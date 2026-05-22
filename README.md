@@ -22,7 +22,8 @@ Track every application through a nine-stage pipeline — from passive interest 
 - **Forgot password / change password** — reset via email or set a password if you signed up via magic link
 - **Strong password enforcement** — minimum strength validated on the client and server
 - **Invite a friend** — send a personalized invite email via Resend directly from the navbar
-- **Feature requests** — submit requests in-app via the Feedback button; owner approves by adding the `status: planned` label, triggering Claude Code to implement and open a PR
+- **Branded auth emails** — all Supabase auth emails (magic link, signup, password reset) are re-sent via a Deno Edge Function through Resend with ApplyTrackr branding
+- **Feature requests** — submit requests in-app via the Feedback button; owner approves by adding the `status: auto-implement` label, triggering Claude Code to implement and open a PR
 - **Public roadmap** — `/roadmap` lists all open `user-requested` GitHub issues with status badges (Backlog / Planned / In Progress); recently closed items shown as shipped; revalidates hourly via ISR
 - **Admin dashboard** — `/admin` shows total users, signups per day, applications per day, stage distribution, activation rate, and invite funnel (requires service-role key)
 - **Auth** — email + password, magic link, or one-click demo account via Supabase Auth
@@ -299,7 +300,7 @@ flowchart TD
     user["User clicks Feedback in navbar\n→ submits request"] --> api["POST /api/feature-request\ncreates GitHub issue"]
     api --> issue["Issue: 'user-requested'\n+ 'status: backlog' labels"]
     issue --> review["Owner reviews"]
-    review -->|"approve"| planned["Owner adds\n'status: planned' label"]
+    review -->|"approve"| planned["Owner adds\n'status: auto-implement' label"]
     planned --> implement["feature-implement.yml triggers\n• comment 'starting'\n• swap label → 'status: in progress'"]
     implement --> claude["Run Claude Code\n(implements feature)"]
     claude --> changed{"Code changed?"}
@@ -314,11 +315,11 @@ flowchart TD
 ```mermaid
 stateDiagram-v2
     [*] --> backlog : user submits Feedback
-    backlog --> planned : owner adds 'status: planned'
-    planned --> in_progress : feature-implement.yml starts
+    backlog --> auto_implement : owner adds 'status: auto-implement'
+    auto_implement --> in_progress : feature-implement.yml starts
     in_progress --> [*] : PR merged → issue closed
     backlog --> [*] : owner closes (won't fix)
-    planned --> backlog : owner changes mind
+    auto_implement --> backlog : owner changes mind
 ```
 
 ### CD failures → Vercel production build errors (`cd-auto-fix.yml`)
@@ -400,15 +401,16 @@ Select the **Deployment Failed** (`deployment.error`) event. Copy the signing se
 
 ## Claude Code slash commands
 
-Three slash commands are available in Claude Code for common dev tasks:
+Four slash commands are available in Claude Code for common dev tasks:
 
 | Command | What it does |
 |---|---|
 | `/open-issue` | Creates a GitHub issue with appropriate labels and a branch-ready title |
 | `/implement` | Creates a GitHub issue, implements it on a branch, and opens a PR |
 | `/ship` | Checks CI status on the current PR and merges if all checks pass |
+| `/report-bug` | Creates a `bug`-labelled GitHub issue; the auto-fix bot picks it up and opens a PR |
 
-Run any of them from Claude Code with `/open-issue`, `/implement`, or `/ship`.
+Run any of them from Claude Code with `/open-issue`, `/implement`, `/ship`, or `/report-bug`.
 
 ---
 
@@ -479,22 +481,25 @@ See `TODO` comments in:
 │   └── local/                # Board + CSV tests — require supabase start, async cron only
 ├── .github/workflows/
 │   ├── auto-fix.yml              # Auto-fix Sentry bugs with Claude Code
+│   ├── bug-fix.yml               # Auto-fix manually-reported bugs (bug label, no Sentry URL)
 │   ├── ci-auto-fix.yml           # Auto-fix CI failures (lint / E2E) with Claude Code
 │   ├── cd-auto-fix.yml           # Auto-fix Vercel production build failures with Claude Code
 │   ├── cd-filter.yml             # Filters deployment_status events → production failures only
 │   ├── cd.yml                    # CD orchestrator: 4 CI checks → db push → vercel deploy
 │   ├── db-fix.yml                # Auto-fix supabase db push failures with Claude Code
-│   ├── feature-implement.yml     # Implement approved feature requests on status: planned label
+│   ├── feature-implement.yml     # Implement approved feature requests on status: auto-implement label
 │   ├── label-pr.yml              # Adds 'manual merge required' when all CI passes, no auto-merge
 │   ├── e2e.yml                   # Auth E2E on every PR/push (no local Supabase)
 │   ├── e2e-local.yml             # Board + CSV E2E — nightly + path-triggered (supabase start)
 │   ├── lint.yml                  # ESLint + tsc + actionlint on every PR
 │   ├── migrate-validate.yml      # Validate all migrations against local Supabase stack
+│   ├── test-composite-actions.yml  # Verifies composite actions work on every PR touching .github/actions/
 │   └── test.yml                  # Vitest unit tests + coverage on every PR
 ├── .claude/commands/
 │   ├── open-issue.md             # /open-issue slash command
 │   ├── implement.md              # /implement slash command
-│   └── ship.md                   # /ship slash command
+│   ├── ship.md                   # /ship slash command
+│   └── report-bug.md             # /report-bug slash command
 ├── supabase/
 │   └── migrations/               # Timestamped SQL migration files
 ├── middleware.ts             # Session refresh + auth redirects
