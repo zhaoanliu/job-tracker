@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 680 600" role="img">
+  <title>ApplyTrackr self-healing pipeline</title>
+  <desc>Five triggers feed into Claude Code. Feature requests go through human triage first. Claude opens a PR with CI checks, which either auto-merges or goes to human review, then ships to production.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      text { font-family: Inter, system-ui, sans-serif; }
+      .th  { font-size: 13px; font-weight: 500; fill: #1e1b4b; }
+      .ts  { font-size: 11px; font-weight: 400; fill: #4338ca; }
+
+      .c-red    rect { fill: #FCEBEB; stroke: #A32D2D; }
+      .c-red    .th  { fill: #501313; }
+      .c-red    .ts  { fill: #A32D2D; }
+
+      .c-amber  rect { fill: #FAEEDA; stroke: #854F0B; }
+      .c-amber  .th  { fill: #412402; }
+      .c-amber  .ts  { fill: #854F0B; }
+
+      .c-green  rect { fill: #EAF3DE; stroke: #3B6D11; }
+      .c-green  .th  { fill: #173404; }
+      .c-green  .ts  { fill: #3B6D11; }
+
+      .c-coral  rect { fill: #FAECE7; stroke: #993C1D; }
+      .c-coral  .th  { fill: #4A1B0C; }
+      .c-coral  .ts  { fill: #993C1D; }
+
+      .c-teal   rect { fill: #E1F5EE; stroke: #0F6E56; }
+      .c-teal   .th  { fill: #04342C; }
+      .c-teal   .ts  { fill: #0F6E56; }
+
+      .c-gray   rect { fill: #F1EFE8; stroke: #5F5E5A; }
+      .c-gray   .th  { fill: #2C2C2A; }
+      .c-gray   .ts  { fill: #5F5E5A; }
+
+      .c-purple rect { fill: #EEEDFE; stroke: #534AB7; }
+      .c-purple .th  { fill: #26215C; }
+      .c-purple .ts  { fill: #534AB7; }
+
+      .c-blue   rect { fill: #E6F1FB; stroke: #185FA5; }
+      .c-blue   .th  { fill: #042C53; }
+      .c-blue   .ts  { fill: #185FA5; }
+    </style>
+  </defs>
+
+  <!-- ROW 1: 4 automated triggers -->
+  <g class="c-red">
+    <rect x="60" y="40" width="108" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="114" y="61" text-anchor="middle" dominant-baseline="central">Production error</text>
+    <text class="ts" x="114" y="79" text-anchor="middle" dominant-baseline="central">Sentry monitor</text>
+  </g>
+
+  <g class="c-amber">
+    <rect x="188" y="40" width="108" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="242" y="61" text-anchor="middle" dominant-baseline="central">CI failure</text>
+    <text class="ts" x="242" y="79" text-anchor="middle" dominant-baseline="central">lint · build · tests</text>
+  </g>
+
+  <g class="c-green">
+    <rect x="316" y="40" width="108" height="64" rx="8" stroke-width="0.5"/>
+    <text class="th" x="370" y="58" text-anchor="middle" dominant-baseline="central">E2E failure</text>
+    <text class="ts" x="370" y="74" text-anchor="middle" dominant-baseline="central">nightly ·</text>
+    <text class="ts" x="370" y="88" text-anchor="middle" dominant-baseline="central">path-triggered</text>
+  </g>
+
+  <g class="c-coral">
+    <rect x="444" y="40" width="108" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="498" y="61" text-anchor="middle" dominant-baseline="central">Deploy failure</text>
+    <text class="ts" x="498" y="79" text-anchor="middle" dominant-baseline="central">Vercel webhook</text>
+  </g>
+
+  <!-- Feature request — right lane -->
+  <g class="c-teal">
+    <rect x="564" y="40" width="96" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="612" y="57" text-anchor="middle" dominant-baseline="central">Feature</text>
+    <text class="th" x="612" y="73" text-anchor="middle" dominant-baseline="central">request</text>
+  </g>
+
+  <!-- Arrow: Feature → Triage -->
+  <line x1="612" y1="92" x2="612" y2="130" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+
+  <!-- Human triage box -->
+  <g class="c-gray">
+    <rect x="540" y="130" width="140" height="56" rx="8" stroke-width="0.5"/>
+    <text class="th" x="610" y="151" text-anchor="middle" dominant-baseline="central">Human triage</text>
+    <text class="ts" x="610" y="170" text-anchor="middle" dominant-baseline="central">status: auto-implement</text>
+  </g>
+
+  <!-- Arrows: 4 auto triggers → GitHub issue -->
+  <line x1="114" y1="92" x2="114" y2="222" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+  <line x1="242" y1="92" x2="242" y2="222" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+  <line x1="370" y1="104" x2="370" y2="222" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+  <line x1="498" y1="92" x2="498" y2="222" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+
+  <!-- Arrow: Triage → GitHub issue -->
+  <path d="M 610 186 L 540 222" fill="none" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+
+  <!-- ROW 2: GitHub issue -->
+  <g class="c-gray">
+    <rect x="60" y="222" width="500" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="310" y="244" text-anchor="middle" dominant-baseline="central">GitHub issue auto-created</text>
+  </g>
+
+  <!-- Arrow: issue → Claude -->
+  <line x1="310" y1="266" x2="310" y2="310" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+
+  <!-- ROW 3: Claude Code -->
+  <g class="c-purple">
+    <rect x="100" y="310" width="420" height="56" rx="8" stroke-width="0.5"/>
+    <text class="th" x="310" y="331" text-anchor="middle" dominant-baseline="central">Claude Code</text>
+    <text class="ts" x="310" y="350" text-anchor="middle" dominant-baseline="central">diagnoses · fixes · implements via GitHub Actions</text>
+  </g>
+
+  <!-- Arrow: Claude → PR -->
+  <line x1="310" y1="366" x2="310" y2="410" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+
+  <!-- ROW 4: Pull request -->
+  <g class="c-blue">
+    <rect x="155" y="410" width="310" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="310" y="426" text-anchor="middle" dominant-baseline="central">Pull request</text>
+    <text class="ts" x="310" y="444" text-anchor="middle" dominant-baseline="central">automated CI checks</text>
+  </g>
+
+  <!-- Branch arrows + labels -->
+  <path d="M 222 454 L 142 494" fill="none" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+  <path d="M 398 454 L 478 494" fill="none" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+  <text x="154" y="482" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#888780">low-risk fix</text>
+  <text x="466" y="482" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#888780">feature / high-risk</text>
+
+  <!-- ROW 5: Auto-merge + Human review -->
+  <g class="c-green">
+    <rect x="50" y="498" width="170" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="135" y="520" text-anchor="middle" dominant-baseline="central">Auto-merged</text>
+  </g>
+
+  <g class="c-gray">
+    <rect x="400" y="498" width="170" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="485" y="520" text-anchor="middle" dominant-baseline="central">Human review</text>
+  </g>
+
+  <!-- Arrows → Production -->
+  <path d="M 135 542 L 258 566" fill="none" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+  <path d="M 485 542 L 362 566" fill="none" stroke="#888780" stroke-width="0.5" marker-end="url(#arrow)"/>
+
+  <!-- ROW 6: Shipped to production -->
+  <g class="c-teal">
+    <rect x="190" y="556" width="240" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="310" y="578" text-anchor="middle" dominant-baseline="central">Shipped to production</text>
+  </g>
+
+</svg>

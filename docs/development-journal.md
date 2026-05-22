@@ -157,53 +157,55 @@ Once the app was live at https://applytrackr.app, the goal shifted from "build f
 
 ---
 
-### Building the Auto-Fix Pipeline
+### Self-Healing Architecture
 
-The first priority after launch was making sure bugs got fixed fast — ideally without manual intervention. The idea: use Claude Code inside GitHub Actions to automatically diagnose and fix Sentry alerts.
+The production system grew into eight distinct self-healing and self-implementing scenarios. Every path ends in a PR gated on full CI — never a direct push to `main`.
 
-**How it works end-to-end:**
+![ApplyTrackr self-healing pipeline](applytrackr-pipeline.svg)
 
-```
-Runtime error captured by console.error
-    │
-    ├─► captureConsoleIntegration forwards to Sentry
-    │
-    └─► Sentry fires simultaneously:
-            │
-            ├─► sentry[bot] opens GitHub issue (with 'bug' label)
-            │
-            └─► POST /api/sentry-webhook (HMAC verified)
-                    │
-                    ▼
-                repository_dispatch: sentry-issue
-                    │
-                    ▼
-                auto-fix.yml
-                    │
-                    ├─ Is replay_hydration_error? → close + resolve Sentry
-                    │
-                    ├─ Fetch Sentry event (stack trace, culprit, error type)
-                    ├─ Find or create GitHub issue
-                    │
-                    └─ Run Claude Code
-                            │
-                            ├─ No changes? → close issue + resolve Sentry
-                            │
-                            ├─ Low-risk fix → PR + auto-merge
-                            │
-                            └─ High-risk fix → PR (manual review)
-                                    │
-                                    ▼
-                            CI passes → merge
-                                    │
-                                    ▼
-                            resolve-sentry-on-close fires
-                                    │
-                                    ▼
-                            Sentry issue resolved
-```
+**1. Production error → Sentry → auto-fix**
 
-**Key design decision — always create a PR:** Early versions pushed fixes directly to `main`. This was fast but bypassed CI — the fix could break a test or introduce a lint error. The pipeline was redesigned so every auto-fix goes through a PR with full CI (lint + type-check + unit tests + E2E auth + migration validation) before merging. Low-risk fixes (≤2 files, ≤20 lines) get auto-merge enabled so they land automatically once CI passes. High-risk fixes wait for a human.
+`console.error` → `captureConsoleIntegration` forwards to Sentry → two events fire simultaneously: `sentry[bot]` opens a GitHub issue (with `bug` label), and the Sentry webhook POSTs to `/api/sentry-webhook` (HMAC verified) → `repository_dispatch: sentry-issue` → `auto-fix.yml`:
+- `replay_hydration_error`? → close issue + resolve Sentry (done)
+- Otherwise: find or create GitHub issue, fetch full Sentry event (stack trace, culprit, error type), run Claude Code
+- No changes → close issue + resolve Sentry (done)
+- Changes → PR: **low-risk** (≤2 files, ≤20 lines): auto-merge after CI → `cd.yml` → redeploy + Sentry resolved. **High-risk**: `manual merge required`.
+
+**2. Self-reported bug → bug-fix**
+
+`/report-bug` slash command (or manually adding `bug` label to an issue without a Sentry URL in the body) → `bug-fix.yml`: Claude Code diagnoses from issue title, description, and comments → no changes: requests more detail. Changes → PR: **low-risk**: auto-merge after CI → deploy. **High-risk**: `manual merge required`.
+
+**3. CI failure on a PR branch → patch and re-run**
+
+`lint.yml` / `test.yml` / `e2e.yml` / `migrate-validate.yml` fails on a PR → fires `ci-failure` dispatch → `ci-auto-fix.yml`: find or create GitHub issue (`"CI failure: <workflow> on <branch>"`), fetch 500 lines of failed-step logs + diff vs main, run Claude Code → no changes: comment (issue stays open). Changes: push fix directly to the failing branch → CI re-runs automatically on the same PR → issue closed.
+
+**4. CI failure on main → fix PR → redeploy**
+
+Same CI workflows fail on push to `main` → `ci-failure` dispatch → `ci-auto-fix.yml` (main-branch path): find or create issue, run Claude Code → PR: **low-risk**: auto-merge after CI → `cd.yml` → redeploy. **High-risk**: `manual merge required`.
+
+**5. Nightly E2E failure → fix PR → redeploy**
+
+`e2e-local.yml` fails (nightly cron at 06:00 UTC, or path-triggered push to `main`) → fires `ci-failure` dispatch with `head_branch: main` → routes through the same main-branch path as scenario 4.
+
+**6. Deployment failure → classify → fix or track**
+
+When `vercel deploy --prod` fails, two independent events fire: `cd.yml` dispatches `cd-failure` directly (with the Vercel CLI error text); `cd-filter.yml` triggers on Vercel's `deployment_status: failure` GitHub event. Both route to `cd-auto-fix.yml`, which runs `npm run build + tsc --noEmit` locally:
+- **Code bug (reproducible)**: commit-specific GitHub issue → Claude Code → PR with `manual merge required` (CD fixes never auto-merge — merging triggers a new production deploy) → merge → `cd.yml` → redeploy
+- **Infra/platform (not reproducible)**: category-title issue (`"CD failure: Vercel deployment limit exceeded"` or `"CD failure: Vercel production deployment unreachable"`) — repeated failures add a hit comment on the same issue → auto-closes when next production deployment succeeds
+
+**7. DB migration failure → fix or investigate**
+
+`supabase db push` fails in `cd.yml` → `db-failure` dispatch → `db-fix.yml` → classify from logs:
+- **SQL/schema error** (syntax, constraint, policy conflict): Claude Code fixes the migration file → PR with `manual merge required` (never auto-merges — migration touches production DB)
+- **Infra/network/auth error**: opens GitHub issue for manual investigation, no code fix
+
+**8. Feature request → implementation → review**
+
+User submits in-app Feedback → `POST /api/feature-request` → GitHub issue with `user-requested` label only (no status label) → owner reviews and adds either `status: backlog` (track for later) or `status: auto-implement` (implement now) → `feature-implement.yml` triggers on `status: auto-implement`: comment "implementing…", run Claude Code → no changes: requests more detail. Changes → PR with `manual merge required` → merge → `cd.yml` → redeploy.
+
+---
+
+**Key design decision — always create a PR:** Early versions pushed fixes directly to `main`. This was fast but bypassed CI — the fix could break a test or introduce a lint error. The pipeline was redesigned so every auto-fix goes through a PR with full CI (lint + type-check + unit tests + E2E auth + migration validation) before merging. Low-risk fixes (≤2 files, ≤20 lines) get auto-merge enabled so they land automatically once CI passes. High-risk fixes wait for a human. CD and DB migration fixes are always manual review regardless of size — merging a CD fix triggers a new production deploy, and DB migration fixes touch the production database.
 
 **Key design decision — inject the Sentry event:** The initial implementation only gave Claude the GitHub issue title (e.g. "TypeError: Cannot read properties of undefined"). Claude would exhaust its turn limit looking for the bug without the stack trace. The fix: fetch the full Sentry event (stack trace, culprit URL, error type) via the Sentry REST API and inject it directly into Claude's prompt. Time to fix dropped dramatically.
 
@@ -304,7 +306,7 @@ feature-implement.yml triggers
 
 | Label | Meaning | Who sets it |
 |---|---|---|
-| `status: backlog` | Received, not yet planned | Auto-set on submission |
+| `status: backlog` | Tracking for later — not ready to implement | Owner (optional) |
 | `status: auto-implement` | Approved — triggers Claude Code to implement | Owner |
 | `status: in progress` | Claude Code is working on it | Workflow |
 | *(closed)* | Shipped or rejected | PR merge or owner |
