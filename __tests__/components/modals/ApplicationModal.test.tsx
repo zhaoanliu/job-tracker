@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ApplicationModal from '@/components/modals/ApplicationModal'
@@ -83,6 +83,38 @@ describe('ApplicationModal — new application', () => {
     render(<ApplicationModal {...defaultProps} defaultStatus="watchlist" />)
     const select = screen.getByDisplayValue('Waiting to Apply')
     expect(select).toBeInTheDocument()
+  })
+
+  describe('default date', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      vi.setSystemTime(new Date(2026, 4, 22, 10, 0, 0))
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it("pre-fills the Date field with today's local date", () => {
+      render(<ApplicationModal {...defaultProps} />)
+      const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement
+      expect(dateInput.value).toBe('2026-05-22')
+    })
+
+    it("submits today's date when the user doesn't change it", async () => {
+      const onSave = vi.fn().mockResolvedValue(undefined)
+      render(<ApplicationModal {...defaultProps} onSave={onSave} />)
+      fireEvent.change(screen.getByPlaceholderText('e.g. Acme Corp'), { target: { value: 'New Co' } })
+      fireEvent.submit(document.querySelector('form')!)
+      await waitFor(() => expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ company: 'New Co', date: '2026-05-22' })
+      ))
+    })
+
+    it('does not override the date when editing an existing application', () => {
+      render(<ApplicationModal {...defaultProps} application={existingApp} />)
+      const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement
+      expect(dateInput.value).toBe('2026-05-01')
+    })
   })
 })
 

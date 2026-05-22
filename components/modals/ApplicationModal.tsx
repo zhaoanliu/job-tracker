@@ -14,6 +14,7 @@ import {
   StatusHistoryEntry,
 } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import { todayLocalDate } from '@/lib/utils'
 import RichTextEditor from '@/components/modals/RichTextEditor'
 
 interface ApplicationModalProps {
@@ -70,7 +71,7 @@ export default function ApplicationModal({
           jd: application.jd,
           order: application.order,
         }
-      : { ...EMPTY_FORM, status: defaultStatus }
+      : { ...EMPTY_FORM, status: defaultStatus, date: todayLocalDate() }
   )
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)

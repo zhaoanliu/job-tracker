@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   filterApplications,
   sortApplications,
@@ -7,6 +7,7 @@ import {
   hasActiveFilters,
   priorityColor,
   getStageApplications,
+  todayLocalDate,
 } from '@/lib/utils'
 import { Application, Filters } from '@/lib/types'
 
@@ -232,6 +233,32 @@ describe('formatDate', () => {
 
   it('handles year-end dates', () => {
     expect(formatDate('2025-12-31')).toBe('12/31/25')
+  })
+})
+
+// ─── todayLocalDate ──────────────────────────────────────────────────────────
+
+describe('todayLocalDate', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns the local date in YYYY-MM-DD format', () => {
+    vi.setSystemTime(new Date(2026, 4, 22, 10, 0, 0))
+    expect(todayLocalDate()).toBe('2026-05-22')
+  })
+
+  it('zero-pads single-digit months and days', () => {
+    vi.setSystemTime(new Date(2026, 0, 3, 8, 0, 0))
+    expect(todayLocalDate()).toBe('2026-01-03')
+  })
+
+  it('uses local date even when UTC has rolled to the next day', () => {
+    vi.setSystemTime(new Date(2026, 4, 22, 23, 30, 0))
+    expect(todayLocalDate()).toBe('2026-05-22')
   })
 })
 
