@@ -74,22 +74,33 @@ jobs:
             --jq '.check_runs')
 
           ALL_PASS=true
+          ALL_SKIPPED=true
           for check in lint unit-test e2e-auth migrate-validate; do
             CONCLUSION=$(echo "$CHECKS" | jq -r --arg n "$check" \
               '.[] | select(.name == $n) | .conclusion // "pending"')
-            if [ "$CONCLUSION" != "success" ]; then
+            if [ "$CONCLUSION" != "success" ] && [ "$CONCLUSION" != "skipped" ]; then
               echo "Check '$check': ${CONCLUSION:-not found}"
               ALL_PASS=false
+            fi
+            if [ "$CONCLUSION" != "skipped" ]; then
+              ALL_SKIPPED=false
             fi
           done
 
           if [ "$ALL_PASS" = "true" ]; then
-            gh label create "manual merge required" \
-              --color "e4e669" \
-              --description "All CI checks passed; needs manual merge" \
-              --repo "${{ github.repository }}" 2>/dev/null || true
-            gh pr edit "$PR_NUMBER" \
-              --add-label "manual merge required" \
-              --repo "${{ github.repository }}"
-            echo "Labeled PR #$PR_NUMBER as 'manual merge required'"
+            if [ "$ALL_SKIPPED" = "true" ]; then
+              echo "Doc-only PR — enabling auto-merge"
+              GH_TOKEN="${{ secrets.GH_PAT }}" gh pr merge "$PR_NUMBER" \
+                --auto --squash \
+                --repo "${{ github.repository }}"
+            else
+              gh label create "manual merge required" \
+                --color "e4e669" \
+                --description "All CI checks passed; needs manual merge" \
+                --repo "${{ github.repository }}" 2>/dev/null || true
+              gh pr edit "$PR_NUMBER" \
+                --add-label "manual merge required" \
+                --repo "${{ github.repository }}"
+              echo "Labeled PR #$PR_NUMBER as 'manual merge required'"
+            fi
           fi
