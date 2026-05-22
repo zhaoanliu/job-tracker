@@ -160,26 +160,32 @@ jobs:
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
-      - uses: ./.github/actions/mark-in-progress
+      - uses: ./.github/actions/check-existing-pr
         if: steps.build.outputs.reproducible == 'true'
+        id: pr_check
+        with:
+          branch-prefix: fix/cd-issue-${{ steps.issue.outputs.number }}-
+
+      - uses: ./.github/actions/mark-in-progress
+        if: steps.build.outputs.reproducible == 'true' && steps.pr_check.outputs.skip != 'true'
         with:
           issue-number: ${{ steps.issue.outputs.number }}
 
       - name: Run Claude Code
-        if: steps.build.outputs.reproducible == 'true'
+        if: steps.build.outputs.reproducible == 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           claude --dangerously-skip-permissions --max-turns 20 -p "$(cat /tmp/prompt.txt)" || echo "claude exited with code $? (max-turns or error), continuing"
 
       - name: Revert workflow file changes
-        if: steps.build.outputs.reproducible == 'true'
+        if: steps.build.outputs.reproducible == 'true' && steps.pr_check.outputs.skip != 'true'
         run: |
           git fetch origin main --quiet
           git checkout origin/main -- .github/ 2>/dev/null || true
 
       - name: Open PR with fix
-        if: steps.build.outputs.reproducible == 'true'
+        if: steps.build.outputs.reproducible == 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}
