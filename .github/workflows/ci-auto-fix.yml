@@ -61,6 +61,18 @@ jobs:
           if [[ -n "$EXISTING" ]]; then
             NUMBER=$(echo "$EXISTING" | jq -r '.number')
           else
+            # Also check recently-closed issues to avoid creating a duplicate
+            # when the previous run already fixed and closed the same issue.
+            CLOSED=$(gh issue list \
+              --state closed \
+              --limit 20 \
+              --json number,title | \
+              jq --arg title "$TITLE" \
+                '[.[] | select(.title == $title)] | .[0] // empty')
+            if [[ -n "$CLOSED" ]]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             ISSUE_URL=$(gh issue create \
               --title "$TITLE" \
               --body "**Workflow:** ${WORKFLOW_NAME}"$'\n\n'"**Branch:** \`${HEAD_BRANCH}\`"$'\n\n'"**Run:** ${RUN_URL}"$'\n\n'"This issue was automatically created from a CI failure.")
@@ -69,6 +81,7 @@ jobs:
           echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Write prompt
+        if: steps.issue.outputs.skip != 'true'
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
           WORKFLOW_NAME: ${{ github.event.client_payload.workflow_name }}
@@ -116,24 +129,25 @@ jobs:
           EOF
 
       - uses: ./.github/actions/check-existing-pr
+        if: steps.issue.outputs.skip != 'true'
         id: pr_check
         with:
           branch-prefix: fix/ci-issue-${{ steps.issue.outputs.number }}-
 
       - uses: ./.github/actions/mark-in-progress
-        if: steps.pr_check.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         with:
           issue-number: ${{ steps.issue.outputs.number }}
 
       - name: Run Claude Code
-        if: steps.pr_check.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           claude --dangerously-skip-permissions --max-turns 20 -p "$(cat /tmp/prompt.txt)" || echo "claude exited with code $? (max-turns or error), continuing"
 
       - name: Apply fix or open PR
-        if: steps.pr_check.outputs.skip != 'true'
+        if: steps.issue.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}
