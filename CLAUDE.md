@@ -209,7 +209,7 @@ Sentry alerts fire `repository_dispatch` (primary path). The `on: issues: labele
 - Requires `.eslintrc.json` to exist; without it `next lint` runs an interactive setup wizard and fails CI
 
 **`test.yml`** — job: `unit-test`
-- `npm run test:coverage` — runs all 181 Vitest unit tests and enforces coverage thresholds (lines ≥85%, branches ≥80%, functions ≥65%)
+- `npm run test:coverage` — runs all Vitest unit tests and enforces coverage thresholds (lines ≥85%, branches ≥80%, functions ≥65%)
 - Fails CI if any test fails or any threshold is not met
 
 **`e2e.yml`** — job: `e2e-auth`

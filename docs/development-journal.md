@@ -280,7 +280,7 @@ Issue: 'user-requested' + 'status: backlog'
     │
     │ Owner reviews the request
     ▼
-Owner adds 'status: planned' label
+Owner adds 'status: auto-implement' label
     │
     ▼
 feature-implement.yml triggers
@@ -305,7 +305,7 @@ feature-implement.yml triggers
 | Label | Meaning | Who sets it |
 |---|---|---|
 | `status: backlog` | Received, not yet planned | Auto-set on submission |
-| `status: planned` | Approved, queued for implementation | Owner |
+| `status: auto-implement` | Approved — triggers Claude Code to implement | Owner |
 | `status: in progress` | Claude Code is working on it | Workflow |
 | *(closed)* | Shipped or rejected | PR merge or owner |
 
@@ -335,10 +335,15 @@ Auto-fix PRs get auto-merge enabled so CI can land them without human interactio
 
 **Admin metrics dashboard** — `/admin` requires the `SUPABASE_SERVICE_ROLE_KEY` to access auth admin APIs. Shows: total users, signups per day (30-day bar chart), total applications, applications per day, stage distribution, activation rate (users who created ≥1 application), and invite funnel (total invites sent, unique inviters). Not linked from the app UI — accessed directly.
 
-**Claude Code slash commands** — three commands added to `.claude/commands/`:
+**Branded auth emails** — all Supabase auth emails (magic link, signup confirmation, password reset) were being sent in plain Supabase branding. Added a Deno Edge Function (`supabase/functions/send-auth-email/`) configured as `hook_send_email` in the Supabase auth config. It re-delivers every auth email via Resend with ApplyTrackr branding (logo, colors, custom copy). Key gotcha: the hook payload provides `email_data.token_hash` and `email_data.site_url` — the confirmation URL must be built manually as `${site_url}/verify?token=${token_hash}&type=${type}`.
+
+**Date field defaults to today** — previously the application date field was empty when creating a new entry, requiring a manual selection every time. Changed to default to the current date when the modal opens for a new application.
+
+**Claude Code slash commands** — four commands added to `.claude/commands/`:
 - `/open-issue` — creates a GitHub issue with the right labels and title format
 - `/implement` — creates an issue, implements it on a branch, opens a PR
 - `/ship` — checks CI status on the current PR and merges if all checks pass
+- `/report-bug` — creates a `bug`-labelled GitHub issue; the auto-fix bot (`bug-fix.yml`) picks it up automatically and opens a PR without touching the current session
 
 ---
 
