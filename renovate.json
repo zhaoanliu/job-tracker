@@ -2,6 +2,12 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "schedule": ["every weekend"],
+  "minimumReleaseAge": "7 days",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "minimumReleaseAge": "0 days",
+    "labels": ["security"]
+  },
   "customManagers": [
     {
       "customType": "regex",
@@ -26,10 +32,17 @@
   "packageRules": [
     {
       "matchFileNames": [".github/workflows/**"],
+      "matchUpdateTypes": ["patch", "minor"],
       "groupName": "workflow tool versions",
       "automerge": true,
       "automergeType": "pr",
       "automergeStrategy": "squash"
+    },
+    {
+      "matchFileNames": [".github/workflows/**"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "workflow tool versions (major)",
+      "automerge": false
     }
   ]
 }
