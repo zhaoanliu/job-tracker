@@ -47,10 +47,10 @@ function StatusBadge({ status }: { status: StatusKey }) {
   )
 }
 
-async function fetchIssues(state: 'open' | 'closed'): Promise<GithubIssue[]> {
+async function fetchIssues(state: 'open' | 'closed', label: string): Promise<GithubIssue[]> {
   try {
     const res = await fetch(
-      `https://api.github.com/repos/zhaoanliu/job-tracker/issues?labels=user-requested&state=${state}&per_page=100`,
+      `https://api.github.com/repos/zhaoanliu/job-tracker/issues?labels=${label}&state=${state}&per_page=100`,
       { headers: { Accept: 'application/vnd.github+json' } }
     )
     if (!res.ok) return []
@@ -62,9 +62,10 @@ async function fetchIssues(state: 'open' | 'closed'): Promise<GithubIssue[]> {
 }
 
 export default async function RoadmapPage() {
-  const [planned, shipped] = await Promise.all([
-    fetchIssues('open'),
-    fetchIssues('closed'),
+  const [pending, plannedIssues, shipped] = await Promise.all([
+    fetchIssues('open', 'user-requested'),
+    fetchIssues('open', 'planned'),
+    fetchIssues('closed', 'user-requested'),
   ])
 
   return (
@@ -90,14 +91,14 @@ export default async function RoadmapPage() {
           <div className="flex items-center gap-2 mb-4">
             <span className="w-2 h-2 rounded-full bg-indigo-500" />
             <h2 className="text-sm font-semibold text-slate-700">
-              Pending{planned.length > 0 ? ` (${planned.length})` : ''}
+              Pending{pending.length > 0 ? ` (${pending.length})` : ''}
             </h2>
           </div>
-          {planned.length === 0 ? (
+          {pending.length === 0 ? (
             <p className="text-sm text-slate-400 pl-4">No features pending — be the first to suggest one!</p>
           ) : (
             <ul className="space-y-2">
-              {planned.map(issue => (
+              {pending.map(issue => (
                 <li key={issue.number}>
                   <a
                     href={issue.html_url}
@@ -116,6 +117,37 @@ export default async function RoadmapPage() {
             </ul>
           )}
         </section>
+
+        {plannedIssues.length > 0 && (
+          <section className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="w-2 h-2 rounded-full bg-purple-600" style={{ backgroundColor: '#8250df' }} />
+              <h2 className="text-sm font-semibold text-slate-700">
+                Planned ({plannedIssues.length})
+              </h2>
+            </div>
+            <ul className="space-y-2">
+              {plannedIssues.map(issue => (
+                <li key={issue.number}>
+                  <a
+                    href={issue.html_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-purple-300 hover:shadow-sm transition-all"
+                  >
+                    <span className="flex-1 text-sm text-slate-800">{issue.title}</span>
+                    <span className="text-xs font-medium border rounded-full px-2 py-0.5 shrink-0 text-purple-700 bg-purple-50 border-purple-200">
+                      Planned
+                    </span>
+                    <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {shipped.length > 0 && (
           <section>
