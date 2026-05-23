@@ -6,7 +6,7 @@ on:
 
 jobs:
   bug-fix:
-    if: github.event.action == 'labeled' && github.event.label.name == 'bug' && !contains(github.event.issue.body, 'sentry.io')
+    if: "github.event.action == 'labeled' && github.event.label.name == 'bug' && !contains(github.event.issue.body, 'sentry.io') && !contains(github.event.issue.labels.*.name, 'status: in progress')"
     runs-on: ubuntu-latest
     concurrency:
       group: bug-fix
