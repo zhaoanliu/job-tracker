@@ -31,8 +31,9 @@ const STATUS_MAP: Record<StatusKey, { label: string; className: string }> = {
 }
 
 function getStatus(issue: GithubIssue): StatusKey {
+  if (issue.state === 'closed') return 'triage'
   const names = issue.labels.map(l => l.name)
-  if (issue.state !== 'closed' && names.includes('status: in progress')) return 'in progress'
+  if (names.includes('status: in progress')) return 'in progress'
   if (names.includes('status: planned')) return 'planned'
   if (names.includes('status: backlog')) return 'backlog'
   return 'triage'

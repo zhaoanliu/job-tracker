@@ -100,6 +100,24 @@ describe('RoadmapPage', () => {
     expect(screen.queryByText('In progress')).not.toBeInTheDocument()
   })
 
+  it('does not show "Planned" badge when a stale label is on a closed issue', async () => {
+    mockFetch(
+      [makeIssue(1, 'Dark mode', ['user-requested', 'status: planned'], 'closed')],
+      [],
+    )
+    render(await RoadmapPage())
+    expect(screen.queryByText('Planned')).not.toBeInTheDocument()
+  })
+
+  it('does not show "Backlog" badge when a stale label is on a closed issue', async () => {
+    mockFetch(
+      [makeIssue(1, 'Dark mode', ['user-requested', 'status: backlog'], 'closed')],
+      [],
+    )
+    render(await RoadmapPage())
+    expect(screen.queryByText('Backlog')).not.toBeInTheDocument()
+  })
+
   it('renders the shipped section when closed issues exist', async () => {
     mockFetch([], [makeIssue(10, 'Magic link login')])
     render(await RoadmapPage())
