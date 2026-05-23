@@ -18,10 +18,20 @@ const makeIssue = (n: number, title: string, labelNames: string[] = [], state: '
   state,
 })
 
-function mockFetch(open: ReturnType<typeof makeIssue>[], closed: ReturnType<typeof makeIssue>[]) {
-  let call = 0
-  vi.stubGlobal('fetch', vi.fn().mockImplementation(() => {
-    const data = call++ === 0 ? open : closed
+function mockFetch(
+  open: ReturnType<typeof makeIssue>[],
+  closed: ReturnType<typeof makeIssue>[],
+  planned: ReturnType<typeof makeIssue>[] = [],
+) {
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+    let data: ReturnType<typeof makeIssue>[]
+    if (url.includes('labels=planned')) {
+      data = planned
+    } else if (url.includes('state=closed')) {
+      data = closed
+    } else {
+      data = open
+    }
     return Promise.resolve({ ok: true, json: async () => data })
   }))
 }
