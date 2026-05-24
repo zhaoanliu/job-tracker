@@ -9,11 +9,9 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 
 vi.mock('resend', () => ({
-  Resend: vi.fn().mockImplementation(() => ({
-    emails: {
-      send: vi.fn().mockResolvedValue({ error: null }),
-    },
-  })),
+  Resend: vi.fn().mockImplementation(function () {
+    return { emails: { send: vi.fn().mockResolvedValue({ error: null }) } }
+  }),
 }))
 
 import { POST } from '@/app/api/invite/route'
@@ -45,9 +43,9 @@ let mockSend: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   mockSend = vi.fn().mockResolvedValue({ error: null })
-  ;(Resend as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-    emails: { send: mockSend },
-  }))
+  ;(Resend as ReturnType<typeof vi.fn>).mockImplementation(function () {
+    return { emails: { send: mockSend } }
+  })
   process.env.RESEND_API_KEY = 're_test_key'
   process.env.RESEND_FROM_EMAIL = 'noreply@applytrackr.app'
 })
