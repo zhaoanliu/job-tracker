@@ -39,7 +39,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: actionlint
-        uses: rhysd/actionlint@v1.7.7
+        uses: rhysd/actionlint@v1.7.12
 
       - uses: ./.github/actions/trigger-ci-failure
         if: failure() && github.actor != 'github-actions[bot]'
