@@ -24,3 +24,7 @@ Steps:
 4. After a successful merge (case a), check whether the linked issue (from "Closes #N" in the PR body) was automatically closed:
    - `gh pr view <N> --json closingIssuesReferences --jq '.closingIssuesReferences[].number'`
    - If the issue is still open, close it: `gh issue close <issue-N>`
+5. After a successful merge (case a), pull local main to pick up the merged commit:
+   - `git pull --ff-only 2>&1 || echo "skipped: local changes present"`
+   - This ensures any new slash commands or skills are available immediately in the next session.
+   - If the pull is blocked by local uncommitted changes, warn the user but do not fail.
