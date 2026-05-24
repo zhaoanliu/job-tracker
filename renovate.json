@@ -44,6 +44,11 @@
       "matchUpdateTypes": ["major"],
       "groupName": "workflow tool versions (major)",
       "automerge": false
+    },
+    {
+      "matchPackageNames": ["eslint"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     }
   ]
 }
