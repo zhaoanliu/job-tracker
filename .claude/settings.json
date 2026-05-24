@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(actionlint *)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(npm run lint)",
+      "Bash(npm test *)",
+      "Bash(npm run test:coverage *)",
+      "Bash(npx playwright test *)"
+    ]
+  }
+}

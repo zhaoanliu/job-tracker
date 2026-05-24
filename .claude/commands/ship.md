@@ -28,3 +28,8 @@ Steps:
    - `git pull --ff-only 2>&1 || echo "skipped: local changes present"`
    - This ensures any new slash commands or skills are available immediately in the next session.
    - If the pull is blocked by local uncommitted changes, warn the user but do not fail.
+6. After a successful merge (case a), clean up the worktree for this PR's branch if one exists:
+   - Find the branch name: `gh pr view <N> --json headRefName --jq '.headRefName'`
+   - Find a worktree using that branch: `git worktree list --porcelain | grep -B2 "branch refs/heads/<branch>" | grep "worktree" | awk '{print $2}'`
+   - If found, remove it: `git worktree remove <path> --force`
+   - Report the path that was removed, or skip silently if no worktree was found.
