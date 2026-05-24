@@ -30,6 +30,10 @@ Steps:
    - If the pull is blocked by local uncommitted changes, warn the user but do not fail.
 6. After a successful merge (case a), clean up the worktree for this PR's branch if one exists:
    - Find the branch name: `gh pr view <N> --json headRefName --jq '.headRefName'`
-   - Find a worktree using that branch: `git worktree list --porcelain | grep -B2 "branch refs/heads/<branch>" | grep "worktree" | awk '{print $2}'`
-   - If found, remove it: `git worktree remove <path> --force`
+   - Find the repo root and locate the worktree for that branch:
+     ```
+     REPO=$(git rev-parse --show-toplevel)
+     path=$(git -C "$REPO" worktree list --porcelain | grep -B2 "branch refs/heads/<branch>" | grep "^worktree" | awk '{print $2}')
+     ```
+   - If found, remove it: `git -C "$REPO" worktree remove <path> --force`
    - Report the path that was removed, or skip silently if no worktree was found.
