@@ -339,6 +339,12 @@ Then watch with `gh run list --limit 3`. This takes seconds to set up vs. trigge
 
 **Always run `actionlint` locally before pushing changes to any `.github/workflows/` file.** Install: `brew install actionlint` (macOS). The feedback loop for workflow bugs is 5+ minutes per iteration (full CI run); catching them locally is the only way to avoid the churn.
 
+**After any change to ci-auto-fix.yml, verify push attribution with a live test.** The symptom of a broken fix is silent: ci-auto-fix pushes a commit, the PR's status checks go empty ("Waiting for status to be reported"), and no new CI run starts. The pass criterion is new check run timestamps appearing on the PR *after* ci-auto-fix's push timestamp. Test procedure:
+1. Create a branch with a trivially-fixable unit test failure (e.g. wrong expected value) — trivial so Claude fixes it in one turn and actually produces a push.
+2. Open a PR and wait for `unit-test` to fail (~1 min). The `ci-failure` dispatch fires automatically.
+3. Watch: `gh run list --workflow=ci-auto-fix.yml --limit 3`
+4. After ci-auto-fix pushes its fix commit, run `gh pr checks <N>` — if new runs appear with timestamps after the push, attribution is working. If `statusCheckRollup` is empty or timestamps are stale, the push is still attributed to `github-actions[bot]`.
+
 ### GitHub Actions YAML pitfalls (learned the hard way)
 
 - **`if:` expressions must be on a single line.** Using `|` (block scalar) adds a trailing newline that GitHub's expression parser silently rejects — the job is skipped with no error message.
