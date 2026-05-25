@@ -263,6 +263,7 @@ jobs:
             fi
             if [[ -n "$DESIGN_NUMBER" ]]; then
               DESIGN_BODY=$(gh issue view "$DESIGN_NUMBER" --json body --jq '.body')
+              gh issue edit "$DESIGN_NUMBER" --add-label "status: in progress" 2>/dev/null || true
             fi
           fi
 
