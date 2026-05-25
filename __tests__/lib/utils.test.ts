@@ -199,7 +199,7 @@ describe('computeStats', () => {
   ]
 
   it('counts total correctly', () => {
-    expect(computeStats(apps).total).toBe(999)
+    expect(computeStats(apps).total).toBe(9)
   })
 
   it('counts active (excludes future, watchlist, closed)', () => {
