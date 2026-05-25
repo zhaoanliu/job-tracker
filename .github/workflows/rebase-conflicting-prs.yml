@@ -23,6 +23,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git remote set-url origin "https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git"
 
+      - uses: ./.github/actions/install-claude
+
       - name: Ensure merge-conflict label exists
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
@@ -31,6 +33,7 @@ jobs:
       - name: Rebase conflicting PRs
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           gh pr list --state open --json number,headRefName,mergeable \
             --jq '.[] | [.number | tostring, .headRefName, .mergeable] | @tsv' \
@@ -44,6 +47,12 @@ jobs:
                   if [[ "$mergeable" != "UNKNOWN" ]]; then break; fi
                 done
               fi
+              if [[ "$mergeable" == "UNKNOWN" ]]; then
+                echo "PR #${pr_num}: still UNKNOWN after retries — labeling as potential conflict"
+                gh pr edit "$pr_num" --add-label "merge conflict"
+                gh pr comment "$pr_num" --body "GitHub could not determine mergeability within the retry window. Labeled as potential conflict — if the branch is actually clean, this label will be removed automatically on the next rebase run after mergeability resolves."
+                continue
+              fi
               if [[ "$mergeable" != "CONFLICTING" ]]; then
                 echo "PR #${pr_num}: ${mergeable} — skipping"
                 continue
@@ -56,9 +65,28 @@ jobs:
                 gh pr edit "$pr_num" --remove-label "merge conflict" 2>/dev/null || true
                 echo "PR #${pr_num}: rebase succeeded"
               else
-                git rebase --abort
-                gh pr edit "$pr_num" --add-label "merge conflict"
-                gh pr comment "$pr_num" --body "Auto-rebase failed — this PR has conflicts with \`main\` that require manual resolution."
-                echo "PR #${pr_num}: conflicts require manual resolution"
+                CONFLICTED_FILES=$(git diff --name-only --diff-filter=U)
+                echo "PR #${pr_num}: conflict in ${CONFLICTED_FILES} — attempting Claude resolution"
+                PROMPT="Resolve git merge conflict markers in this rebase. Branch '${branch}' conflicts with main in: ${CONFLICTED_FILES}. For each conflicted file: (1) read it and find all conflict blocks — they start with seven '<' chars followed by HEAD, a divider of seven '=' chars, and end with seven '>' chars; (2) remove the marker lines themselves; (3) when both sides add independent content in the same region keep BOTH additions with HEAD content first; (4) when changes are genuinely incompatible prefer the HEAD version; (5) write the resolved file back; (6) run: git add <filename>. After resolving all files stop — do not run git rebase --continue."
+                claude --dangerously-skip-permissions --max-turns 15 -p "$PROMPT"
+                REMAINING=$(git diff --name-only --diff-filter=U | wc -l | tr -d ' ')
+                if [[ "$REMAINING" -eq 0 ]]; then
+                  if GIT_EDITOR=true git rebase --continue; then
+                    git push origin "HEAD:${branch}" --force-with-lease
+                    gh pr edit "$pr_num" --remove-label "merge conflict" 2>/dev/null || true
+                    gh pr comment "$pr_num" --body "Auto-rebase succeeded with AI-assisted conflict resolution in: \`${CONFLICTED_FILES}\`"
+                    echo "PR #${pr_num}: Claude resolved conflicts successfully"
+                  else
+                    git rebase --abort
+                    gh pr edit "$pr_num" --add-label "merge conflict"
+                    gh pr comment "$pr_num" --body "Auto-rebase failed after AI conflict resolution — this PR has multiple conflicting commits that require manual resolution."
+                    echo "PR #${pr_num}: manual resolution required (multiple conflicting commits)"
+                  fi
+                else
+                  git rebase --abort
+                  gh pr edit "$pr_num" --add-label "merge conflict"
+                  gh pr comment "$pr_num" --body "Auto-rebase failed — this PR has conflicts with \`main\` that require manual resolution."
+                  echo "PR #${pr_num}: Claude could not fully resolve conflicts"
+                fi
               fi
             done
