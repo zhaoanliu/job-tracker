@@ -1,4 +1,4 @@
-name: Implement approved feature request
+name: "Feature: design and implement"
 
 on:
   issues:
@@ -11,6 +11,144 @@ on:
         type: string
 
 jobs:
+  # ── Phase 1: generate design proposal ────────────────────────────────────
+  design:
+    if: "github.event_name == 'issues' && github.event.label.name == 'status: approved'"
+    runs-on: ubuntu-latest
+    concurrency:
+      group: feature-design-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/install-claude
+
+      - name: Resolve issue metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title')
+          ISSUE_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')
+          {
+            echo "ISSUE_NUMBER=$ISSUE_NUMBER"
+            echo "ISSUE_TITLE=$ISSUE_TITLE"
+            echo 'ISSUE_BODY<<BODY_EOF'
+            echo "$ISSUE_BODY"
+            echo 'BODY_EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Swap label to design-review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit "${ISSUE_NUMBER}" \
+            --add-label "status: design-review" \
+            --remove-label "status: approved" 2>/dev/null || \
+          gh issue edit "${ISSUE_NUMBER}" \
+            --add-label "status: design-review" 2>/dev/null || true
+
+      - name: Comment that design is starting
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${ISSUE_NUMBER}" \
+            --body "Generating a design proposal for this feature. A design issue will be linked here shortly."
+
+      - name: Write design prompt
+        run: |
+          FEATURE_TITLE=$(printf '%s' "${ISSUE_TITLE}" | sed 's/^\[Feature Request\] //')
+          printf '%s' "${ISSUE_BODY}" > /tmp/issue_body.txt
+          cat > /tmp/design_prompt.txt << EOF
+          A user-submitted feature request (issue #${ISSUE_NUMBER}) has been approved for design.
+
+          Feature: ${FEATURE_TITLE}
+
+          User's request:
+          $(cat /tmp/issue_body.txt)
+
+          Produce a detailed implementation design proposal and write it to /tmp/design_proposal.md.
+
+          The design document must include these sections:
+
+          ## What the user wants
+          Restate the requirement in plain language. If the request is ambiguous, call out the ambiguity.
+
+          ## Proposed implementation
+          Describe the technical approach in 2-3 sentences.
+
+          ### Files to modify or create
+          Bullet list — one line per file with what changes and why.
+
+          ### UI changes
+          For any user-visible change: which component, where exactly in the UI it appears, and how the user interacts with it. If there is no UI change, state that explicitly and explain why the feature is complete without one.
+
+          ## Acceptance criteria
+          Checklist of what a human tester must be able to do to confirm the feature is working. At least one item must be a user-visible action (e.g. "User can click X and see Y").
+
+          ## Open questions
+          List any decisions that require owner input before implementation begins. If none, write "None."
+
+          Do not implement anything. Write only the design document.
+          EOF
+
+      - name: Run Claude to generate design
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          DELAY=30
+          for attempt in 1 2 3; do
+            claude --dangerously-skip-permissions --max-turns 10 -p "$(cat /tmp/design_prompt.txt)" \
+              2>&1 | tee /tmp/claude_output.txt
+            CLAUDE_EXIT=${PIPESTATUS[0]}
+            if [[ $CLAUDE_EXIT -eq 0 ]]; then break; fi
+            if grep -q "529\|Overloaded\|at capacity" /tmp/claude_output.txt && [[ $attempt -lt 3 ]]; then
+              echo "API overloaded (attempt $attempt/3), retrying in ${DELAY}s..."
+              sleep $DELAY
+              DELAY=$((DELAY * 2))
+            else
+              break
+            fi
+          done
+
+      - name: Create design issue and link back
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ ! -s /tmp/design_proposal.md ]]; then
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "Claude did not produce a design proposal. The feature request may need more detail."
+            exit 0
+          fi
+
+          FEATURE_TITLE=$(printf '%s' "${ISSUE_TITLE}" | sed 's/^\[Feature Request\] //')
+
+          {
+            echo "_Design for feature request #${ISSUE_NUMBER}: ${ISSUE_TITLE}_"
+            echo ""
+            cat /tmp/design_proposal.md
+          } > /tmp/design_body.txt
+
+          DESIGN_URL=$(gh issue create \
+            --title "Design proposal: ${FEATURE_TITLE}" \
+            --body-file /tmp/design_body.txt \
+            --label "user review required,implementation")
+          DESIGN_NUMBER=$(echo "$DESIGN_URL" | grep -oE '[0-9]+$')
+
+          {
+            echo "Design proposal ready for review: ${DESIGN_URL}"
+            echo ""
+            echo "Discuss and refine the design (ad-hoc in a Claude Code session works well). When the design looks good, add \`status: auto-implement\` to this issue to kick off implementation."
+            echo ""
+            echo "<!-- design-issue: ${DESIGN_NUMBER} -->"
+          } > /tmp/design_comment.txt
+          gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/design_comment.txt
+
+  # ── Phase 2: implement from design ───────────────────────────────────────
   implement:
     if: "(github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'issues' && github.event.label.name == 'status: auto-implement')"
     runs-on: ubuntu-latest
@@ -44,6 +182,29 @@ jobs:
             echo 'BODY_EOF'
           } >> "$GITHUB_ENV"
 
+      - name: Find linked design issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.inputs.issue_number }}
+        run: |
+          ISSUE_NUMBER="${EVENT_ISSUE_NUMBER:-$INPUT_ISSUE_NUMBER}"
+          DESIGN_NUMBER=$(gh issue view "$ISSUE_NUMBER" --comments --json comments \
+            --jq '[.comments[].body | select(contains("design-issue:"))] | last' \
+            | grep -oE 'design-issue: [0-9]+' | grep -oE '[0-9]+' || true)
+          if [[ -n "$DESIGN_NUMBER" ]]; then
+            DESIGN_BODY=$(gh issue view "$DESIGN_NUMBER" --json body --jq '.body')
+            echo "DESIGN_NUMBER=$DESIGN_NUMBER" >> "$GITHUB_ENV"
+            {
+              echo 'DESIGN_BODY<<DESIGN_EOF'
+              echo "$DESIGN_BODY"
+              echo 'DESIGN_EOF'
+            } >> "$GITHUB_ENV"
+          else
+            echo "DESIGN_NUMBER=" >> "$GITHUB_ENV"
+            echo "DESIGN_BODY=" >> "$GITHUB_ENV"
+          fi
+
       - uses: ./.github/actions/check-existing-pr
         id: pr_check
         with:
@@ -63,6 +224,7 @@ jobs:
           issue-number: ${{ env.ISSUE_NUMBER }}
           labels-to-remove: |
             status: auto-implement
+            status: design-review
             status: planned
             status: backlog
 
@@ -71,20 +233,39 @@ jobs:
         run: |
           FEATURE_TITLE=$(printf '%s' "${ISSUE_TITLE}" | sed 's/^\[Feature Request\] //')
           printf '%s' "${ISSUE_BODY}" > /tmp/issue_body.txt
+          printf '%s' "${DESIGN_BODY}" > /tmp/design_body.txt
           cat > /tmp/prompt.txt << EOF
           A user-submitted feature request (issue #${ISSUE_NUMBER}) has been approved for implementation.
 
           Feature: ${FEATURE_TITLE}
 
-          Details from the request:
+          Original request:
           $(cat /tmp/issue_body.txt)
+          EOF
 
-          Implement this feature following the project's existing patterns and conventions.
+          if [[ -s /tmp/design_body.txt ]]; then
+            cat >> /tmp/prompt.txt << EOF
+
+          Approved design specification (issue #${DESIGN_NUMBER}):
+          $(cat /tmp/design_body.txt)
+
+          Implement the feature exactly as described in the design specification above.
+          EOF
+          else
+            cat >> /tmp/prompt.txt << EOF
+
+          No design issue was found — implement based on the original request.
+          EOF
+          fi
+
+          cat >> /tmp/prompt.txt << EOF
+
+          Follow the project's existing patterns and conventions.
           Do NOT run any git commands — just edit the files.
           Do NOT add code comments explaining what you changed.
           Include tests for the new behaviour.
 
-          After implementing the feature, write a markdown summary to /tmp/summary.txt with these sections:
+          After implementing, write a markdown summary to /tmp/summary.txt with these sections:
           ## Implementation overview
           Two or three sentences: what was built and how it works.
           ## Files changed
@@ -137,17 +318,22 @@ jobs:
           git checkout -b "$BRANCH"
           git add -A
           git commit -m "feat: ${FEATURE_TITLE} (closes #${ISSUE_NUMBER})"
+          git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "$BRANCH"
 
           {
             echo "Closes #${ISSUE_NUMBER}"
+            if [[ -n "${DESIGN_NUMBER}" ]]; then
+              echo "Closes #${DESIGN_NUMBER}"
+            fi
             echo ""
-            echo "Implemented by Claude Code in response to approved feature request #${ISSUE_NUMBER}."
+            echo "Implemented by Claude Code based on approved design #${DESIGN_NUMBER:-N/A}."
             if [[ -s /tmp/summary.txt ]]; then
               echo ""
               cat /tmp/summary.txt
             fi
           } > /tmp/pr_body.txt
+
           PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
             --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
             --body-file /tmp/pr_body.txt \
