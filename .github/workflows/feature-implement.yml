@@ -240,8 +240,8 @@ jobs:
                 --body "Could not find the linked feature issue. Please add \`status: auto-implement\` to the original feature request instead."
               exit 0
             fi
-            # Remove label from #Y, then switch focus to #X
-            gh issue edit "$ISSUE_NUMBER" --remove-label "status: auto-implement" 2>/dev/null || true
+            # Update #Y labels before switching focus to #X
+            gh issue edit "$ISSUE_NUMBER" --remove-label "status: auto-implement" --add-label "status: in progress" 2>/dev/null || true
             ISSUE_NUMBER="$FEATURE_NUMBER"
             ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title')
             ISSUE_BODY_X=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')
