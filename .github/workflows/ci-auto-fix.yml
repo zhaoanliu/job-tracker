@@ -199,6 +199,7 @@ jobs:
             fi
             COMMITS_AHEAD=$(git rev-list "origin/${HEAD_BRANCH}..HEAD" --count)
             if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
+              git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git"
               git push origin "HEAD:${HEAD_BRANCH}"
             else
               echo "Fix already applied by another run, skipping push"
