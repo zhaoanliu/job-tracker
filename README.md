@@ -350,7 +350,7 @@ Two entry points feed the same two-phase pipeline:
 - **User feedback** — user submits via the in-app Feedback button → `#X` created with `user-requested` label
 - **Owner-planned** — owner runs `/plan-feature` → `#X` (roadmap issue, `planned` label) + `#Y` (implementation spec, `implementation` label) created together
 
-![Feature implementation flow](docs/feature-implement-flow.png)
+![ApplyTrackr self-healing pipeline](docs/applytrackr-pipeline-logo.png)
 
 **Phase 1 — Design** (triggered by `status: approved` on `#X`):
 - If `#Y` already exists (plan-feature path): links it, skips generation
