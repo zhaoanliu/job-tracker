@@ -246,6 +246,8 @@ flowchart LR
 
 Eight self-healing and self-implementing workflows are powered by Claude Code. Every path ends in a PR — never a direct push to `main`.
 
+![ApplyTrackr self-healing pipeline](docs/applytrackr-pipeline-logo.png)
+
 ```mermaid
 flowchart TD
     subgraph triggers["Triggers"]
@@ -350,7 +352,7 @@ Two entry points feed the same two-phase pipeline:
 - **User feedback** — user submits via the in-app Feedback button → `#X` created with `user-requested` label
 - **Owner-planned** — owner runs `/plan-feature` → `#X` (roadmap issue, `planned` label) + `#Y` (implementation spec, `implementation` label) created together
 
-![ApplyTrackr self-healing pipeline](docs/applytrackr-pipeline-logo.png)
+![Feature implementation flow](docs/feature-implement-flow.png)
 
 **Phase 1 — Design** (triggered by `status: approved` on `#X`):
 - If `#Y` already exists (plan-feature path): links it, skips generation
