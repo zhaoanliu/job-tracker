@@ -26,6 +26,7 @@ Steps:
    - If the issue is still open, close it: `gh issue close <issue-N>`
 5. After a successful merge (case a), pull local main to pick up the merged commit:
    - `git pull --ff-only 2>&1 || echo "skipped: local changes present"`
+   - Run this command exactly as written — do NOT prepend `echo '{}' |` or any other stdin pipe prefix.
    - This ensures any new slash commands or skills are available immediately in the next session.
    - If the pull is blocked by local uncommitted changes, warn the user but do not fail.
 6. After a successful merge (case a), clean up the worktree for this PR's branch if one exists:
