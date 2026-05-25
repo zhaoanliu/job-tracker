@@ -1,0 +1,64 @@
+name: Rebase conflicting PRs
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: rebase-conflicting-prs
+  cancel-in-progress: false
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Configure git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git remote set-url origin "https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git"
+
+      - name: Ensure merge-conflict label exists
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: gh label create "merge conflict" --color "e11d48" --description "Branch conflicts with main — manual resolution required" --force
+
+      - name: Rebase conflicting PRs
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh pr list --state open --json number,headRefName,mergeable \
+            --jq '.[] | [.number | tostring, .headRefName, .mergeable] | @tsv' \
+          | while IFS=$'\t' read -r pr_num branch mergeable; do
+              echo "Checking PR #${pr_num} (${branch}): mergeable=${mergeable}"
+              if [[ "$mergeable" == "UNKNOWN" ]]; then
+                for i in 1 2 3 4 5 6; do
+                  sleep 5
+                  mergeable=$(gh pr view "$pr_num" --json mergeable --jq '.mergeable')
+                  echo "  Retry ${i}: ${mergeable}"
+                  if [[ "$mergeable" != "UNKNOWN" ]]; then break; fi
+                done
+              fi
+              if [[ "$mergeable" != "CONFLICTING" ]]; then
+                echo "PR #${pr_num}: ${mergeable} — skipping"
+                continue
+              fi
+              echo "PR #${pr_num} is CONFLICTING — attempting rebase"
+              git fetch origin "$branch"
+              git checkout -B "$branch" "origin/$branch"
+              if git rebase origin/main; then
+                git push origin "HEAD:${branch}" --force-with-lease
+                gh pr edit "$pr_num" --remove-label "merge conflict" 2>/dev/null || true
+                echo "PR #${pr_num}: rebase succeeded"
+              else
+                git rebase --abort
+                gh pr edit "$pr_num" --add-label "merge conflict"
+                gh pr comment "$pr_num" --body "Auto-rebase failed — this PR has conflicts with \`main\` that require manual resolution."
+                echo "PR #${pr_num}: conflicts require manual resolution"
+              fi
+            done
