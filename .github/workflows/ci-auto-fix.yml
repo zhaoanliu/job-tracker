@@ -172,8 +172,10 @@ jobs:
         run: |
           if [[ -z "$(git diff --name-only)" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
-              --body "Claude analyzed the CI failure but made no code changes. Manual investigation required."
-            GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" || true
+              --body "Claude analyzed the CI failure but made no code changes."
+            GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" \
+              --remove-label "status: in progress" \
+              --add-label "manual investigation required" || true
             exit 0
           fi
           ISSUE_TITLE=$(cat /tmp/issue_title.txt)
