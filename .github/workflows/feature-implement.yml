@@ -220,25 +220,58 @@ jobs:
           INPUT_ISSUE_NUMBER: ${{ github.event.inputs.issue_number }}
         run: |
           ISSUE_NUMBER="${EVENT_ISSUE_NUMBER:-$INPUT_ISSUE_NUMBER}"
-          DESIGN_NUMBER=$(gh issue view "$ISSUE_NUMBER" --comments --json comments \
-            --jq '[.comments[].body | select(contains("design-issue:"))] | last' \
-            | grep -oE 'design-issue: [0-9]+' | grep -oE '[0-9]+' || true)
-          # Fallback: /plan-feature issues link via "Technical tracking: #N" in the body
-          if [[ -z "$DESIGN_NUMBER" ]]; then
-            DESIGN_NUMBER=$(echo "${ISSUE_BODY}" | grep -oE 'Technical tracking: #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
-          fi
-          if [[ -n "$DESIGN_NUMBER" ]]; then
-            DESIGN_BODY=$(gh issue view "$DESIGN_NUMBER" --json body --jq '.body')
-            echo "DESIGN_NUMBER=$DESIGN_NUMBER" >> "$GITHUB_ENV"
+          DESIGN_NUMBER=""
+          DESIGN_BODY=""
+
+          # Detect direction: implementation label means the labeled issue IS the design spec (#Y)
+          ISSUE_LABELS=$(gh issue view "$ISSUE_NUMBER" --json labels --jq '[.labels[].name] | join(",")')
+          if echo "$ISSUE_LABELS" | grep -q "implementation"; then
+            # Labeled issue is #Y — find #X via back-reference in body
+            DESIGN_NUMBER="$ISSUE_NUMBER"
+            DESIGN_BODY="${ISSUE_BODY}"
+            # plan-feature format: "See user-facing issue: #N"
+            FEATURE_NUMBER=$(echo "${ISSUE_BODY}" | grep -oE 'See user-facing issue: #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+            # Phase 1 format: "Design for feature request #N"
+            if [[ -z "$FEATURE_NUMBER" ]]; then
+              FEATURE_NUMBER=$(echo "${ISSUE_BODY}" | grep -oE 'Design for feature request #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+            fi
+            if [[ -z "$FEATURE_NUMBER" ]]; then
+              gh issue comment "$ISSUE_NUMBER" \
+                --body "Could not find the linked feature issue. Please add \`status: auto-implement\` to the original feature request instead."
+              exit 0
+            fi
+            # Remove label from #Y, then switch focus to #X
+            gh issue edit "$ISSUE_NUMBER" --remove-label "status: auto-implement" 2>/dev/null || true
+            ISSUE_NUMBER="$FEATURE_NUMBER"
+            ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title')
+            ISSUE_BODY_X=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')
             {
-              echo 'DESIGN_BODY<<DESIGN_EOF'
-              echo "$DESIGN_BODY"
-              echo 'DESIGN_EOF'
+              echo "ISSUE_NUMBER=$ISSUE_NUMBER"
+              echo "ISSUE_TITLE=$ISSUE_TITLE"
+              echo 'ISSUE_BODY<<BODY_EOF'
+              echo "$ISSUE_BODY_X"
+              echo 'BODY_EOF'
             } >> "$GITHUB_ENV"
           else
-            echo "DESIGN_NUMBER=" >> "$GITHUB_ENV"
-            echo "DESIGN_BODY=" >> "$GITHUB_ENV"
+            # Labeled issue is #X — find #Y via comment tag or body link
+            DESIGN_NUMBER=$(gh issue view "$ISSUE_NUMBER" --comments --json comments \
+              --jq '[.comments[].body | select(contains("design-issue:"))] | last' \
+              | grep -oE 'design-issue: [0-9]+' | grep -oE '[0-9]+' || true)
+            # Fallback: /plan-feature links via "Technical tracking: #N" in the body
+            if [[ -z "$DESIGN_NUMBER" ]]; then
+              DESIGN_NUMBER=$(echo "${ISSUE_BODY}" | grep -oE 'Technical tracking: #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+            fi
+            if [[ -n "$DESIGN_NUMBER" ]]; then
+              DESIGN_BODY=$(gh issue view "$DESIGN_NUMBER" --json body --jq '.body')
+            fi
           fi
+
+          {
+            echo "DESIGN_NUMBER=$DESIGN_NUMBER"
+            echo 'DESIGN_BODY<<DESIGN_EOF'
+            echo "$DESIGN_BODY"
+            echo 'DESIGN_EOF'
+          } >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/check-existing-pr
         id: pr_check
