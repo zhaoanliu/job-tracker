@@ -35,7 +35,9 @@
       "Bash(make *)",
       "Bash(npm run dev *)",
       "Bash(npm install *)",
-      "Bash(npx playwright screenshot *)"
+      "Bash(npx playwright screenshot *)",
+      "Bash(xargs *)",
+      "Bash(date *)"
     ]
   }
 }
