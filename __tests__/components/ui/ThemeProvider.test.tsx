@@ -67,7 +67,7 @@ describe('ThemeProvider', () => {
   })
 
   it('returns light when readStoredTheme throws', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
       throw new Error('blocked')
     })
     const { result } = renderHook(() => useTheme(), { wrapper })
@@ -89,7 +89,7 @@ describe('ThemeProvider', () => {
 
   it('setTheme swallows localStorage errors', () => {
     const { result } = renderHook(() => useTheme(), { wrapper })
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
       throw new Error('quota')
     })
     expect(() => act(() => result.current.setTheme('dark'))).not.toThrow()
@@ -149,7 +149,7 @@ describe('THEME_INIT_SCRIPT', () => {
   })
 
   it('does not throw when localStorage access fails', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
       throw new Error('blocked')
     })
     expect(() => new Function(THEME_INIT_SCRIPT)()).not.toThrow()

@@ -48,7 +48,7 @@ export default function KanbanColumn({
           ref={setNodeRef}
           className={[
             'kanban-column-body flex flex-col gap-2 p-2',
-            isOver ? 'bg-white/60' : '',
+            isOver ? 'bg-white/60 dark:bg-white/5' : '',
           ].join(' ')}
         >
           {applications.map(app => (
@@ -60,10 +60,10 @@ export default function KanbanColumn({
             <div
               className={[
                 'rounded-lg border-2 border-dashed p-6 flex items-center justify-center transition-colors',
-                isOver ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200',
+                isOver ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-600',
               ].join(' ')}
             >
-              <p className="text-xs text-slate-400">Drop here</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">Drop here</p>
             </div>
           )}
         </div>

@@ -3,7 +3,7 @@ import AuthForm from '@/components/auth/AuthForm'
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-indigo-50 px-4">
+    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Image
@@ -11,12 +11,20 @@ export default function LoginPage() {
             alt="ApplyTrackr"
             width={200}
             height={40}
-            className="mx-auto mb-3"
+            className="mx-auto mb-3 block dark:hidden"
             priority
           />
-          <p className="mt-1 text-sm text-slate-500">Sign in to manage your pipeline</p>
+          <Image
+            src="/brand/lockup-dark.svg"
+            alt="ApplyTrackr"
+            width={200}
+            height={40}
+            className="mx-auto mb-3 hidden dark:block"
+            priority
+          />
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Sign in to manage your pipeline</p>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
           <AuthForm />
         </div>
       </div>

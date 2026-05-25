@@ -20,10 +20,10 @@ interface TypeBadgeProps {
 }
 
 const TYPE_COLORS: Record<ApplicationType, string> = {
-  'Principal Engineer': 'bg-violet-100 text-violet-700 border-violet-200',
-  'Security Engineer': 'bg-sky-100 text-sky-700 border-sky-200',
-  'Security Architect': 'bg-teal-100 text-teal-700 border-teal-200',
-  Other: 'bg-slate-100 text-slate-600 border-slate-200',
+  'Principal Engineer': 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/40 dark:text-violet-300 dark:border-violet-800',
+  'Security Engineer': 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-900/40 dark:text-sky-300 dark:border-sky-800',
+  'Security Architect': 'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-800',
+  Other: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600',
 }
 
 export function TypeBadge({ type }: TypeBadgeProps) {

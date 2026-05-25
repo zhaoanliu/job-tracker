@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Application, CsvHistoryEntry, ImportRow } from '@/lib/types'
 import { downloadCsv, parseCsv } from '@/lib/csv'
+import { useTheme } from '@/components/ui/ThemeProvider'
 
 interface NavbarProps {
   userEmail: string
@@ -18,6 +19,7 @@ interface NavbarProps {
 export default function Navbar({ userEmail, applications, onImport, onNewApplication }: NavbarProps) {
   const supabase = createClient()
   const router = useRouter()
+  const { theme, toggleTheme } = useTheme()
   const [importing, setImporting] = useState(false)
   const [featureOpen, setFeatureOpen] = useState(false)
   const [featureTitle, setFeatureTitle] = useState('')
@@ -164,7 +166,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
   return (
     <>
     <nav
-      className="h-[var(--nav-height)] flex items-center justify-between px-4 bg-white border-b border-slate-200 z-10"
+      className="h-[var(--nav-height)] flex items-center justify-between px-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 z-10"
       style={{ height: 'var(--nav-height)' }}
     >
       <div className="flex items-center">
@@ -199,7 +201,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
 
         <button
           onClick={handleExport}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
           title="Export to CSV"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -208,7 +210,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
           Export
         </button>
 
-        <label className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer ${importing ? 'opacity-50' : ''}`}>
+        <label className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors cursor-pointer ${importing ? 'opacity-50' : ''}`}>
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
           </svg>
@@ -216,44 +218,61 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
           <input type="file" accept=".csv" className="sr-only" onChange={handleImport} disabled={importing} />
         </label>
 
-        <div className="flex items-center gap-2 ml-2 pl-2 border-l border-slate-200">
-          <span className="text-xs text-slate-500 hidden sm:block truncate max-w-[140px]">{userEmail}</span>
-          <span className="text-slate-200">|</span>
+        <div className="flex items-center gap-2 ml-2 pl-2 border-l border-slate-200 dark:border-slate-700">
+          <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block truncate max-w-[140px]">{userEmail}</span>
+          <span className="text-slate-200 dark:text-slate-600">|</span>
           <button
             onClick={() => setInviteOpen(true)}
-            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           >
             Invite
           </button>
-          <span className="text-slate-200">|</span>
+          <span className="text-slate-200 dark:text-slate-600">|</span>
           <button
             onClick={() => setFeatureOpen(true)}
-            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
             title="Request a feature"
           >
             Feedback
           </button>
-          <span className="text-slate-200">|</span>
+          <span className="text-slate-200 dark:text-slate-600">|</span>
           <Link
             href="/roadmap"
-            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           >
             Roadmap
           </Link>
-          <span className="text-slate-200">|</span>
+          <span className="text-slate-200 dark:text-slate-600">|</span>
           <button
             onClick={() => setSecurityOpen(true)}
-            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
             title="Set or change your password"
           >
             Security
           </button>
-          <span className="text-slate-200">|</span>
+          <span className="text-slate-200 dark:text-slate-600">|</span>
           <button
             onClick={handleSignOut}
-            className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           >
             Sign out
+          </button>
+          <span className="text-slate-200 dark:text-slate-600">|</span>
+          <button
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+          >
+            {theme === 'dark' ? (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
@@ -265,18 +284,18 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
         onClick={handleInviteClose}
       >
         <div
-          className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6"
+          className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-6"
           onClick={e => e.stopPropagation()}
         >
-          <h2 className="text-sm font-semibold text-slate-900 mb-1">Invite a friend</h2>
-          <p className="text-xs text-slate-500 mb-4">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Invite a friend</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
             Send them a link to Job Tracker with a personal note.
           </p>
 
           {inviteStatus === 'success' ? (
             <div className="text-center py-4">
-              <p className="text-sm font-medium text-green-700 mb-1">Invite sent!</p>
-              <p className="text-xs text-slate-500 mb-4">They&apos;ll receive an email with a link to get started.</p>
+              <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">Invite sent!</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">They&apos;ll receive an email with a link to get started.</p>
               <button
                 onClick={handleInviteClose}
                 className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
@@ -287,7 +306,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
           ) : (
             <form onSubmit={handleInviteSubmit}>
               <div className="mb-3">
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="invite-email">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="invite-email">
                   Email <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -297,12 +316,12 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
                   onChange={e => setInviteEmail(e.target.value)}
                   placeholder="friend@example.com"
                   required
-                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div className="mb-3">
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="invite-name">
-                  Name <span className="text-slate-400">(optional)</span>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="invite-name">
+                  Name <span className="text-slate-400">( optional)</span>
                 </label>
                 <input
                   id="invite-name"
@@ -311,11 +330,11 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
                   onChange={e => setInviteName(e.target.value)}
                   placeholder="Alex"
                   maxLength={100}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="invite-message">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="invite-message">
                   Personal note <span className="text-slate-400">(optional)</span>
                 </label>
                 <textarea
@@ -325,19 +344,19 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
                   placeholder="Hey, I've been using this to track my job search…"
                   maxLength={500}
                   rows={3}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
               </div>
 
               {inviteStatus === 'error' && (
-                <p className="text-xs text-red-600 mb-3">Something went wrong — please try again.</p>
+                <p className="text-xs text-red-600 dark:text-red-400 mb-3">Something went wrong — please try again.</p>
               )}
 
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={handleInviteClose}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -361,18 +380,18 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
         onClick={handleSecurityClose}
       >
         <div
-          className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6"
+          className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-6"
           onClick={e => e.stopPropagation()}
         >
-          <h2 className="text-sm font-semibold text-slate-900 mb-1">Set or change password</h2>
-          <p className="text-xs text-slate-500 mb-4">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Set or change password</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
             Set a password for the first time, or change your existing one.
           </p>
 
           {securityStatus === 'success' ? (
             <div className="text-center py-4">
-              <p className="text-sm font-medium text-green-700 mb-1">Password updated!</p>
-              <p className="text-xs text-slate-500 mb-4">You can use it the next time you sign in.</p>
+              <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">Password updated!</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">You can use it the next time you sign in.</p>
               <button
                 onClick={handleSecurityClose}
                 className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
@@ -383,7 +402,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
           ) : (
             <form onSubmit={handleSecuritySubmit}>
               <div className="mb-3">
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="security-new-password">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="security-new-password">
                   New password <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -394,11 +413,11 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
                   placeholder="••••••••"
                   minLength={8}
                   required
-                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="security-confirm-password">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="security-confirm-password">
                   Confirm password <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -409,19 +428,19 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
                   placeholder="••••••••"
                   minLength={8}
                   required
-                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               {securityError && (
-                <p className="text-xs text-red-600 mb-3">{securityError}</p>
+                <p className="text-xs text-red-600 dark:text-red-400 mb-3">{securityError}</p>
               )}
 
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={handleSecurityClose}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -446,18 +465,18 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
         onClick={handleFeatureClose}
       >
         <div
-          className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6"
+          className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-6"
           onClick={e => e.stopPropagation()}
         >
-          <h2 className="text-sm font-semibold text-slate-900 mb-1">Request a feature</h2>
-          <p className="text-xs text-slate-500 mb-4">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Request a feature</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
             Your request will be submitted as a GitHub issue for review.
           </p>
 
           {featureStatus === 'success' ? (
             <div className="text-center py-4">
-              <p className="text-sm font-medium text-green-700 mb-1">Request submitted!</p>
-              <p className="text-xs text-slate-500 mb-4">Thanks — we&apos;ll review it soon.</p>
+              <p className="text-sm font-medium text-green-700 dark:text-green-400 mb-1">Request submitted!</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Thanks — we&apos;ll review it soon.</p>
               <button
                 onClick={handleFeatureClose}
                 className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
@@ -468,7 +487,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
           ) : (
             <form onSubmit={handleFeatureSubmit}>
               <div className="mb-3">
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="feature-title">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="feature-title">
                   Title <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -479,11 +498,11 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
                   placeholder="Describe the feature in one line"
                   maxLength={200}
                   required
-                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="feature-desc">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1" htmlFor="feature-desc">
                   Description <span className="text-slate-400">(optional)</span>
                 </label>
                 <textarea
@@ -493,19 +512,19 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
                   placeholder="More context, use case, or examples"
                   maxLength={2000}
                   rows={4}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
               </div>
 
               {featureStatus === 'error' && (
-                <p className="text-xs text-red-600 mb-3">Something went wrong — please try again.</p>
+                <p className="text-xs text-red-600 dark:text-red-400 mb-3">Something went wrong — please try again.</p>
               )}
 
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={handleFeatureClose}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   Cancel
                 </button>
