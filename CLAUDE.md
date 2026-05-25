@@ -385,7 +385,9 @@ When doing a doc review that produces multiple small fixes across README and CLA
 
 **`main` is read-only. Never edit or commit files directly on the `main` branch.** This applies to every file change without exception — code, config, settings, CLAUDE.md, CI workflows, documentation. A one-line settings tweak needs a worktree and a PR just as much as a feature does.
 
-**Before touching any file, follow these three steps in order:**
+**Before your first Edit or Write call in any session, you must have already: (1) created an issue, (2) created a worktree.** If you are about to call Edit or Write and no worktree exists yet — stop and do those two steps first. This applies to every file without exception: `.claude/settings.json`, `CLAUDE.md`, `README.md`, CI workflows, scripts, everything.
+
+The three steps in order:
 1. `gh issue create` with the appropriate label and a clear title. Issue titles use **plain text only** — never use conventional-commit prefixes (`feat:`, `chore:`, `refactor:`, etc.) in an issue title. The only allowed prefixes are:
    - `[Feature Request] Title` — user-submitted feature requests (with `user-requested` label). Also add the correct status label at creation time: implementing immediately → `status: in progress`; tracking for future → `status: backlog`
    - `fix: Title` — bug fixes (with `bug` label). **If you are implementing the fix immediately in the same session, also add `status: in progress` in the same command** — `bug-fix.yml` checks for this label and skips, preventing a duplicate bot-generated PR.
