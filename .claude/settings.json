@@ -4,7 +4,7 @@
       "Bash(git *)",
       "Bash(gh *)",
       "Bash(actionlint *)",
-      "Bash(npx tsc --noEmit *)",
+      "Bash(npx tsc --noEmit*)",
       "Bash(npm run lint)",
       "Bash(rm *)",
       "Bash(mv *)",
@@ -16,14 +16,16 @@
       "Bash(curl *)",
       "Bash(dig *)",
       "Bash(npm view *)",
-      "Bash(npm run build *)",
+      "Bash(npm run build*)",
       "Bash(npx supabase status *)",
       "Bash(npx supabase --version *)",
       "Bash(npx vercel inspect *)",
       "Bash(npx vitest run *)",
       "Bash(docker *)",
       "Bash(npm test *)",
-      "Bash(npm run test:coverage *)",
+      "Bash(npm run test:coverage*)",
+      "Bash(npm run test:watch)",
+      "Bash(npm run test:e2e)",
       "Bash(npx playwright test *)",
       "Bash(node *)",
       "Bash(python3 *)",
@@ -33,11 +35,9 @@
       "Bash(npx supabase link *)",
       "Bash(supabase *)",
       "Bash(make *)",
-      "Bash(npm run dev *)",
+      "Bash(npm run dev*)",
       "Bash(npm install *)",
-      "Bash(npx playwright screenshot *)",
-      "Bash(xargs *)",
-      "Bash(date *)"
+      "Bash(npx playwright screenshot *)"
     ]
   }
 }
