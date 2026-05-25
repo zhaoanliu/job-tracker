@@ -302,6 +302,8 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 
 **Full approval flow (user-requested)**: user submits via the in-app Feedback form → GitHub issue #X created with `user-requested` label → owner adds `status: approved` → design phase runs, #Y created → owner refines design → owner adds `status: auto-implement` → implementation phase runs, PR opened.
 
+**Full approval flow (/plan-feature)**: owner runs `/plan-feature` → creates roadmap issue #X (`planned` label) + implementation spec issue #Y (`implementation` label, linked via `Technical tracking: #N` in #X's body) → owner adds `status: approved` to #X → design phase detects existing #Y, links it, skips generation → owner refines #Y in a Claude Code session → owner adds `status: auto-implement` → implementation phase runs using #Y as the spec, PR closes both #X and #Y.
+
 - **`user-requested` is reserved for the Feedback form** — the `/api/feature-request` route sets it automatically. Never add it manually to owner-initiated issues; it drives the public roadmap filter.
 - `status: planned` is informational only — it does not trigger either phase.
 - No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`

@@ -52,7 +52,35 @@ jobs:
           gh issue edit "${ISSUE_NUMBER}" \
             --add-label "status: design-review" 2>/dev/null || true
 
+      - name: Check for existing implementation spec
+        id: existing_spec
+        run: |
+          EXISTING=$(echo "${ISSUE_BODY}" | grep -oE 'Technical tracking: #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+          if [[ -n "$EXISTING" ]]; then
+            echo "design_number=${EXISTING}" >> "$GITHUB_OUTPUT"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Link existing implementation spec
+        if: steps.existing_spec.outputs.exists == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DESIGN_NUMBER="${{ steps.existing_spec.outputs.design_number }}"
+          DESIGN_URL="https://github.com/${GITHUB_REPOSITORY}/issues/${DESIGN_NUMBER}"
+          {
+            echo "Implementation spec found from /plan-feature: ${DESIGN_URL}"
+            echo ""
+            echo "Review and refine the spec in a Claude Code session if needed. When ready, add \`status: auto-implement\` to kick off implementation."
+            echo ""
+            echo "<!-- design-issue: ${DESIGN_NUMBER} -->"
+          } > /tmp/design_comment.txt
+          gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/design_comment.txt
+
       - name: Comment that design is starting
+        if: steps.existing_spec.outputs.exists != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -60,6 +88,7 @@ jobs:
             --body "Generating a design proposal for this feature. A design issue will be linked here shortly."
 
       - name: Write design prompt
+        if: steps.existing_spec.outputs.exists != 'true'
         run: |
           FEATURE_TITLE=$(printf '%s' "${ISSUE_TITLE}" | sed 's/^\[Feature Request\] //')
           printf '%s' "${ISSUE_BODY}" > /tmp/issue_body.txt
@@ -97,6 +126,7 @@ jobs:
           EOF
 
       - name: Run Claude to generate design
+        if: steps.existing_spec.outputs.exists != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -116,6 +146,7 @@ jobs:
           done
 
       - name: Create design issue and link back
+        if: steps.existing_spec.outputs.exists != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -192,6 +223,10 @@ jobs:
           DESIGN_NUMBER=$(gh issue view "$ISSUE_NUMBER" --comments --json comments \
             --jq '[.comments[].body | select(contains("design-issue:"))] | last' \
             | grep -oE 'design-issue: [0-9]+' | grep -oE '[0-9]+' || true)
+          # Fallback: /plan-feature issues link via "Technical tracking: #N" in the body
+          if [[ -z "$DESIGN_NUMBER" ]]; then
+            DESIGN_NUMBER=$(echo "${ISSUE_BODY}" | grep -oE 'Technical tracking: #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+          fi
           if [[ -n "$DESIGN_NUMBER" ]]; then
             DESIGN_BODY=$(gh issue view "$DESIGN_NUMBER" --json body --jq '.body')
             echo "DESIGN_NUMBER=$DESIGN_NUMBER" >> "$GITHUB_ENV"
