@@ -34,14 +34,14 @@ export default function KanbanCard({ application, onClick, isDragOverlay = false
       {...(isDragOverlay ? {} : { ...attributes, ...listeners })}
       onClick={() => !isDragging && onClick(application)}
       className={[
-        'group bg-white rounded-xl border border-slate-200 p-3 cursor-pointer select-none',
+        'group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 cursor-pointer select-none',
         'shadow-card hover:shadow-card-hover transition-shadow',
         isDragging ? 'dragging' : '',
         isDragOverlay ? 'rotate-1 shadow-xl' : '',
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <p className="text-sm font-semibold text-slate-900 leading-tight line-clamp-1">
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-tight line-clamp-1">
           {application.company}
         </p>
         <PriorityBadge priority={application.priority} />
@@ -66,9 +66,9 @@ export default function KanbanCard({ application, onClick, isDragOverlay = false
       </div>
 
       {application.next_step && (
-        <div className="mt-2 pt-2 border-t border-slate-100">
-          <p className="text-[10px] text-slate-500 line-clamp-1">
-            <span className="font-medium text-slate-600">Next: </span>
+        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1">
+            <span className="font-medium text-slate-600 dark:text-slate-300">Next: </span>
             {application.next_step}
           </p>
         </div>

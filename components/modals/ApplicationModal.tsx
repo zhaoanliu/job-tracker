@@ -146,8 +146,8 @@ export default function ApplicationModal({
   }
 
   const inputClass =
-    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-slate-400'
-  const labelClass = 'block text-xs font-medium text-slate-600 mb-1'
+    'w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-slate-400 dark:placeholder:text-slate-500'
+  const labelClass = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1'
   const selectClass = inputClass
 
   return (
@@ -159,15 +159,15 @@ export default function ApplicationModal({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
       {/* Sheet */}
-      <div className="relative z-10 w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="relative z-10 w-full sm:max-w-2xl bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="text-base font-semibold text-slate-900">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
             {application ? 'Edit Application' : 'New Application'}
           </h2>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -176,7 +176,7 @@ export default function ApplicationModal({
         </div>
 
         {/* Section tabs */}
-        <div className="flex border-b border-slate-200 px-5">
+        <div className="flex border-b border-slate-200 dark:border-slate-700 px-5">
           {([['details', 'Details'], ['progress', 'Progress'], ['jd', 'Job Description'], ['history', 'History']] as [Section, string][]).map(([id, label]) => (
             <button
               key={id}
@@ -184,8 +184,8 @@ export default function ApplicationModal({
               onClick={() => setSection(id)}
               className={`py-2.5 px-1 mr-4 text-xs font-medium border-b-2 -mb-px transition-colors ${
                 section === id
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
               {label}
@@ -393,18 +393,18 @@ export default function ApplicationModal({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className={labelClass}>Job Description</label>
-                  <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] font-medium">
+                  <div className="flex rounded-md border border-slate-200 dark:border-slate-600 overflow-hidden text-[11px] font-medium">
                     <button
                       type="button"
                       onClick={() => setJdPreview(false)}
-                      className={`px-2.5 py-0.5 transition-colors ${!jdPreview ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                      className={`px-2.5 py-0.5 transition-colors ${!jdPreview ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                     >
                       Edit
                     </button>
                     <button
                       type="button"
                       onClick={() => setJdPreview(true)}
-                      className={`px-2.5 py-0.5 transition-colors ${jdPreview ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                      className={`px-2.5 py-0.5 transition-colors ${jdPreview ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                     >
                       Preview
                     </button>
@@ -413,13 +413,13 @@ export default function ApplicationModal({
                 {jdPreview ? (
                   form.jd && /<[a-z][\s\S]*>/i.test(form.jd) ? (
                     <div
-                      className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+                      className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 p-3 text-sm text-slate-700 dark:text-slate-300"
                       dangerouslySetInnerHTML={{ __html: form.jd }}
                     />
                   ) : (
-                    <div className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                      <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 m-0">
-                        {form.jd || <span className="text-slate-400 italic">Nothing to preview.</span>}
+                    <div className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 p-3 text-sm text-slate-700 dark:text-slate-300">
+                      <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 dark:text-slate-300 m-0">
+                        {form.jd || <span className="text-slate-400 dark:text-slate-500 italic">Nothing to preview.</span>}
                       </pre>
                     </div>
                   )
@@ -438,7 +438,7 @@ export default function ApplicationModal({
                 {history.length === 0 ? (
                   <p className="text-xs text-slate-400 py-6 text-center">No status history recorded yet.</p>
                 ) : (
-                  <ol className="relative border-l border-slate-200 ml-2">
+                  <ol className="relative border-l border-slate-200 dark:border-slate-700 ml-2">
                     {history.map((entry, i) => {
                       const stage = STAGES.find(s => s.id === entry.status)
                       const dt = new Date(entry.changed_at)
@@ -446,7 +446,7 @@ export default function ApplicationModal({
                       const time = dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
                       return (
                         <li key={entry.id} className="mb-4 ml-4">
-                          <span className={`absolute -left-1.5 mt-1 w-3 h-3 rounded-full border-2 border-white ${stage?.dotClass ?? 'bg-slate-400'}`} />
+                          <span className={`absolute -left-1.5 mt-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 ${stage?.dotClass ?? 'bg-slate-400'}`} />
                           <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${stage?.headerClass ?? 'text-slate-600 bg-slate-100'}`}>
                             {stage?.label ?? entry.status}
                           </span>
@@ -462,16 +462,16 @@ export default function ApplicationModal({
 
           {/* Footer */}
           {error && (
-            <div className="mx-5 mb-1 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+            <div className="mx-5 mb-1 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-2 text-xs text-red-700 dark:text-red-400">
               {error}
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-slate-200">
+          <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-slate-200 dark:border-slate-700">
             {onDelete ? (
               confirmDelete ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Are you sure?</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Are you sure?</span>
                   <button
                     type="button"
                     onClick={handleDelete}
@@ -483,7 +483,7 @@ export default function ApplicationModal({
                   <button
                     type="button"
                     onClick={() => setConfirmDelete(false)}
-                    className="text-xs text-slate-500 hover:text-slate-700"
+                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                   >
                     Cancel
                   </button>
@@ -505,7 +505,7 @@ export default function ApplicationModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                className="rounded-lg border border-slate-200 dark:border-slate-600 px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
               >
                 Cancel
               </button>

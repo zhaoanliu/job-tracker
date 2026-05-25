@@ -24,6 +24,10 @@
     scrollbar-color: #cbd5e1 transparent;
   }
 
+  .dark .kanban-column-body {
+    scrollbar-color: #475569 transparent;
+  }
+
   .kanban-column-body::-webkit-scrollbar {
     width: 4px;
   }
@@ -31,6 +35,10 @@
   .kanban-column-body::-webkit-scrollbar-thumb {
     background-color: #cbd5e1;
     border-radius: 2px;
+  }
+
+  .dark .kanban-column-body::-webkit-scrollbar-thumb {
+    background-color: #475569;
   }
 
   .drag-over {
@@ -43,7 +51,7 @@
 
   /* Job Description preview — styles rendered HTML/plain text content */
   .jd-preview h1, .jd-preview h2, .jd-preview h3, .jd-preview h4 {
-    @apply font-semibold text-slate-800 mt-3 mb-1;
+    @apply font-semibold text-slate-800 dark:text-slate-200 mt-3 mb-1;
   }
   .jd-preview h1 { @apply text-base; }
   .jd-preview h2 { @apply text-sm; }

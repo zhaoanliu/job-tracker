@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 import Navbar from '@/components/ui/Navbar'
+import { ThemeProvider } from '@/components/ui/ThemeProvider'
 import { downloadCsv } from '@/lib/csv'
 
 const noApps: Application[] = []
@@ -89,6 +90,18 @@ describe('Navbar', () => {
     const link = screen.getByRole('link', { name: /Roadmap/i })
     expect(link).toBeInTheDocument()
     expect(link).toHaveAttribute('href', '/roadmap')
+  })
+
+  it('renders the theme toggle button', () => {
+    render(<Navbar {...defaultProps} />)
+    expect(screen.getByRole('button', { name: /Switch to dark mode|Switch to light mode/i })).toBeInTheDocument()
+  })
+
+  it('toggles theme when the theme button is clicked', async () => {
+    render(<ThemeProvider><Navbar {...defaultProps} /></ThemeProvider>)
+    const toggleBtn = screen.getByRole('button', { name: /Switch to dark mode/i })
+    await userEvent.click(toggleBtn)
+    expect(screen.getByRole('button', { name: /Switch to light mode/i })).toBeInTheDocument()
   })
 })
 

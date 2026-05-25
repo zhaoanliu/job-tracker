@@ -70,7 +70,7 @@ export default function AuthForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" suppressHydrationWarning>
-      <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
+      <div className="flex rounded-lg border border-slate-200 dark:border-slate-600 overflow-hidden text-sm">
         {(['signin', 'signup', 'magic'] as Mode[]).map(m => (
           <button
             key={m}
@@ -79,7 +79,7 @@ export default function AuthForm() {
             className={`flex-1 py-2 font-medium transition-colors ${
               mode === m
                 ? 'bg-indigo-600 text-white'
-                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
           >
             {m === 'signin' ? 'Sign In' : m === 'signup' ? 'Sign Up' : 'Magic Link'}
@@ -91,28 +91,28 @@ export default function AuthForm() {
         <button
           type="button"
           onClick={() => { setEmail('demo@jobtracker.dev'); setPassword('demo1234'); setMessage(null) }}
-          className="w-full rounded-lg border border-dashed border-indigo-300 bg-indigo-50 px-4 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+          className="w-full rounded-lg border border-dashed border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
         >
           Use demo account
         </button>
       )}
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
         <input
           type="email"
           required
           value={email}
           onChange={e => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           suppressHydrationWarning
         />
       </div>
 
       {mode !== 'magic' && mode !== 'reset' && (
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Password</label>
           <input
             type="password"
             required
@@ -122,7 +122,7 @@ export default function AuthForm() {
             minLength={mode === 'signup' ? PASSWORD_MIN_LENGTH : 6}
             aria-invalid={mode === 'signup' && password.length > 0 && !passwordCheck.valid}
             aria-describedby={mode === 'signup' ? 'password-requirements' : undefined}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             suppressHydrationWarning
           />
           {mode === 'signup' && (
@@ -138,7 +138,7 @@ export default function AuthForm() {
                     key={rule.id}
                     data-testid={`password-rule-${rule.id}`}
                     data-passed={passed}
-                    className={passed ? 'text-green-600' : 'text-slate-500'}
+                    className={passed ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}
                   >
                     <span aria-hidden="true">{passed ? '✓' : '○'}</span>{' '}
                     {rule.label}
@@ -155,7 +155,7 @@ export default function AuthForm() {
           <button
             type="button"
             onClick={() => { setMode('reset'); setMessage(null) }}
-            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
           >
             Forgot password?
           </button>
@@ -167,7 +167,7 @@ export default function AuthForm() {
           <button
             type="button"
             onClick={() => { setMode('signin'); setMessage(null) }}
-            className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
+            className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:underline"
           >
             ← Back to sign in
           </button>
@@ -178,8 +178,8 @@ export default function AuthForm() {
         <div
           className={`rounded-lg px-3 py-2 text-sm ${
             message.type === 'error'
-              ? 'bg-red-50 text-red-700 border border-red-200'
-              : 'bg-green-50 text-green-700 border border-green-200'
+              ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800'
+              : 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800'
           }`}
         >
           {message.text}
@@ -189,7 +189,7 @@ export default function AuthForm() {
       <button
         type="submit"
         disabled={loading || blockSignupSubmit}
-        className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {loading
           ? 'Loading…'
