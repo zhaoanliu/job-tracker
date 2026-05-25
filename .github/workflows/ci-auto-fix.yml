@@ -173,7 +173,7 @@ jobs:
           if [[ -z "$(git diff --name-only)" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Claude analyzed the CI failure but made no code changes. Manual investigation required."
-            gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" 2>/dev/null || true
+            GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" || true
             exit 0
           fi
           ISSUE_TITLE=$(cat /tmp/issue_title.txt)
@@ -212,8 +212,8 @@ jobs:
               echo "Fix pushed to \`${HEAD_BRANCH}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed). Closes #${ISSUE_NUMBER}"
             } > /tmp/issue_comment.txt
             gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
-            gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" 2>/dev/null || true
-            gh issue close "${ISSUE_NUMBER}"
+            GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" || true
+            GH_TOKEN="${GH_PAT}" gh issue close "${ISSUE_NUMBER}"
           else
             # CI failed on main — always open a PR so CI (lint + e2e-auth) verifies the fix before merging
             BRANCH="fix/ci-issue-${ISSUE_NUMBER}-$(date +%s)"
