@@ -80,6 +80,10 @@ export default function ApplicationModal({
   const [section, setSection] = useState<Section>('details')
   const [jdPreview, setJdPreview] = useState(false)
   const [history, setHistory] = useState<StatusHistoryEntry[]>([])
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [overwritePrompt, setOverwritePrompt] = useState<{ html: string } | null>(null)
+  const [previousJd, setPreviousJd] = useState<string | null>(null)
 
   const firstInputRef = useRef<HTMLInputElement>(null)
 
@@ -112,6 +116,59 @@ export default function ApplicationModal({
 
   function set<K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) {
     setForm(f => ({ ...f, [key]: value }))
+  }
+
+  function applyImportedHtml(html: string) {
+    setPreviousJd(form.jd ?? null)
+    setForm(f => ({ ...f, jd: html }))
+    setSection('jd')
+  }
+
+  async function handleImport() {
+    if (!form.link?.trim() || importing) return
+    setImporting(true)
+    setImportError(null)
+    try {
+      const res = await fetch('/api/fetch-job-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: form.link }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.error ?? 'Could not import job description')
+      }
+      const html: string = data?.html ?? ''
+      if (!html.trim()) {
+        throw new Error('Empty response from job posting URL')
+      }
+      const existing = (form.jd ?? '').trim()
+      if (existing) {
+        setOverwritePrompt({ html })
+      } else {
+        applyImportedHtml(html)
+      }
+    } catch (err: unknown) {
+      console.error('Job description import failed:', err)
+      setImportError(err instanceof Error ? err.message : 'Failed to import job description')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  function confirmOverwrite() {
+    if (!overwritePrompt) return
+    applyImportedHtml(overwritePrompt.html)
+    setOverwritePrompt(null)
+  }
+
+  function cancelOverwrite() {
+    setOverwritePrompt(null)
+  }
+
+  function revertImport() {
+    setForm(f => ({ ...f, jd: previousJd }))
+    setPreviousJd(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -346,7 +403,63 @@ export default function ApplicationModal({
                           <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </button>
+                      {form.link?.trim() && (
+                        <button
+                          type="button"
+                          onClick={handleImport}
+                          disabled={importing}
+                          aria-label="Import job description from URL"
+                          title="Import job description from URL"
+                          className="flex-shrink-0 rounded-lg border border-slate-300 px-2.5 flex items-center justify-center text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors disabled:text-slate-300 disabled:hover:bg-transparent disabled:hover:text-slate-300 disabled:cursor-not-allowed"
+                        >
+                          {importing ? (
+                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-label="Loading">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                              <path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
+                            </svg>
+                          )}
+                          <span className="sr-only">Import</span>
+                        </button>
+                      )}
                     </div>
+                    {importError && (
+                      <div role="alert" className="mt-2 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-3 py-2 text-xs text-red-700 dark:text-red-400 flex items-start justify-between gap-2">
+                        <span>{importError}</span>
+                        <button
+                          type="button"
+                          onClick={() => setImportError(null)}
+                          className="flex-shrink-0 text-red-500 hover:text-red-700"
+                          aria-label="Dismiss error"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+                    {overwritePrompt && (
+                      <div className="mt-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                        <p className="mb-2">Overwrite existing description?</p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={confirmOverwrite}
+                            className="rounded-md bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700"
+                          >
+                            Overwrite
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelOverwrite}
+                            className="rounded-md border border-amber-300 dark:border-amber-700 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -392,7 +505,18 @@ export default function ApplicationModal({
             {section === 'jd' && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className={labelClass}>Job Description</label>
+                  <div className="flex items-center gap-3">
+                    <label className={labelClass}>Job Description</label>
+                    {previousJd !== null && (
+                      <button
+                        type="button"
+                        onClick={revertImport}
+                        className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                      >
+                        Revert
+                      </button>
+                    )}
+                  </div>
                   <div className="flex rounded-md border border-slate-200 dark:border-slate-600 overflow-hidden text-[11px] font-medium">
                     <button
                       type="button"
