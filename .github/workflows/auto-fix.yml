@@ -10,15 +10,13 @@ jobs:
   clear-in-progress-on-close:
     if: github.event_name == 'issues' && github.event.action == 'closed'
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
     steps:
       - name: Remove status:in-progress label
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" 2>/dev/null || true
+          gh issue edit "${ISSUE_NUMBER}" --repo "${{ github.repository }}" --remove-label "status: in progress" || true
 
   resolve-sentry-on-close:
     if: github.event_name == 'issues' && github.event.action == 'closed' && contains(github.event.issue.body, 'sentry.io')
