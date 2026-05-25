@@ -284,14 +284,28 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - **Infra error**: opens a GitHub issue with the run link for manual investigation, no code fix attempted
 - Claude is constrained to only edit files under `supabase/migrations/`
 
-**`feature-implement.yml`** — implements approved feature requests; triggers on `issues: labeled` when the `status: auto-implement` label is added (regardless of whether the issue is `user-requested` or owner-initiated):
-- Comments on the issue immediately so the submitter sees it's in progress
-- Runs `claude --dangerously-skip-permissions` with the issue title and body as the prompt
-- Always opens a PR (never pushes to main) — feature work always needs review
+**`feature-implement.yml`** — two-phase design-then-implement workflow for feature requests:
+
+**Phase 1 — design** (triggered by `status: approved`):
+- Owner adds `status: approved` to a feature issue (#X) to start the design process
+- Claude generates a design proposal and opens a new design issue (#Y) with the `user review required` label
+- #X label changes to `status: design-review`; a comment on #X links to #Y
+- Owner iterates on the design ad-hoc in Claude Code sessions (read/update #Y via `gh issue view/edit`)
+- Iterate as many rounds as needed before proceeding
+
+**Phase 2 — implement** (triggered by `status: auto-implement`):
+- Owner adds `status: auto-implement` to #X when the design is finalised
+- Claude reads both #X (original request) and #Y (design spec) and implements accordingly
+- Always opens a PR (never pushes to main) — PR body includes `Closes #X` and `Closes #Y` so both close on merge
 - Branch name is `feat/issue-<N>-<timestamp>` to avoid collisions on re-runs
 - If Claude makes no changes, comments on the issue explaining that the request may need more detail
-- **Approval flow**: user submits via the in-app Feedback form → GitHub issue created with `user-requested` label → owner adds `status: auto-implement` label → this workflow runs, swaps to `status: in progress`, implements, opens PR. For owner-initiated features, use `/open-issue <title> --auto-implement` (adds `status: auto-implement` directly, no `user-requested`). `status: planned` is informational only — it does not trigger the workflow.
+
+**Full approval flow (user-requested)**: user submits via the in-app Feedback form → GitHub issue #X created with `user-requested` label → owner adds `status: approved` → design phase runs, #Y created → owner refines design → owner adds `status: auto-implement` → implementation phase runs, PR opened.
+
+**Full approval flow (/plan-feature)**: owner runs `/plan-feature` → creates roadmap issue #X (`planned` label) + implementation spec issue #Y (`implementation` label, linked via `Technical tracking: #N` in #X's body) → owner adds `status: approved` to #X → design phase detects existing #Y, links it, skips generation → owner refines #Y in a Claude Code session → owner adds `status: auto-implement` → implementation phase runs using #Y as the spec, PR closes both #X and #Y.
+
 - **`user-requested` is reserved for the Feedback form** — the `/api/feature-request` route sets it automatically. Never add it manually to owner-initiated issues; it drives the public roadmap filter.
+- `status: planned` is informational only — it does not trigger either phase.
 - No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`
 
 **`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `repository_dispatch` with `event_type: cd-failure` (fired by `cd.yml` when `vercel deploy` fails):

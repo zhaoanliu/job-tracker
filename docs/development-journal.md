@@ -381,6 +381,26 @@ The fix introduces a distinction between the two failure types:
 
 ---
 
+### Feature Implementation: Design-Then-Implement Pipeline
+
+The original `feature-implement.yml` had a critical flaw exposed by the dark mode incident: when a user submitted "support dark mode" via the Feedback button and the owner approved it, Claude created a `ThemeProvider` component with full context, localStorage persistence, and system preference detection — and stopped there. The component was never wired into `app/layout.tsx`, no toggle appeared in the Navbar, no `dark:` Tailwind classes were applied anywhere. Tests passed because they only tested `ThemeProvider` in isolation. CI was green. The PR merged. The feature was invisible to users.
+
+The root cause: Claude implemented what it could verify locally (a self-contained component + unit tests) and had no spec requiring user-visible integration. There was no design review step, no acceptance criteria, no check that "user can click something to toggle dark mode."
+
+The fix splits `feature-implement.yml` into two phases:
+
+**Phase 1 — Design** (triggered by `status: approved`): Claude reads the feature request and generates a structured design proposal as a new GitHub issue with a `user review required` label. The proposal must include: what the user actually wants, which files to modify, where exactly in the UI the change appears, and a checklist of acceptance criteria with at least one user-visible action. For `/plan-feature` issues that already have an implementation spec, Phase 1 detects the existing spec and links it instead of generating a new one.
+
+**Phase 2 — Implement** (triggered by `status: auto-implement`): Claude reads both the original request and the approved design spec and implements accordingly. The PR closes both the feature issue and the design issue on merge.
+
+Two additional design decisions worth noting:
+
+**Bidirectional trigger**: `status: auto-implement` can be added to either the feature issue or the design issue — whichever is open in front of you at the time. The workflow detects which is which via labels (`implementation` label = design issue) and body back-references (`See user-facing issue: #N`, `Design for feature request #N`), swaps focus if needed, and always ends up targeting the feature issue with the design issue as context.
+
+**`/plan-feature` alignment**: `/plan-feature` already creates a two-issue pair (roadmap issue + implementation spec) — the same structure Phase 1 produces. The two flows are now fully aligned: both converge on `status: auto-implement` → Phase 2, with the only difference being the origin label (`user-requested` vs `planned`) and whether the design issue is AI-generated or human-written.
+
+---
+
 ## What This Project Demonstrates
 
 For a principal-level engineering portfolio, this project shows:

@@ -23,7 +23,7 @@ Track every application through a nine-stage pipeline — from passive interest 
 - **Strong password enforcement** — minimum strength validated on the client and server
 - **Invite a friend** — send a personalized invite email via Resend directly from the navbar
 - **Branded auth emails** — all Supabase auth emails (magic link, signup, password reset) are re-sent via a Deno Edge Function through Resend with ApplyTrackr branding
-- **Feature requests** — submit requests in-app via the Feedback button; owner approves by adding the `status: auto-implement` label, triggering Claude Code to implement and open a PR
+- **Feature requests** — submit requests in-app via the Feedback button; owner approves with `status: approved` (triggering a Claude-generated design proposal), then finalises with `status: auto-implement` to implement and open a PR
 - **Public roadmap** — `/roadmap` lists all open `user-requested` GitHub issues with status badges (Backlog / Planned / In Progress); recently closed items shown as shipped; revalidates hourly via ISR
 - **Admin dashboard** — `/admin` shows total users, signups per day, applications per day, stage distribution, activation rate, and invite funnel (requires service-role key)
 - **Auth** — email + password, magic link, or one-click demo account via Supabase Auth
@@ -246,6 +246,8 @@ flowchart LR
 
 Eight self-healing and self-implementing workflows are powered by Claude Code. Every path ends in a PR — never a direct push to `main`.
 
+![ApplyTrackr self-healing pipeline](docs/applytrackr-pipeline-logo.png)
+
 ```mermaid
 flowchart TD
     subgraph triggers["Triggers"]
@@ -255,7 +257,7 @@ flowchart TD
         T4["CI check fails on main\nor nightly E2E fails"]
         T5["vercel deploy fails"]
         T6["supabase db push fails"]
-        T7["Feature request approved\nvia status: auto-implement"]
+        T7["Feature request design approved\nvia status: auto-implement"]
     end
 
     T1 --> AF["auto-fix.yml\nfetch Sentry stack trace\nRun Claude Code"]
@@ -343,38 +345,37 @@ flowchart LR
     risk -->|"high"| manualpr["PR\n(manual review)"]
 ```
 
-### User feature requests → automatic implementation (`feature-implement.yml`)
+### User feature requests → design-then-implement (`feature-implement.yml`)
 
-```mermaid
-flowchart TD
-    user["User clicks Feedback in navbar\n→ submits request"] --> api["POST /api/feature-request\ncreates GitHub issue"]
-    api --> issue["Issue: 'user-requested' label only\n(no status label)"]
-    issue --> review["Owner reviews"]
-    review -->|"implement now"| planned["Owner adds\n'status: auto-implement' label"]
-    review -->|"track for later"| backlog["Owner adds\n'status: backlog' label"]
-    backlog --> review2["Owner revisits\nand adds 'status: auto-implement'\nwhen ready"]
-    review2 --> planned
-    planned --> implement["feature-implement.yml triggers\n• comment 'starting'\n• swap label → 'status: in progress'"]
-    implement --> claude["Run Claude Code\n(implements feature)"]
-    claude --> changed{"Code changed?"}
-    changed -->|"no"| comment["comment 'needs more detail'"]
-    changed -->|"yes"| pr["Open PR\n(never pushes directly to main)"]
-    pr --> owner["Owner reviews PR"]
-    owner --> merge["Merge → closes issue"]
-```
+Two entry points feed the same two-phase pipeline:
+
+- **User feedback** — user submits via the in-app Feedback button → `#X` created with `user-requested` label
+- **Owner-planned** — owner runs `/plan-feature` → `#X` (roadmap issue, `planned` label) + `#Y` (implementation spec, `implementation` label) created together
+
+![Feature implementation flow](docs/feature-implement-flow.png)
+
+**Phase 1 — Design** (triggered by `status: approved` on `#X`):
+- If `#Y` already exists (plan-feature path): links it, skips generation
+- If no `#Y` yet (user feedback path): Claude reads the request and generates a structured design proposal as `#Y` with a `user review required` label
+- `#X` moves to `status: design-review`; a comment on `#X` links to `#Y`
+- Owner iterates on the design ad-hoc in a Claude Code session
+
+**Phase 2 — Implement** (triggered by `status: auto-implement` on `#X` or `#Y`):
+- Tagging either issue works — if `#Y` is tagged, the workflow detects the `implementation` label and finds `#X` via the back-reference in the body
+- Both `#X` and `#Y` move to `status: in progress`
+- Claude implements using both issues as context
+- PR opened with `Closes #X` + `Closes #Y` — both issues close on merge
 
 **Issue status flow:**
 
 ```mermaid
 stateDiagram-v2
-    [*] --> unlabeled : user submits Feedback\n(only 'user-requested' label set)
-    unlabeled --> backlog : owner adds 'status: backlog'\n(tracking for later)
-    unlabeled --> auto_implement : owner adds 'status: auto-implement'\n(implement now)
-    backlog --> auto_implement : owner adds 'status: auto-implement'\nwhen ready
-    auto_implement --> in_progress : feature-implement.yml starts
-    in_progress --> [*] : PR merged → issue closed
-    unlabeled --> [*] : owner closes (won't fix)
-    backlog --> [*] : owner closes (won't fix)
+    [*] --> pending : user submits Feedback\nor /plan-feature creates issues
+    pending --> design_review : owner adds status: approved
+    design_review --> design_review : owner iterates on design
+    design_review --> in_progress : owner adds status: auto-implement\n(either #X or #Y)
+    in_progress --> [*] : PR merged → both issues closed
+    pending --> [*] : owner closes (won't fix)
 ```
 
 ### CD failures → Vercel production build errors (`cd-auto-fix.yml`)
