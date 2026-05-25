@@ -153,8 +153,8 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Skipping auto-fix: Sentry issued this as \`replay_hydration_error\` — no stack trace is available. These are typically caused by browser extensions modifying the DOM and are not fixable in application code."
-            gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" 2>/dev/null || true
-            gh issue close "${ISSUE_NUMBER}"
+            GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" || true
+            GH_TOKEN="${GH_PAT}" gh issue close "${ISSUE_NUMBER}"
             exit 0
           fi
 
@@ -290,8 +290,8 @@ jobs:
             echo "No app-code fix identified — closing issue and resolving Sentry"
             gh issue comment "${ISSUE_NUMBER}" \
               --body "No application code fix identified. This error appears to be caused by factors outside the application (browser extensions, environment, etc.) and is not fixable in the codebase."
-            gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" 2>/dev/null || true
-            gh issue close "${ISSUE_NUMBER}"
+            GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" || true
+            GH_TOKEN="${GH_PAT}" gh issue close "${ISSUE_NUMBER}"
             if [[ -n "${SENTRY_ID}" && -n "${SENTRY_AUTH_TOKEN}" ]]; then
               RESULT=$(curl -s -o /dev/null -w "%{http_code}" \
                 -X PUT "https://sentry.io/api/0/issues/${SENTRY_ID}/" \
