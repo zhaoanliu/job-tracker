@@ -21,6 +21,7 @@ jobs:
         with:
           ref: ${{ github.event.client_payload.head_branch }}
           fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
 
       - uses: ./.github/actions/install-claude
 
