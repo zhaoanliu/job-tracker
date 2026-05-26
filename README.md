@@ -15,6 +15,7 @@ Track every application through a nine-stage pipeline — from passive interest 
 
 - **Kanban board** with independently scrollable columns and real-time card counts
 - **Full application record** — company, role, type, priority, location, work mode, source, referrer, notes, next step, and full job description storage
+- **Track the team within a company for each application**
 - **Drag to move & reorder** — move cards between stages or reorder within a column; order persists to the database
 - **Filters & sort** — filter by priority, role type, work mode, and location simultaneously; sort by date, company, priority, or manual order
 - **Stats bar** — at-a-glance totals: Total / Active / Interviewing / Offers
