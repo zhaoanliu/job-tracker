@@ -42,6 +42,33 @@ jobs:
             echo 'BODY_EOF'
           } >> "$GITHUB_ENV"
 
+      - name: Resolve direction (route #Y → #X if implementation label)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_LABELS=$(gh issue view "${ISSUE_NUMBER}" --json labels --jq '[.labels[].name] | join(",")')
+          if echo "$ISSUE_LABELS" | grep -q "implementation"; then
+            # Labeled issue is #Y — find #X via "See user-facing issue: #N"
+            FEATURE_NUMBER=$(echo "${ISSUE_BODY}" | grep -oE 'See user-facing issue: #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+            if [[ -z "$FEATURE_NUMBER" ]]; then
+              gh issue comment "${ISSUE_NUMBER}" \
+                --body "Could not find the linked feature issue. Please add \`status: approved\` to the original feature request instead."
+              exit 0
+            fi
+            # Remove label from #Y, switch focus to #X
+            gh issue edit "${ISSUE_NUMBER}" --remove-label "status: approved" 2>/dev/null || true
+            ISSUE_NUMBER="$FEATURE_NUMBER"
+            ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title')
+            ISSUE_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')
+            {
+              echo "ISSUE_NUMBER=$ISSUE_NUMBER"
+              echo "ISSUE_TITLE=$ISSUE_TITLE"
+              echo 'ISSUE_BODY<<BODY_EOF'
+              echo "$ISSUE_BODY"
+              echo 'BODY_EOF'
+            } >> "$GITHUB_ENV"
+          fi
+
       - name: Swap label to design-review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
