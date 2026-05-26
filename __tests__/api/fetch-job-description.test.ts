@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import leverNoLists from '../fixtures/lever-posting-no-lists.json'
 import leverWithLists from '../fixtures/lever-posting-with-lists.json'
 import greenhouseScaleAI from '../fixtures/greenhouse-scaleai-job.json'
+import eightfoldMicrosoft from '../fixtures/eightfold-microsoft-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -234,23 +235,15 @@ describe('POST /api/fetch-job-description', () => {
   })
 
   describe('Eightfold.ai ATS (/careers/job/{id} URLs)', () => {
-    const EIGHTFOLD_URL = 'https://apply.careers.microsoft.com/careers/job/1234567'
-    const EIGHTFOLD_API = 'https://apply.careers.microsoft.com/api/apply/v2/jobs/1234567'
+    // Real URL from apply.careers.microsoft.com — used as routing key in fetch mock, not called live
+    const EIGHTFOLD_URL = 'https://apply.careers.microsoft.com/careers/job/1970393556868060'
+    const EIGHTFOLD_API = 'https://apply.careers.microsoft.com/api/apply/v2/jobs/1970393556868060'
 
-    it('uses Eightfold API and prepends metadata header', async () => {
+    it('uses Eightfold API and prepends metadata header — real API fixture', async () => {
+      // eightfoldMicrosoft is a snapshot of the real apply.careers.microsoft.com API response
       mockUser()
-      const apiData = {
-        name: 'Principal Data Scientist',
-        display_job_id: '200037915',
-        t_create: 1747699200,
-        locations: ['United States, Multiple Locations', 'United States, Washington, Redmond'],
-        work_location_option: '0 days/week remote',
-        department: 'Data Science',
-        business_unit: 'Research',
-        job_description: '<b>Overview</b><p>Great role.</p>',
-      }
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === EIGHTFOLD_API) return Promise.resolve(jsonResponse(apiData))
+        if (url === EIGHTFOLD_API) return Promise.resolve(jsonResponse(eightfoldMicrosoft))
         return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
@@ -260,10 +253,15 @@ describe('POST /api/fetch-job-description', () => {
       expect(res.status).toBe(200)
       const data = await res.json()
       expect(data.html).toContain('<h1>Principal Data Scientist</h1>')
+      // display_job_id from real fixture
       expect(data.html).toContain('200037915')
+      // department from real fixture
       expect(data.html).toContain('Data Science')
+      // real locations include 'Washington, Redmond' (non-"Multiple Locations" entry)
       expect(data.html).toContain('Washington, Redmond')
+      // 'Multiple Locations' entries are filtered out by buildEightfoldMeta
       expect(data.html).not.toContain('Multiple Locations')
+      // real job_description starts with <b>Overview</b>
       expect(data.html).toContain('<b>Overview</b>')
       // Eightfold API hit first, HTML scraping not used
       expect(fetchMock).toHaveBeenCalledWith(EIGHTFOLD_API, expect.anything())
