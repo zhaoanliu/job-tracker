@@ -585,4 +585,155 @@ describe('POST /api/fetch-job-description', () => {
       expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('api.lever.co'), expect.anything())
     })
   })
+
+  describe('Workday ATS (*.wd*.myworkdayjobs.com)', () => {
+    // Real URL pattern from Adobe, Amazon, Apple, Uber, etc.
+    const WORKDAY_URL =
+      'https://adobe.wd5.myworkdayjobs.com/en-US/external_experienced/job/San-Francisco/Senior-Software-Engineer--Test-Automation_R168193'
+
+    // JSON-LD embedded in the real Adobe Workday job page HTML (observed 2026-05-26)
+    const WORKDAY_JOB_LD = {
+      '@type': 'JobPosting',
+      title: 'Senior Software Engineer',
+      description: '<p>We are seeking a highly motivated Senior Software Engineer to join Adobe.</p>',
+      datePosted: '2026-05-26',
+      employmentType: 'FULL_TIME',
+      jobLocation: {
+        '@type': 'Place',
+        address: {
+          '@type': 'PostalAddress',
+          addressLocality: 'San Francisco',
+          addressCountry: 'United States of America',
+        },
+      },
+      hiringOrganization: {
+        '@type': 'Organization',
+        name: 'ADUS-Adobe Inc.',
+      },
+      identifier: {
+        '@type': 'PropertyValue',
+        name: 'Senior Software Engineer',
+        value: 'R168193',
+      },
+    }
+
+    function workdayPage(ld: object): string {
+      return `<html><head><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body><div id="root"></div></body></html>`
+    }
+
+    it('extracts metadata header and description from JSON-LD — real fixture data', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(WORKDAY_JOB_LD)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKDAY_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Senior Software Engineer</h1>')
+      expect(data.html).toContain('R168193')
+      expect(data.html).toContain('2026-05-26')
+      expect(data.html).toContain('San Francisco, United States of America')
+      expect(data.html).toContain('Full time')
+      expect(data.html).toContain('ADUS-Adobe Inc.')
+      expect(data.html).toContain('<p>We are seeking a highly motivated Senior Software Engineer to join Adobe.</p>')
+      // Only one fetch — page HTML, no separate API call
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(WORKDAY_URL, expect.anything())
+    })
+
+    it('handles URL without en-US locale prefix', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(WORKDAY_JOB_LD)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: 'https://adobe.wd5.myworkdayjobs.com/external_experienced/job/Senior-Software-Engineer_R168193' })
+      )
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Senior Software Engineer</h1>')
+    })
+
+    it('handles wd1 through wd9 instance numbers', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(WORKDAY_JOB_LD)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: 'https://amazon.wd1.myworkdayjobs.com/en-US/amazon_external/job/Title_REQ-12345' })
+      )
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Senior Software Engineer</h1>')
+    })
+
+    it('falls back to extractJobContent when JSON-LD has no description', async () => {
+      mockUser()
+      const noDescLd = { '@type': 'JobPosting', title: 'Engineer' }
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse(`<html><head><script type="application/ld+json">${JSON.stringify(noDescLd)}</script></head><body><p>Body content</p></body></html>`)
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKDAY_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Body content</p>')
+    })
+
+    it('falls back to extractJobContent when page has no JSON-LD', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Scraped JD</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKDAY_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to extractJobContent when JSON-LD is invalid JSON', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><head><script type="application/ld+json">not valid json</script></head><body><p>Body</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKDAY_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Body</p>')
+    })
+
+    it('returns 502 when the page fetch fails', async () => {
+      mockUser()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 403 })))
+
+      const res = await POST(makeReq({ url: WORKDAY_URL }))
+
+      expect(res.status).toBe(502)
+    })
+
+    it('does not apply Workday handler for non-Workday URLs', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://example.com/jobs/123' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // No Workday metadata header prepended
+      expect(data.html).not.toContain('<table>')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+  })
 })
