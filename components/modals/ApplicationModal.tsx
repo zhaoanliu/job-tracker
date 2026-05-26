@@ -80,6 +80,12 @@ export default function ApplicationModal({
   const [section, setSection] = useState<Section>('details')
   const [jdPreview, setJdPreview] = useState(false)
   const [history, setHistory] = useState<StatusHistoryEntry[]>([])
+  const [isImporting, setIsImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const importErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [importedHtml, setImportedHtml] = useState<string | null>(null)
+  const [originalDescription, setOriginalDescription] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'original' | 'imported'>('imported')
 
   const firstInputRef = useRef<HTMLInputElement>(null)
 
@@ -130,6 +136,76 @@ export default function ApplicationModal({
     } finally {
       setSaving(false)
     }
+  }
+
+  function showImportError(message: string) {
+    if (importErrorTimer.current) clearTimeout(importErrorTimer.current)
+    setImportError(message)
+    importErrorTimer.current = setTimeout(() => setImportError(null), 4000)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (importErrorTimer.current) clearTimeout(importErrorTimer.current)
+    }
+  }, [])
+
+  async function handleImport() {
+    const url = form.link?.trim()
+    if (!url) return
+    setIsImporting(true)
+    setImportError(null)
+    try {
+      const res = await fetch('/api/fetch-job-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        const message = body?.error ?? `Import failed (${res.status})`
+        console.error('Import job description failed:', message)
+        showImportError(message)
+        return
+      }
+      const data = await res.json()
+      const html: string = typeof data?.html === 'string' ? data.html : ''
+      if (!form.jd || form.jd.trim() === '') {
+        set('jd', html || null)
+      } else if (html) {
+        setOriginalDescription(form.jd)
+        setImportedHtml(html)
+        setViewMode('imported')
+      }
+      setSection('jd')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to import job description'
+      console.error('Import job description failed:', message)
+      showImportError(message)
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  useEffect(() => {
+    if (importedHtml !== null && section !== 'jd') {
+      setImportedHtml(null)
+      setOriginalDescription(null)
+      setViewMode('imported')
+    }
+  }, [section, importedHtml])
+
+  function handleUseImported() {
+    if (importedHtml !== null) set('jd', importedHtml)
+    setImportedHtml(null)
+    setOriginalDescription(null)
+    setViewMode('imported')
+  }
+
+  function handleKeepOriginal() {
+    setImportedHtml(null)
+    setOriginalDescription(null)
+    setViewMode('imported')
   }
 
   async function handleDelete() {
@@ -324,6 +400,14 @@ export default function ApplicationModal({
                   </div>
                   <div>
                     <label className={labelClass}>Job Posting URL</label>
+                    {importError && (
+                      <div
+                        role="alert"
+                        className="mb-1 rounded-md bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 px-2 py-1 text-[11px] text-red-700 dark:text-red-400"
+                      >
+                        {importError}
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <input
                         type="url"
@@ -346,6 +430,34 @@ export default function ApplicationModal({
                           <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </button>
+                      {form.link && form.link.trim().length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleImport}
+                          disabled={isImporting}
+                          aria-label="Import job description from URL"
+                          aria-busy={isImporting}
+                          title={isImporting ? 'Importing…' : 'Import job description from URL'}
+                          className="flex-shrink-0 rounded-lg border border-slate-300 px-2.5 flex items-center justify-center text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isImporting ? (
+                            <svg
+                              role="status"
+                              aria-label="Importing"
+                              className="w-4 h-4 animate-spin"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -391,6 +503,60 @@ export default function ApplicationModal({
 
             {section === 'jd' && (
               <div className="space-y-2">
+                {importedHtml !== null ? (
+                  <>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div
+                        role="group"
+                        aria-label="Compare original and imported description"
+                        className="flex rounded-md border border-slate-200 dark:border-slate-600 overflow-hidden text-[11px] font-medium"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('original')}
+                          aria-pressed={viewMode === 'original'}
+                          className={`px-2.5 py-0.5 transition-colors ${viewMode === 'original' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                        >
+                          Original
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('imported')}
+                          aria-pressed={viewMode === 'imported'}
+                          className={`px-2.5 py-0.5 transition-colors ${viewMode === 'imported' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                        >
+                          Imported
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleKeepOriginal}
+                          className="rounded-md border border-slate-200 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          Keep Original
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleUseImported}
+                          className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
+                        >
+                          Use Imported
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      data-testid="jd-comparison-view"
+                      aria-readonly="true"
+                      aria-label={viewMode === 'imported' ? 'Imported description (read-only)' : 'Original description (read-only)'}
+                      className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 p-3 text-sm text-slate-700 dark:text-slate-300"
+                      dangerouslySetInnerHTML={{
+                        __html: viewMode === 'imported' ? (importedHtml ?? '') : (originalDescription ?? ''),
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
                 <div className="flex items-center justify-between">
                   <label className={labelClass}>Job Description</label>
                   <div className="flex rounded-md border border-slate-200 dark:border-slate-600 overflow-hidden text-[11px] font-medium">
@@ -429,6 +595,8 @@ export default function ApplicationModal({
                     onChange={html => set('jd', html || null)}
                     placeholder="Paste the full job description here…"
                   />
+                )}
+                  </>
                 )}
               </div>
             )}
