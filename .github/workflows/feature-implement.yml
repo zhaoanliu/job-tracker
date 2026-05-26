@@ -161,7 +161,7 @@ jobs:
         run: |
           DELAY=30
           for attempt in 1 2 3; do
-            claude --dangerously-skip-permissions --max-turns 10 -p "$(cat /tmp/design_prompt.txt)" \
+            claude --dangerously-skip-permissions --max-turns 20 -p "$(cat /tmp/design_prompt.txt)" \
               2>&1 | tee /tmp/claude_output.txt
             CLAUDE_EXIT=${PIPESTATUS[0]}
             if [[ $CLAUDE_EXIT -eq 0 ]]; then break; fi
@@ -180,8 +180,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [[ ! -s /tmp/design_proposal.md ]]; then
-            gh issue comment "${ISSUE_NUMBER}" \
-              --body "Claude did not produce a design proposal. The feature request may need more detail."
+            gh label create "user review required" --force 2>/dev/null || true
+            gh issue edit "${ISSUE_NUMBER}" \
+              --add-label "user review required" \
+              --remove-label "status: design-review" 2>/dev/null || true
+            FAILURE_TAIL=$(tail -50 /tmp/claude_output.txt 2>/dev/null || echo "(no output captured)")
+            {
+              echo "Design generation failed — Claude did not produce a proposal."
+              echo ""
+              echo "Run \`/triage-user-request ${ISSUE_NUMBER}\` in a Claude Code session to clarify requirements before retrying."
+              echo ""
+              echo "<details><summary>Claude output</summary>"
+              echo ""
+              echo '```'
+              echo "${FAILURE_TAIL}"
+              echo '```'
+              echo ""
+              echo "</details>"
+            } > /tmp/failure_comment.txt
+            gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/failure_comment.txt
             exit 0
           fi
 
