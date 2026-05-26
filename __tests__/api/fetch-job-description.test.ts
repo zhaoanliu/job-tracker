@@ -47,6 +47,15 @@ function htmlResponse(text: string, init: { status?: number; contentType?: strin
   }
 }
 
+function jsonResponse(data: unknown, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: () => 'application/json' },
+    json: vi.fn().mockResolvedValue(data),
+  }
+}
+
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -219,5 +228,98 @@ describe('POST /api/fetch-job-description', () => {
     const call = fetchMock.mock.calls[0][1]
     expect(call.signal).toBeDefined()
     expect(call.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  describe('Eightfold.ai ATS (/careers/job/{id} URLs)', () => {
+    const EIGHTFOLD_URL = 'https://apply.careers.microsoft.com/careers/job/1234567'
+    const EIGHTFOLD_API = 'https://apply.careers.microsoft.com/api/apply/v2/jobs/1234567'
+
+    it('uses Eightfold API and prepends metadata header', async () => {
+      mockUser()
+      const apiData = {
+        name: 'Principal Data Scientist',
+        display_job_id: '200037915',
+        t_create: '2026-05-20T00:00:00Z',
+        locations: ['United States, Washington, Redmond'],
+        work_location_option: '0 days/week remote',
+        type: 'Full-Time',
+        department: 'Research/Applied/Data Sciences',
+        job_description: '<b>Overview</b><p>Great role.</p>',
+      }
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === EIGHTFOLD_API) return Promise.resolve(jsonResponse(apiData))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: EIGHTFOLD_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Principal Data Scientist</h1>')
+      expect(data.html).toContain('200037915')
+      expect(data.html).toContain('Full-Time')
+      expect(data.html).toContain('<b>Overview</b>')
+      // Eightfold API hit first, HTML scraping not used
+      expect(fetchMock).toHaveBeenCalledWith(EIGHTFOLD_API, expect.anything())
+      expect(fetchMock).not.toHaveBeenCalledWith(EIGHTFOLD_URL, expect.anything())
+    })
+
+    it('falls back to HTML scraping when Eightfold API returns non-2xx', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === EIGHTFOLD_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: EIGHTFOLD_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Eightfold API has no job_description', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === EIGHTFOLD_API) return Promise.resolve(jsonResponse({ name: 'Engineer' }))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: EIGHTFOLD_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Eightfold API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === EIGHTFOLD_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: EIGHTFOLD_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not call Eightfold API for non-matching URLs', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://example.com/jobs/123' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/jobs/123', expect.anything())
+    })
   })
 })
