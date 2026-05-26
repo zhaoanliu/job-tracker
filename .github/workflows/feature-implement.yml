@@ -379,7 +379,74 @@ jobs:
           One sentence describing what tests cover the new behaviour.
           EOF
 
-      - name: Implement with CI fix loop
+      - name: Plan sub-tasks
+        if: steps.pr_check.outputs.skip != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          printf '%s' "${ISSUE_BODY}" > /tmp/issue_body.txt
+          printf '%s' "${DESIGN_BODY}" > /tmp/design_body.txt
+          {
+            echo 'Break this feature into sequential implementation sub-tasks.'
+            echo 'IMPORTANT: Each sub-task must have estimated_turns ≤ 25. Split any that would exceed this.'
+            echo ''
+            echo 'Output the JSON ONLY between these exact markers (no other text between them):'
+            echo 'SUBTASKS_START'
+            echo '[{"id":1,"title":"...","scope":"...","files_to_create":["..."],"files_to_modify":["..."],"test_file":"__tests__/...","estimated_turns":15}]'
+            echo 'SUBTASKS_END'
+            echo ''
+            echo 'Fields:'
+            echo '  id: integer (1-based)'
+            echo '  title: brief task title (one line)'
+            echo '  scope: detailed description of exactly what to implement — be specific enough that no research is needed'
+            echo '  files_to_create: array of new file paths ([] if none)'
+            echo '  files_to_modify: array of existing file paths to change ([] if none)'
+            echo '  test_file: exactly one __tests__/ path for this sub-task'\''s tests'
+            echo '  estimated_turns: integer turns needed (reading + coding + validation). MUST be ≤ 25. Split if higher.'
+            echo ''
+            echo 'Sizing guidelines:'
+            echo '  10-15 turns: simple API route or isolated UI state change (1-2 files)'
+            echo '  15-25 turns: component with multiple interactions or data flow (2-3 files)'
+            echo ''
+            echo '=== Feature request ==='
+            cat /tmp/issue_body.txt
+            if [[ -s /tmp/design_body.txt ]]; then
+              echo ''
+              echo '=== Design specification ==='
+              cat /tmp/design_body.txt
+            fi
+          } > /tmp/plan_prompt.txt
+
+          DELAY=30
+          for PATTEMPT in 1 2 3; do
+            set +eo pipefail
+            claude --dangerously-skip-permissions --max-turns 10 \
+              -p "$(cat /tmp/plan_prompt.txt)" 2>&1 | tee /tmp/plan_output.txt
+            PLAN_EXIT=${PIPESTATUS[0]}
+            set -eo pipefail
+            if [[ $PLAN_EXIT -eq 0 ]]; then break; fi
+            if grep -q "529\|Overloaded\|at capacity" /tmp/plan_output.txt && [[ $PATTEMPT -lt 3 ]]; then
+              echo "API overloaded (attempt $PATTEMPT/3), retrying in ${DELAY}s..."
+              sleep $DELAY
+              DELAY=$((DELAY * 2))
+            else
+              break
+            fi
+          done
+
+          sed -n '/SUBTASKS_START/,/SUBTASKS_END/{ /SUBTASKS_START/d; /SUBTASKS_END/d; p }' \
+            /tmp/plan_output.txt > /tmp/subtasks_raw.txt
+
+          if jq -e '. | type == "array" and length > 0' /tmp/subtasks_raw.txt > /dev/null 2>&1; then
+            cp /tmp/subtasks_raw.txt /tmp/subtasks.json
+            echo "Planned $(jq length /tmp/subtasks.json) sub-tasks:"
+            jq -r '.[] | "  \(.id). \(.title) (~\(.estimated_turns // "?") turns)"' /tmp/subtasks.json
+          else
+            echo "Sub-task planning failed or returned no tasks — falling back to monolithic implementation"
+            echo '[]' > /tmp/subtasks.json
+          fi
+
+      - name: Implement sub-tasks
         if: steps.pr_check.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -387,101 +454,246 @@ jobs:
         run: |
           npm ci
 
-          CI_PASS=false
-          for ATTEMPT in 1 2 3; do
-            echo "=== Implementation attempt ${ATTEMPT}/3 ==="
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-            if [[ $ATTEMPT -eq 1 ]]; then
-              PROMPT_FILE=/tmp/prompt.txt
-              MAX_TURNS=30
-            else
-              # Give the fix run immediate context so it doesn't have to re-read the codebase.
-              # Diffs of tracked files + list of new untracked files cover everything Claude wrote.
-              GIT_DIFF=$(git diff HEAD 2>/dev/null | head -c 20000)
-              NEW_FILES=$(git ls-files --others --exclude-standard 2>/dev/null)
-              {
-                echo "You previously implemented a feature but the CI checks failed."
-                echo "Use the context below to understand what was already implemented — do not re-read the whole codebase."
-                echo ""
-                if [[ -n "$NEW_FILES" ]]; then
-                  echo "=== New files created ==="
-                  echo "$NEW_FILES"
-                  echo "(Use your Read tool on any of these for full content)"
-                  echo ""
-                fi
-                if [[ -n "$GIT_DIFF" ]]; then
-                  echo "=== Changes to existing files ==="
-                  echo "$GIT_DIFF"
-                  echo ""
-                fi
-                echo "=== CI failures to fix ==="
-                cat /tmp/ci_failures.txt
-                echo ""
-                echo "Fix the failures above. After your fix, validate by running:"
-                echo "  npm run lint"
-                echo "  npx tsc --noEmit"
-                echo "  npm run test:coverage"
-                echo "Do not consider yourself done until all three pass."
-              } > /tmp/fix_prompt.txt
-              PROMPT_FILE=/tmp/fix_prompt.txt
-              MAX_TURNS=20
-            fi
-
-            DELAY=30
+          run_claude() {
+            local prompt_file=$1 max_turns=$2
+            local DELAY=30
             for RETRY in 1 2 3; do
               set +eo pipefail
-              claude --dangerously-skip-permissions --max-turns "$MAX_TURNS" \
-                -p "$(cat "$PROMPT_FILE")" 2>&1 | tee /tmp/claude_output.txt
+              claude --dangerously-skip-permissions --max-turns "$max_turns" \
+                -p "$(cat "$prompt_file")" 2>&1 | tee /tmp/claude_output.txt
               CLAUDE_EXIT=${PIPESTATUS[0]}
               set -eo pipefail
-              if [[ $CLAUDE_EXIT -eq 0 ]]; then break; fi
+              if [[ $CLAUDE_EXIT -eq 0 ]]; then return 0; fi
               if grep -q "529\|Overloaded\|at capacity" /tmp/claude_output.txt && [[ $RETRY -lt 3 ]]; then
                 echo "API overloaded (retry $RETRY/3), waiting ${DELAY}s..."
                 sleep $DELAY
                 DELAY=$((DELAY * 2))
               else
+                return 0
+              fi
+            done
+          }
+
+          SUBTASK_COUNT=$(jq length /tmp/subtasks.json)
+
+          if [[ "$SUBTASK_COUNT" -gt 0 ]]; then
+            ALL_OK=true
+            FAILED_TASK=""
+
+            for ((i=0; i<SUBTASK_COUNT; i++)); do
+              TASK=$(jq ".[$i]" /tmp/subtasks.json)
+              TASK_ID=$(echo "$TASK" | jq -r '.id')
+              TASK_TITLE=$(echo "$TASK" | jq -r '.title')
+              TASK_SCOPE=$(echo "$TASK" | jq -r '.scope')
+              TASK_TEST=$(echo "$TASK" | jq -r '.test_file')
+              ESTIMATED_TURNS=$(echo "$TASK" | jq -r '.estimated_turns // 20')
+              MAX_TURNS=$((ESTIMATED_TURNS + 12))
+              FILES_CREATE=$(echo "$TASK" | jq -r '.files_to_create[]?' | head -20)
+              FILES_MODIFY=$(echo "$TASK" | jq -r '.files_to_modify[]?' | head -20)
+
+              echo "=== Sub-task ${TASK_ID}/${SUBTASK_COUNT}: ${TASK_TITLE} (max ${MAX_TURNS} turns) ==="
+
+              PREV_LOG=$(git log --oneline origin/main..HEAD 2>/dev/null || true)
+
+              {
+                echo "You are implementing sub-task ${TASK_ID} of ${SUBTASK_COUNT} for a larger feature."
+                echo "Only implement what is described in 'Sub-task scope' below — nothing more."
+                echo ""
+                echo "Sub-task title: ${TASK_TITLE}"
+                echo "Sub-task scope: ${TASK_SCOPE}"
+                echo ""
+                if [[ -n "$FILES_CREATE" ]]; then
+                  echo "Files to CREATE:"
+                  echo "$FILES_CREATE"
+                  echo ""
+                fi
+                if [[ -n "$FILES_MODIFY" ]]; then
+                  echo "Files to MODIFY:"
+                  echo "$FILES_MODIFY"
+                  echo ""
+                fi
+                echo "Test file to write: ${TASK_TEST}"
+                echo ""
+                if [[ -n "$PREV_LOG" ]]; then
+                  echo "=== Previously committed sub-tasks (already done — do not redo) ==="
+                  echo "$PREV_LOG"
+                  echo ""
+                fi
+                echo "=== Full feature context ==="
+                cat /tmp/prompt.txt
+                echo ""
+                echo "RULES:"
+                echo "- Implement ONLY the scope described above"
+                echo "- Write tests in: ${TASK_TEST}"
+                echo "- Do NOT run any git commands"
+                echo "- Validate by running: npm run lint && npx tsc --noEmit && npx vitest run ${TASK_TEST}"
+                echo "- Do not consider yourself done until all three commands pass"
+              } > /tmp/subtask_prompt.txt
+
+              run_claude /tmp/subtask_prompt.txt "$MAX_TURNS"
+
+              TASK_OK=false
+              for ATTEMPT in 1 2; do
+                LINT_OK=true
+                TSC_OK=true
+                TEST_OK=true
+                npm run lint > /tmp/lint_out.txt 2>&1 || LINT_OK=false
+                npx tsc --noEmit > /tmp/tsc_out.txt 2>&1 || TSC_OK=false
+                npx vitest run "${TASK_TEST}" > /tmp/test_out.txt 2>&1 || TEST_OK=false
+
+                if [[ "$LINT_OK" == true && "$TSC_OK" == true && "$TEST_OK" == true ]]; then
+                  echo "Sub-task ${TASK_ID} CI passed on attempt ${ATTEMPT}"
+                  TASK_OK=true
+                  break
+                fi
+
+                if [[ $ATTEMPT -eq 1 ]]; then
+                  GIT_DIFF=$(git diff HEAD 2>/dev/null | head -c 20000)
+                  NEW_FILES=$(git ls-files --others --exclude-standard 2>/dev/null)
+                  FIX_TURNS=$((ESTIMATED_TURNS > 20 ? ESTIMATED_TURNS : 20))
+                  {
+                    echo "Sub-task ${TASK_ID}/${SUBTASK_COUNT} (${TASK_TITLE}) CI failed. Fix the failures."
+                    echo "Test file: ${TASK_TEST}"
+                    echo ""
+                    if [[ -n "$NEW_FILES" ]]; then
+                      echo "=== New files created ==="
+                      echo "$NEW_FILES"
+                      echo "(Use Read on any of these for full content)"
+                      echo ""
+                    fi
+                    if [[ -n "$GIT_DIFF" ]]; then
+                      echo "=== Changes to existing files ==="
+                      echo "$GIT_DIFF"
+                      echo ""
+                    fi
+                    echo "=== CI failures ==="
+                    if [[ "$LINT_OK" != true ]]; then
+                      echo "-- lint --"
+                      tail -50 /tmp/lint_out.txt
+                    fi
+                    if [[ "$TSC_OK" != true ]]; then
+                      echo "-- tsc --"
+                      tail -50 /tmp/tsc_out.txt
+                    fi
+                    if [[ "$TEST_OK" != true ]]; then
+                      echo "-- vitest --"
+                      tail -100 /tmp/test_out.txt
+                    fi
+                    echo ""
+                    echo "Fix the failures. Validate: npm run lint && npx tsc --noEmit && npx vitest run ${TASK_TEST}"
+                  } > /tmp/fix_prompt.txt
+                  run_claude /tmp/fix_prompt.txt "$FIX_TURNS"
+                fi
+              done
+
+              git add -A
+              if ! git diff --cached --quiet; then
+                git commit -m "feat: ${TASK_TITLE} [${TASK_ID}/${SUBTASK_COUNT}]"
+              fi
+
+              if [[ "$TASK_OK" != true ]]; then
+                echo "Sub-task ${TASK_ID} failed after retry — stopping"
+                ALL_OK=false
+                FAILED_TASK="sub-task ${TASK_ID}: ${TASK_TITLE}"
                 break
               fi
             done
 
-            if [[ $ATTEMPT -eq 1 ]]; then
-              TEST_CHANGES=$({ git diff --name-only; git ls-files --others --exclude-standard; } \
-                | grep -E '__tests__/|\.test\.(ts|tsx)' || true)
-              if [[ -z "$TEST_CHANGES" ]]; then
-                printf 'No test files were written. Every new behaviour must have tests in __tests__/.\n' \
-                  > /tmp/ci_failures.txt
-                continue
+            if [[ "$ALL_OK" != true ]]; then
+              gh issue comment "${ISSUE_NUMBER}" \
+                --body "Implementation stopped at ${FAILED_TASK} after 2 attempts. A partial PR will be opened with completed work for review."
+            else
+              echo "=== Final coverage gate ==="
+              if ! npm run test:coverage > /tmp/coverage_out.txt 2>&1; then
+                tail -50 /tmp/coverage_out.txt
+                gh issue comment "${ISSUE_NUMBER}" \
+                  --body "All sub-tasks passed targeted tests but the full coverage gate failed. A PR will be opened for manual review."
               fi
             fi
 
-            if npm run lint > /tmp/lint_out.txt 2>&1; then LINT_OK=true; else LINT_OK=false; fi
-            if npx tsc --noEmit > /tmp/tsc_out.txt 2>&1; then TSC_OK=true; else TSC_OK=false; fi
-            if npm run test:coverage > /tmp/test_out.txt 2>&1; then TEST_OK=true; else TEST_OK=false; fi
+          else
+            CI_PASS=false
+            for ATTEMPT in 1 2 3; do
+              echo "=== Implementation attempt ${ATTEMPT}/3 ==="
 
-            if [[ "$LINT_OK" == true && "$TSC_OK" == true && "$TEST_OK" == true ]]; then
-              echo "All CI checks passed on attempt ${ATTEMPT}/3"
-              CI_PASS=true
-              break
-            fi
+              if [[ $ATTEMPT -eq 1 ]]; then
+                PROMPT_FILE=/tmp/prompt.txt
+                MAX_TURNS=30
+              else
+                GIT_DIFF=$(git diff HEAD 2>/dev/null | head -c 20000)
+                NEW_FILES=$(git ls-files --others --exclude-standard 2>/dev/null)
+                {
+                  echo "You previously implemented a feature but the CI checks failed."
+                  echo "Use the context below — do not re-read the whole codebase."
+                  echo ""
+                  if [[ -n "$NEW_FILES" ]]; then
+                    echo "=== New files created ==="
+                    echo "$NEW_FILES"
+                    echo "(Use Read on any of these for full content)"
+                    echo ""
+                  fi
+                  if [[ -n "$GIT_DIFF" ]]; then
+                    echo "=== Changes to existing files ==="
+                    echo "$GIT_DIFF"
+                    echo ""
+                  fi
+                  echo "=== CI failures to fix ==="
+                  cat /tmp/ci_failures.txt
+                  echo ""
+                  echo "Fix the failures. Validate: npm run lint && npx tsc --noEmit && npm run test:coverage"
+                  echo "Do not consider yourself done until all three pass."
+                } > /tmp/fix_prompt.txt
+                PROMPT_FILE=/tmp/fix_prompt.txt
+                MAX_TURNS=20
+              fi
 
-            : > /tmp/ci_failures.txt
-            if [[ "$LINT_OK" != true ]]; then
-              { echo "=== lint failures ==="; tail -50 /tmp/lint_out.txt; echo ""; } >> /tmp/ci_failures.txt
-            fi
-            if [[ "$TSC_OK" != true ]]; then
-              { echo "=== tsc failures ==="; tail -50 /tmp/tsc_out.txt; echo ""; } >> /tmp/ci_failures.txt
-            fi
-            if [[ "$TEST_OK" != true ]]; then
-              { echo "=== test:coverage failures ==="; tail -100 /tmp/test_out.txt; echo ""; } >> /tmp/ci_failures.txt
-            fi
-            echo "Attempt ${ATTEMPT}/3 failed — failures:"
-            cat /tmp/ci_failures.txt
-          done
+              run_claude "$PROMPT_FILE" "$MAX_TURNS"
 
-          if [[ "$CI_PASS" != true ]]; then
-            gh issue comment "${ISSUE_NUMBER}" \
-              --body "Claude made 3 implementation attempts but CI still fails. Manual intervention required. Re-add \`status: auto-implement\` to retry."
-            exit 1
+              if [[ $ATTEMPT -eq 1 ]]; then
+                TEST_CHANGES=$({ git diff --name-only; git ls-files --others --exclude-standard; } \
+                  | grep -E '__tests__/|\.test\.(ts|tsx)' || true)
+                if [[ -z "$TEST_CHANGES" ]]; then
+                  printf 'No test files were written. Every new behaviour must have tests in __tests__/.\n' \
+                    > /tmp/ci_failures.txt
+                  continue
+                fi
+              fi
+
+              LINT_OK=true
+              TSC_OK=true
+              TEST_OK=true
+              npm run lint > /tmp/lint_out.txt 2>&1 || LINT_OK=false
+              npx tsc --noEmit > /tmp/tsc_out.txt 2>&1 || TSC_OK=false
+              npm run test:coverage > /tmp/test_out.txt 2>&1 || TEST_OK=false
+
+              if [[ "$LINT_OK" == true && "$TSC_OK" == true && "$TEST_OK" == true ]]; then
+                echo "All CI checks passed on attempt ${ATTEMPT}/3"
+                CI_PASS=true
+                break
+              fi
+
+              : > /tmp/ci_failures.txt
+              if [[ "$LINT_OK" != true ]]; then
+                { echo "=== lint failures ==="; tail -50 /tmp/lint_out.txt; echo ""; } >> /tmp/ci_failures.txt
+              fi
+              if [[ "$TSC_OK" != true ]]; then
+                { echo "=== tsc failures ==="; tail -50 /tmp/tsc_out.txt; echo ""; } >> /tmp/ci_failures.txt
+              fi
+              if [[ "$TEST_OK" != true ]]; then
+                { echo "=== test:coverage failures ==="; tail -100 /tmp/test_out.txt; echo ""; } >> /tmp/ci_failures.txt
+              fi
+              echo "Attempt ${ATTEMPT}/3 failed — failures:"
+              cat /tmp/ci_failures.txt
+            done
+
+            if [[ "$CI_PASS" != true ]]; then
+              gh issue comment "${ISSUE_NUMBER}" \
+                --body "Claude made 3 implementation attempts but CI still fails. Manual intervention required. Re-add \`status: auto-implement\` to retry."
+              exit 1
+            fi
           fi
 
       - name: Open PR
@@ -490,8 +702,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
-          ALL_CHANGES=$({ git diff --name-only; git ls-files --others --exclude-standard; } || true)
-          if [[ -z "$ALL_CHANGES" ]]; then
+          COMMITS_AHEAD=$(git rev-list origin/main..HEAD --count 2>/dev/null || echo 0)
+          UNCOMMITTED=$({ git diff --name-only; git ls-files --others --exclude-standard; } || true)
+
+          if [[ "$COMMITS_AHEAD" -eq 0 && -z "$UNCOMMITTED" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Claude Code ran but made no changes. The feature may already be implemented or the request needs more detail."
             exit 0
@@ -504,8 +718,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add -A
-          git commit -m "feat: ${FEATURE_TITLE} (closes #${ISSUE_NUMBER})"
+
+          if [[ -n "$UNCOMMITTED" ]]; then
+            git add -A
+            git commit -m "feat: ${FEATURE_TITLE} (closes #${ISSUE_NUMBER})"
+          fi
+
           git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "$BRANCH"
 
