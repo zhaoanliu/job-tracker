@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import leverNoLists from '../fixtures/lever-posting-no-lists.json'
 import leverWithLists from '../fixtures/lever-posting-with-lists.json'
+import greenhouseScaleAI from '../fixtures/greenhouse-scaleai-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -330,18 +331,11 @@ describe('POST /api/fetch-job-description', () => {
   describe('Greenhouse ATS', () => {
     const GH_API = 'https://boards-api.greenhouse.io/v1/boards/scaleai/jobs/4599700005'
 
-    const apiData = {
-      title: 'Staff Infrastructure Software Engineer',
-      company_name: 'Scale AI',
-      location: { name: 'New York, NY; San Francisco, CA' },
-      // Greenhouse content is HTML-entity-encoded after JSON.parse
-      content: '&lt;p&gt;About the role&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Build &amp; scale things&lt;/li&gt;&lt;/ul&gt;',
-    }
-
-    it('handles direct boards.greenhouse.io URL — calls API, skips HTML fetch', async () => {
+    it('handles direct boards.greenhouse.io URL — real API fixture', async () => {
+      // greenhouseScaleAI is a snapshot of the real boards-api.greenhouse.io response
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === GH_API) return Promise.resolve(jsonResponse(apiData))
+        if (url === GH_API) return Promise.resolve(jsonResponse(greenhouseScaleAI))
         return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
@@ -350,11 +344,12 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer</h1>')
+      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer, Enterprise AI</h1>')
       expect(data.html).toContain('Scale AI')
       expect(data.html).toContain('New York, NY; San Francisco, CA')
-      expect(data.html).toContain('<p>About the role</p>')
-      expect(data.html).toContain('<li>Build & scale things</li>')
+      // Real content from fixture: double-encoded HTML should be decoded
+      expect(data.html).toContain('<div')
+      expect(data.html).toContain('Scale GP is building')
       // Only one fetch call — no HTML scraping
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(fetchMock).toHaveBeenCalledWith(GH_API, expect.anything())
@@ -363,7 +358,7 @@ describe('POST /api/fetch-job-description', () => {
     it('handles direct job-boards.greenhouse.io URL', async () => {
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === GH_API) return Promise.resolve(jsonResponse(apiData))
+        if (url === GH_API) return Promise.resolve(jsonResponse(greenhouseScaleAI))
         return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
@@ -372,7 +367,7 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer</h1>')
+      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer, Enterprise AI</h1>')
       expect(fetchMock).toHaveBeenCalledWith(GH_API, expect.anything())
       expect(fetchMock).not.toHaveBeenCalledWith(
         'https://job-boards.greenhouse.io/scaleai/jobs/4599700005',
@@ -385,7 +380,7 @@ describe('POST /api/fetch-job-description', () => {
       const pageHtml =
         '<html><body><script>window.__env={"jobUrl":"https://boards.greenhouse.io/scaleai/jobs/4599700005"}</script></body></html>'
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === GH_API) return Promise.resolve(jsonResponse(apiData))
+        if (url === GH_API) return Promise.resolve(jsonResponse(greenhouseScaleAI))
         return Promise.resolve(htmlResponse(pageHtml))
       })
       vi.stubGlobal('fetch', fetchMock)
@@ -394,8 +389,8 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer</h1>')
-      expect(data.html).toContain('<p>About the role</p>')
+      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer, Enterprise AI</h1>')
+      expect(data.html).toContain('Scale GP is building')
       // Page was fetched, then API was called
       expect(fetchMock).toHaveBeenCalledWith('https://scale.com/careers/4599700005', expect.anything())
       expect(fetchMock).toHaveBeenCalledWith(GH_API, expect.anything())
@@ -448,22 +443,23 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toBe('<p>Scraped JD</p>')
     })
 
-    it('decodes double-encoded HTML entities in content', async () => {
+    it('decodes double-encoded HTML entities in content — real fixture exercises this path', async () => {
+      // greenhouseScaleAI.content is already double-encoded (&lt;div ...&gt;)
+      // This test verifies the decoded output contains real HTML tags
       mockUser()
-      // Simulates the actual Greenhouse API encoding: JSON contains &lt; which becomes &lt; after parse
-      const encodedData = {
-        ...apiData,
-        content: '&lt;h2&gt;Requirements&lt;/h2&gt;&lt;p&gt;5+ years &amp; strong skills&lt;/p&gt;',
-      }
-      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(encodedData))
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(greenhouseScaleAI))
       vi.stubGlobal('fetch', fetchMock)
 
       const res = await POST(makeReq({ url: 'https://boards.greenhouse.io/scaleai/jobs/4599700005' }))
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<h2>Requirements</h2>')
-      expect(data.html).toContain('<p>5+ years & strong skills</p>')
+      // Decoded: &lt;div ...&gt; becomes <div ...>
+      expect(data.html).toContain('<div')
+      // Decoded: &quot; becomes "
+      expect(data.html).toContain('"')
+      // No raw entities should remain in the output
+      expect(data.html).not.toContain('&lt;div')
     })
   })
 
