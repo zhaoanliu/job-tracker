@@ -266,8 +266,8 @@ export default function ApplicationModal({
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {section === 'details' && (
               <div className="space-y-4">
-                {/* Row 1: Company + Role */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Row 1: Company + Role + Team */}
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className={labelClass}>
                       Company <span className="text-red-400">*</span>
@@ -289,6 +289,16 @@ export default function ApplicationModal({
                       value={form.role ?? ''}
                       onChange={e => set('role', e.target.value || null)}
                       placeholder="e.g. Principal Engineer"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Team</label>
+                    <input
+                      type="text"
+                      value={form.team ?? ''}
+                      onChange={e => set('team', e.target.value || null)}
+                      placeholder="e.g. Platform Security"
                       className={inputClass}
                     />
                   </div>
