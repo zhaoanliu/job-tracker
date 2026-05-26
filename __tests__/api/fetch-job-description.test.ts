@@ -4,6 +4,7 @@ import leverWithLists from '../fixtures/lever-posting-with-lists.json'
 import greenhouseScaleAI from '../fixtures/greenhouse-scaleai-job.json'
 import eightfoldMicrosoft from '../fixtures/eightfold-microsoft-job.json'
 import workdayAdobeJob from '../fixtures/workday-adobe-job.json'
+import uberJob from '../fixtures/uber-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -90,6 +91,14 @@ describe('extractJobContent', () => {
     expect(extractJobContent(html)).toBe(
       "<p><strong>About the Role</strong></p><p>You'll build great things & more.</p>"
     )
+  })
+
+  it('decodes entity-encoded description from real Uber JSON-LD fixture (uber-job.json)', () => {
+    const html = `<html><head><script type="application/ld+json">${JSON.stringify(uberJob)}</script></head><body></body></html>`
+    const result = extractJobContent(html)
+    expect(result).toContain('<p><strong>About the Role</strong></p>')
+    expect(result).not.toContain('&lt;')
+    expect(result).not.toContain('&gt;')
   })
 
   it('skips invalid JSON-LD and falls back to meta description', () => {
