@@ -16,10 +16,12 @@ runs:
         BASE_REF: ${{ github.base_ref }}
       run: |
         if [[ "$EVENT_NAME" == "pull_request" ]]; then
-          NON_DOC=$(git diff --name-only "origin/${BASE_REF}...HEAD" \
-            | { grep -Ev '\.md$|^docs/' || true; } | wc -l | tr -d ' ')
-          if [[ "$NON_DOC" -eq 0 ]]; then
-            echo "Doc-only change — skipping"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+          CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          if [[ -n "$CHANGED" ]]; then
+            NON_DOC=$(echo "$CHANGED" | { grep -Ev '\.md$|^docs/' || true; } | wc -l | tr -d ' ')
+            if [[ "$NON_DOC" -eq 0 ]]; then
+              echo "Doc-only change — skipping"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
         fi
