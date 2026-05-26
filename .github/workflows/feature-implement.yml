@@ -364,8 +364,11 @@ jobs:
           - New API routes: add a test file under __tests__/app/api/ that mocks fetch and verifies the route logic (auth, error cases, happy path)
           - New or modified React components: update the existing test file under __tests__/components/ to cover every new prop, state, and conditional render
           - New utility functions: add tests under __tests__/lib/
-          After writing tests, run: npm run test:coverage
-          Fix any test failures or coverage threshold violations before finishing. Do not consider the task complete until npm run test:coverage passes.
+          After writing tests, run all of the following and fix any failures before finishing:
+            npm run lint
+            npx tsc --noEmit
+            npm run test:coverage
+          Do not consider the task complete until all three pass.
 
           After implementing, write a markdown summary to /tmp/summary.txt with these sections:
           ## Implementation overview
@@ -411,15 +414,19 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests and coverage
+      - name: Run CI checks (lint, tsc, test coverage)
         if: steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npm ci --prefer-offline
-          if ! npm run test:coverage; then
+          FAILURES=""
+          npm run lint        || FAILURES="${FAILURES} lint"
+          npx tsc --noEmit    || FAILURES="${FAILURES} tsc"
+          npm run test:coverage || FAILURES="${FAILURES} test:coverage"
+          if [[ -n "$FAILURES" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
-              --body "Tests were written but \`npm run test:coverage\` failed (test failures or coverage below threshold). Re-add \`status: auto-implement\` to retry."
+              --body "CI checks failed:${FAILURES}. Re-add \`status: auto-implement\` to retry."
             exit 1
           fi
 
