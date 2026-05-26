@@ -395,18 +395,32 @@ jobs:
               PROMPT_FILE=/tmp/prompt.txt
               MAX_TURNS=30
             else
+              # Give the fix run immediate context so it doesn't have to re-read the codebase.
+              # Diffs of tracked files + list of new untracked files cover everything Claude wrote.
+              GIT_DIFF=$(git diff HEAD 2>/dev/null | head -c 20000)
+              NEW_FILES=$(git ls-files --others --exclude-standard 2>/dev/null)
               {
                 echo "You previously implemented a feature but the CI checks failed."
-                echo "Fix all failures so that lint, tsc, and test:coverage all pass."
+                echo "Use the context below to understand what was already implemented — do not re-read the whole codebase."
                 echo ""
-                echo "=== CI failures from previous attempt ==="
+                if [[ -n "$NEW_FILES" ]]; then
+                  echo "=== New files created ==="
+                  echo "$NEW_FILES"
+                  echo "(Use your Read tool on any of these for full content)"
+                  echo ""
+                fi
+                if [[ -n "$GIT_DIFF" ]]; then
+                  echo "=== Changes to existing files ==="
+                  echo "$GIT_DIFF"
+                  echo ""
+                fi
+                echo "=== CI failures to fix ==="
                 cat /tmp/ci_failures.txt
                 echo ""
-                echo "After applying your fix, validate by running:"
+                echo "Fix the failures above. After your fix, validate by running:"
                 echo "  npm run lint"
                 echo "  npx tsc --noEmit"
                 echo "  npm run test:coverage"
-                echo ""
                 echo "Do not consider yourself done until all three pass."
               } > /tmp/fix_prompt.txt
               PROMPT_FILE=/tmp/fix_prompt.txt
