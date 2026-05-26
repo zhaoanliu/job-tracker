@@ -502,42 +502,55 @@ describe('ApplicationModal — Import comparison toggle', () => {
     expect(screen.getByTestId('jd-comparison-view').innerHTML).toContain('New imported content')
   })
 
-  it('Use Imported commits imported content to the form and hides the toggle strip', async () => {
+  it('Use Imported keeps the comparison toggle visible and saves imported content on Save', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     render(<ApplicationModal {...defaultProps} application={appWithJd} onSave={onSave} />)
     await triggerImport()
 
     await userEvent.click(screen.getByRole('button', { name: 'Use Imported' }))
 
-    expect(screen.queryByTestId('jd-comparison-view')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Use Imported' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Keep Original' })).not.toBeInTheDocument()
-
-    const editor = await screen.findByRole('textbox', { name: 'Job description editor' })
-    expect(editor.innerHTML).toContain('New imported content')
+    expect(screen.getByTestId('jd-comparison-view')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use Imported' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Keep Original' })).toBeInTheDocument()
+    expect(screen.getByTestId('jd-comparison-view').innerHTML).toContain('New imported content')
 
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(onSave.mock.calls[0][0].jd).toBe('<p>New imported content</p>')
   })
 
-  it('Keep Original hides the toggle and preserves the original description unchanged', async () => {
+  it('Keep Original keeps the comparison toggle visible and saves original content on Save', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     render(<ApplicationModal {...defaultProps} application={appWithJd} onSave={onSave} />)
     await triggerImport()
 
     await userEvent.click(screen.getByRole('button', { name: 'Keep Original' }))
 
-    expect(screen.queryByTestId('jd-comparison-view')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Use Imported' })).not.toBeInTheDocument()
-
-    const editor = await screen.findByRole('textbox', { name: 'Job description editor' })
-    expect(editor.innerHTML).toContain('Existing JD')
-    expect(editor.innerHTML).not.toContain('New imported content')
+    expect(screen.getByTestId('jd-comparison-view')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use Imported' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Keep Original' })).toBeInTheDocument()
+    expect(screen.getByTestId('jd-comparison-view').innerHTML).toContain('Existing JD')
+    expect(screen.getByTestId('jd-comparison-view').innerHTML).not.toContain('New imported content')
 
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(onSave.mock.calls[0][0].jd).toBe('<p>Existing JD</p>')
+  })
+
+  it('can toggle back from Keep Original to Use Imported before saving', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    render(<ApplicationModal {...defaultProps} application={appWithJd} onSave={onSave} />)
+    await triggerImport()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Keep Original' }))
+    expect(screen.getByTestId('jd-comparison-view').innerHTML).toContain('Existing JD')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Use Imported' }))
+    expect(screen.getByTestId('jd-comparison-view').innerHTML).toContain('New imported content')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].jd).toBe('<p>New imported content</p>')
   })
 
   it('switching away from the JD tab while toggle is open discards imported and preserves original', async () => {
@@ -560,7 +573,7 @@ describe('ApplicationModal — Import comparison toggle', () => {
     expect(onSave.mock.calls[0][0].jd).toBe('<p>Existing JD</p>')
   })
 
-  it('discards imported content if the modal is closed (saved) without choosing — original is preserved', async () => {
+  it('saves imported content if Save Changes is clicked without explicitly choosing — imported is the default', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     render(<ApplicationModal {...defaultProps} application={appWithJd} onSave={onSave} />)
     await triggerImport()
@@ -569,7 +582,7 @@ describe('ApplicationModal — Import comparison toggle', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() => expect(onSave).toHaveBeenCalled())
-    expect(onSave.mock.calls[0][0].jd).toBe('<p>Existing JD</p>')
+    expect(onSave.mock.calls[0][0].jd).toBe('<p>New imported content</p>')
   })
 
   it('discards imported content when the modal is dismissed via Cancel without choosing', async () => {

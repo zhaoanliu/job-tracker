@@ -86,6 +86,7 @@ export default function ApplicationModal({
   const [importedHtml, setImportedHtml] = useState<string | null>(null)
   const [originalDescription, setOriginalDescription] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'original' | 'imported'>('imported')
+  const [jdChoice, setJdChoice] = useState<'original' | 'imported'>('imported')
 
   const firstInputRef = useRef<HTMLInputElement>(null)
 
@@ -129,7 +130,11 @@ export default function ApplicationModal({
     setSaving(true)
     setError(null)
     try {
-      await onSave(form)
+      const savedForm =
+        importedHtml !== null && jdChoice === 'imported'
+          ? { ...form, jd: importedHtml }
+          : form
+      await onSave(savedForm)
     } catch (err: unknown) {
       console.error('Application save failed:', err)
       setError(err instanceof Error ? err.message : 'Failed to save')
@@ -176,6 +181,7 @@ export default function ApplicationModal({
         setOriginalDescription(form.jd)
         setImportedHtml(html)
         setViewMode('imported')
+        setJdChoice('imported')
       }
       setSection('jd')
     } catch (err: unknown) {
@@ -196,16 +202,13 @@ export default function ApplicationModal({
   }, [section, importedHtml])
 
   function handleUseImported() {
-    if (importedHtml !== null) set('jd', importedHtml)
-    setImportedHtml(null)
-    setOriginalDescription(null)
+    setJdChoice('imported')
     setViewMode('imported')
   }
 
   function handleKeepOriginal() {
-    setImportedHtml(null)
-    setOriginalDescription(null)
-    setViewMode('imported')
+    setJdChoice('original')
+    setViewMode('original')
   }
 
   async function handleDelete() {
@@ -532,14 +535,14 @@ export default function ApplicationModal({
                         <button
                           type="button"
                           onClick={handleKeepOriginal}
-                          className="rounded-md border border-slate-200 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${jdChoice === 'original' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                         >
                           Keep Original
                         </button>
                         <button
                           type="button"
                           onClick={handleUseImported}
-                          className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
+                          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${jdChoice === 'imported' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                         >
                           Use Imported
                         </button>
