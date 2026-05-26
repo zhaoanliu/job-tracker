@@ -57,6 +57,40 @@ function buildWorkdayMeta(ld: Record<string, unknown>): string {
   return `${header}<table>${tableRows}</table><hr>`
 }
 
+function buildUberMeta(ld: Record<string, unknown>): string {
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const rows: Array<[string, string]> = []
+
+  const title = str(ld.title)
+  const dept = str(ld.occupationalCategory)
+
+  const extractAddress = (loc: unknown): string => {
+    if (loc == null || typeof loc !== 'object') return ''
+    const addr = (loc as Record<string, unknown>).address
+    if (addr == null || typeof addr !== 'object') return ''
+    const a = addr as Record<string, unknown>
+    return [str(a.addressLocality), str(a.addressRegion)].filter(Boolean).join(', ')
+  }
+  const locationRaw = ld.jobLocation
+  const location = Array.isArray(locationRaw)
+    ? (locationRaw as unknown[]).map(extractAddress).filter(Boolean).join(' | ')
+    : extractAddress(locationRaw)
+
+  const workType = str(ld.employmentType).replace(/-/g, ' ')
+
+  if (dept) rows.push(['Department', dept])
+  if (location) rows.push(['Location', location])
+  if (workType) rows.push(['Work type', workType])
+
+  if (!title && rows.length === 0) return ''
+
+  const header = title ? `<h1>${title}</h1>` : ''
+  if (rows.length === 0) return header
+
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  return `${header}<table>${tableRows}</table><hr>`
+}
+
 // Parse JSON-LD JobPosting from page HTML and prepend a structured metadata header.
 // Used for Workday: the CXS API requires browser cookies; JSON-LD is publicly available.
 function extractWorkdayFromPage(html: string): string | null {
@@ -77,6 +111,34 @@ function extractWorkdayFromPage(html: string): string | null {
           const ld = item as Record<string, unknown>
           const meta = buildWorkdayMeta(ld)
           return meta + (ld.description as string).trim()
+        }
+      }
+    } catch {
+      // invalid JSON-LD block — try next script tag
+    }
+  }
+  return null
+}
+
+// Parse JSON-LD JobPosting from Uber page HTML. Uber's description is HTML-entity-encoded.
+function extractUberFromPage(html: string): string | null {
+  const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let match: RegExpExecArray | null
+  while ((match = jsonLdRegex.exec(html)) !== null) {
+    try {
+      const data: unknown = JSON.parse(match[1])
+      const items = Array.isArray(data) ? data : [data]
+      for (const item of items) {
+        if (
+          item !== null &&
+          typeof item === 'object' &&
+          (item as Record<string, unknown>)['@type'] === 'JobPosting' &&
+          typeof (item as Record<string, unknown>).description === 'string' &&
+          ((item as Record<string, unknown>).description as string).trim()
+        ) {
+          const ld = item as Record<string, unknown>
+          const meta = buildUberMeta(ld)
+          return meta + decodeHtmlEntities((ld.description as string).trim())
         }
       }
     } catch {
@@ -282,6 +344,9 @@ export async function POST(req: NextRequest) {
     /^[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com$/.test(parsed.hostname) &&
     parsed.pathname.includes('/job/')
 
+  const isUberJob =
+    parsed.hostname === 'www.uber.com' && /\/careers\/list\/\d+/.test(parsed.pathname)
+
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
@@ -359,6 +424,14 @@ export async function POST(req: NextRequest) {
     if (isWorkdayJob) {
       const workdayHtml = extractWorkdayFromPage(raw)
       if (workdayHtml !== null) return NextResponse.json({ html: workdayHtml })
+      // No usable JSON-LD — fall through to extractJobContent
+    }
+
+    // Uber ATS — JSON-LD JobPosting embedded in page HTML.
+    // URL pattern: www.uber.com/global/en/careers/list/{id}/
+    if (isUberJob) {
+      const uberHtml = extractUberFromPage(raw)
+      if (uberHtml !== null) return NextResponse.json({ html: uberHtml })
       // No usable JSON-LD — fall through to extractJobContent
     }
 

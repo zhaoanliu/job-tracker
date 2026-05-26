@@ -740,4 +740,111 @@ describe('POST /api/fetch-job-description', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
   })
+
+  describe('Uber ATS (www.uber.com/global/en/careers/list)', () => {
+    const UBER_URL = 'https://www.uber.com/global/en/careers/list/156729/'
+
+    // uberJob is a snapshot of the JSON-LD JobPosting block from the real Uber job page
+    // (www.uber.com/global/en/careers/list/156729/, observed 2026-05-26).
+    function uberPage(ld: object): string {
+      return `<html><head><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body></body></html>`
+    }
+
+    it('extracts metadata header and decoded description from JSON-LD — real fixture data', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(uberPage(uberJob)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: UBER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title from fixture
+      expect(data.html).toContain('<h1>Staff Software Engineer</h1>')
+      // Department from occupationalCategory in fixture
+      expect(data.html).toContain('Engineering')
+      // Location from jobLocation.address in fixture (city, state)
+      expect(data.html).toContain('Seattle, Washington')
+      // Work type: "Full-Time" → "Full Time"
+      expect(data.html).toContain('Full Time')
+      // Description decoded: entity-encoded HTML should be real tags
+      expect(data.html).toContain('<p><strong>About the Role</strong></p>')
+      expect(data.html).not.toContain('&lt;')
+      // Only one fetch — page HTML, no separate API call
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(UBER_URL, expect.anything())
+    })
+
+    it('handles array jobLocation with multiple entries', async () => {
+      // Synthetic: real fixture has one location; multi-location is possible in practice
+      mockUser()
+      const multiLoc = {
+        ...uberJob,
+        jobLocation: [
+          { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: 'Seattle', addressRegion: 'Washington' } },
+          { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: 'Sunnyvale', addressRegion: 'California' } },
+        ],
+      }
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(uberPage(multiLoc)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: UBER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Seattle, Washington | Sunnyvale, California')
+    })
+
+    it('falls back to extractJobContent when JSON-LD has no description', async () => {
+      // Synthetic: real fixture always has description; tests the missing-field branch
+      mockUser()
+      const noDesc = { '@type': 'JobPosting', title: 'Staff Software Engineer' }
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse(`<html><head><script type="application/ld+json">${JSON.stringify(noDesc)}</script></head><body><p>Body content</p></body></html>`)
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: UBER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Body content</p>')
+    })
+
+    it('falls back to extractJobContent when page has no JSON-LD', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Scraped JD</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: UBER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('returns 502 when the page fetch fails', async () => {
+      mockUser()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 403 })))
+
+      const res = await POST(makeReq({ url: UBER_URL }))
+
+      expect(res.status).toBe(502)
+    })
+
+    it('does not apply Uber handler for non-Uber URLs', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://example.com/global/en/careers/list/123/' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const data = await res.json()
+      expect(data.html).not.toContain('<table>')
+    })
+  })
 })
