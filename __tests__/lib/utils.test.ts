@@ -326,3 +326,10 @@ describe('getStageApplications', () => {
     expect(result.map(a => a.id)).toEqual(['2', '1'])
   })
 })
+
+// ci-attribution-test: deliberately failing — ci-auto-fix should change false to true
+describe('ci attribution verification', () => {
+  it('placeholder that always fails', () => {
+    expect(true).toBe(false)
+  })
+})
