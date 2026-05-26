@@ -322,6 +322,132 @@ describe('ApplicationModal — Job Posting URL open button', () => {
   })
 })
 
+describe('ApplicationModal — Import job description', () => {
+  let originalFetch: typeof global.fetch
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    consoleErrorSpy.mockRestore()
+    vi.useRealTimers()
+  })
+
+  it('hides the Import button when the URL field is empty', () => {
+    render(<ApplicationModal {...defaultProps} />)
+    expect(screen.queryByRole('button', { name: 'Import job description from URL' })).not.toBeInTheDocument()
+  })
+
+  it('shows the Import button when the URL field has content', async () => {
+    render(<ApplicationModal {...defaultProps} />)
+    const urlInput = screen.getByPlaceholderText('https://...')
+    await userEvent.type(urlInput, 'https://example.com/jobs/1')
+    expect(screen.getByRole('button', { name: 'Import job description from URL' })).toBeInTheDocument()
+  })
+
+  it('hides the Import button when the URL is only whitespace', async () => {
+    render(<ApplicationModal {...defaultProps} />)
+    const urlInput = screen.getByPlaceholderText('https://...')
+    await userEvent.type(urlInput, '   ')
+    expect(screen.queryByRole('button', { name: 'Import job description from URL' })).not.toBeInTheDocument()
+  })
+
+  it('populates the JD field and switches to the Job Description tab when description is empty', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ html: '<p>Imported description</p>' }),
+    }) as unknown as typeof global.fetch
+
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Import job description from URL' }))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/fetch-job-description',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: 'https://example.com' }),
+        })
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Job description editor' })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('textbox', { name: 'Job description editor' }).innerHTML).toContain('Imported description')
+  })
+
+  it('shows a loading spinner while the import request is pending', async () => {
+    let resolveFetch: (value: { ok: boolean; json: () => Promise<{ html: string }> }) => void = () => {}
+    const fetchPromise = new Promise<{ ok: boolean; json: () => Promise<{ html: string }> }>(resolve => {
+      resolveFetch = resolve
+    })
+    global.fetch = vi.fn().mockReturnValue(fetchPromise) as unknown as typeof global.fetch
+
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    const importBtn = screen.getByRole('button', { name: 'Import job description from URL' })
+    await userEvent.click(importBtn)
+
+    expect(screen.getByRole('status', { name: 'Importing' })).toBeInTheDocument()
+    expect(importBtn).toBeDisabled()
+    expect(importBtn).toHaveAttribute('aria-busy', 'true')
+
+    resolveFetch({ ok: true, json: async () => ({ html: '<p>done</p>' }) })
+    await waitFor(() => {
+      expect(screen.queryByRole('status', { name: 'Importing' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows an error message, leaves description empty, and stays on the Details tab when fetch fails', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => ({ error: 'Failed to fetch job description' }),
+    }) as unknown as typeof global.fetch
+
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Import job description from URL' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to fetch job description')
+    expect(screen.queryByRole('textbox', { name: 'Job description editor' })).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('https://...')).toBeInTheDocument()
+    expect(consoleErrorSpy).toHaveBeenCalled()
+  })
+
+  it('shows an error message when the network request rejects', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Network down')) as unknown as typeof global.fetch
+
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Import job description from URL' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network down')
+    expect(screen.queryByRole('textbox', { name: 'Job description editor' })).not.toBeInTheDocument()
+    expect(consoleErrorSpy).toHaveBeenCalled()
+  })
+
+  it('does not overwrite a non-empty description but still switches to the JD tab', async () => {
+    const appWithJd: Application = { ...existingApp, jd: '<p>Existing JD</p>' }
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ html: '<p>New imported content</p>' }),
+    }) as unknown as typeof global.fetch
+
+    render(<ApplicationModal {...defaultProps} application={appWithJd} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Import job description from URL' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Job description editor' })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('textbox', { name: 'Job description editor' }).innerHTML).toContain('Existing JD')
+    expect(screen.getByRole('textbox', { name: 'Job description editor' }).innerHTML).not.toContain('New imported content')
+  })
+})
+
 describe('ApplicationModal — JD preview', () => {
   it('renders HTML job description via dangerouslySetInnerHTML without React errors', async () => {
     const appWithHtml: Application = { ...existingApp, jd: '<p>Hello <strong>world</strong></p>' }
