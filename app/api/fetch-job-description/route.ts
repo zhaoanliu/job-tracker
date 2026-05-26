@@ -63,6 +63,73 @@ async function fetchGreenhouseJob(
   }
 }
 
+function buildLeverMeta(data: Record<string, unknown>): string {
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const rows: Array<[string, string]> = []
+
+  const title = str(data.text)
+  const categories = data.categories != null && typeof data.categories === 'object'
+    ? (data.categories as Record<string, unknown>)
+    : {}
+  const allLocations = Array.isArray(categories.allLocations)
+    ? (categories.allLocations as unknown[]).map((l) => str(l)).filter(Boolean).join(', ')
+    : str(categories.location)
+  const team = str(categories.team)
+  const workplaceType = str(data.workplaceType)
+
+  if (team) rows.push(['Team', team])
+  if (allLocations) rows.push(['Location', allLocations])
+  if (workplaceType) rows.push(['Work type', workplaceType])
+
+  if (!title && rows.length === 0) return ''
+
+  const header = title ? `<h1>${title}</h1>` : ''
+  if (rows.length === 0) return header
+
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  return `${header}<table>${tableRows}</table><hr>`
+}
+
+async function fetchLeverJob(
+  company: string,
+  postingId: string,
+  signal: AbortSignal
+): Promise<string | null> {
+  try {
+    const apiRes = await fetch(
+      `https://api.lever.co/v0/postings/${company}/${postingId}`,
+      { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } }
+    )
+    if (!apiRes.ok) return null
+    const data = (await apiRes.json()) as Record<string, unknown>
+
+    const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+    const opening = str(data.opening)
+    const description = str(data.description)
+    const additional = str(data.additional)
+
+    const listSections = Array.isArray(data.lists)
+      ? (data.lists as Array<Record<string, unknown>>)
+          .map((l) => {
+            const header = str(l.text)
+            const content = str(l.content)
+            if (!content) return ''
+            return header ? `<h3>${header}</h3>${content}` : content
+          })
+          .filter(Boolean)
+          .join('')
+      : ''
+
+    const body = [opening, description, listSections, additional].filter(Boolean).join('')
+    if (!body) return null
+
+    const meta = buildLeverMeta(data)
+    return meta + body
+  } catch {
+    return null
+  }
+}
+
 function buildEightfoldMeta(data: Record<string, unknown>): string {
   const rows: Array<[string, string]> = []
 
@@ -156,6 +223,18 @@ export async function POST(req: NextRequest) {
       } catch {
         // API unavailable — fall through to HTML scraping
       }
+    }
+
+    // Lever ATS (Netflix, Reddit, many startups) — jobs.lever.co/{company}/{uuid}
+    const leverMatch =
+      parsed.hostname === 'jobs.lever.co' &&
+      parsed.pathname.match(
+        /^\/([A-Za-z0-9_-]+)\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/
+      )
+    if (leverMatch) {
+      const leverHtml = await fetchLeverJob(leverMatch[1], leverMatch[2], controller.signal)
+      if (leverHtml !== null) return NextResponse.json({ html: leverHtml })
+      // API unavailable — fall through to HTML scraping
     }
 
     // Greenhouse ATS direct URLs (boards.greenhouse.io or job-boards.greenhouse.io)

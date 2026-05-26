@@ -1,0 +1,57 @@
+{
+    "absolute_url": "https://job-boards.greenhouse.io/scaleai/jobs/4599700005",
+    "data_compliance": [
+        {
+            "type": "gdpr",
+            "requires_consent": false,
+            "requires_processing_consent": false,
+            "requires_retention_consent": false,
+            "retention_period": null,
+            "demographic_data_consent_applies": false
+        }
+    ],
+    "internal_job_id": 4389971005,
+    "location": {
+        "name": "New York, NY; San Francisco, CA"
+    },
+    "metadata": [
+        {
+            "id": 7904378005,
+            "name": "Domain",
+            "value": null,
+            "value_type": "multi_select"
+        },
+        {
+            "id": 9832886005,
+            "name": "External Department",
+            "value": "Engineering",
+            "value_type": "single_select"
+        }
+    ],
+    "id": 4599700005,
+    "updated_at": "2026-05-08T12:41:20-04:00",
+    "requisition_id": "GH-1750",
+    "title": "Staff Infrastructure Software Engineer, Enterprise AI",
+    "company_name": "Scale AI",
+    "first_published": "2025-08-20T19:23:26-04:00",
+    "language": "en",
+    "application_deadline": null,
+    "content": "&lt;div class=&quot;p-rich_text_section&quot; style=&quot;text-align: left;&quot;&gt;Scale GP is building the infrastructure that makes enterprise AI seamless. We are looking for a Senior or Staff Infrastructure Engineer to act as a primary technical lead, engineering the &#39;paved road&#39; for our knowledge retrieval and inference engines. You won&#39;t just be managing resources; you\u2019ll be defining the deployment standards for Agentic workflows at scale. Your mission is to bridge the gap between complex AI orchestration and world-class infrastructure, ensuring our platform remains the most reliable destination for enterprise agents\n&lt;p&gt;The ideal candidate thrives in a fast-paced environment, has a passion for both deep technical work and mentoring, and is capable of setting a long-term technical strategy for a critical domain while maintaining a strong, hands-on delivery focus. You will architect and implement solutions across multiple cloud providers (GCP, Azure, AWS) for customers in diverse, highly-regulated industries like healthcare, telecom, finance, and retail.&lt;/p&gt;\n&lt;/div&gt;\n&lt;div class=&quot;p-rich_text_section&quot;&gt;\n&lt;p&gt;&lt;strong&gt;What You\u2019ll Do:&lt;/strong&gt;&lt;/p&gt;\n&lt;ul&gt;\n&lt;li&gt;Architect multi-cloud systems and abstractions to allow the SGP platform to run on top of existing Cloud providers.&lt;/li&gt;\n&lt;li&gt;Use our own data and AI platform to analyze build and test logs and metrics to identify areas for improvement.&lt;/li&gt;\n&lt;li&gt;Define the architectural patterns for our multi-cloud infrastructure to support secure, reliable, and scalable Agentic workflows for enterprise customers.&lt;/li&gt;\n&lt;li&gt;Enhance engineering and infrastructure efficiency, reliability, accuracy, and response times, including CI/CD processes, test frameworks, data quality assurance, end-to-end reconciliation, and anomaly detection.&lt;/li&gt;\n&lt;li&gt;Collaborate with platform and product teams to develop and implement innovative infrastructure that scales to meet evolving needs.&lt;/li&gt;\n&lt;li&gt;Design and champion highly scalable, reliable, and low-latency infrastructure and frameworks for building, orchestrating, and evaluating multi-agent systems at enterprise scale.&lt;/li&gt;\n&lt;li&gt;Lead the infrastructure roadmap with a strong focus on compliance, privacy, and security standards, including designing change management and data isolation strategies.&lt;/li&gt;\n&lt;li&gt;Own the development and maintenance of our best-in-class Agentic observability platform (logging, metrics, tracing, and analytics) to proactively ensure system health and enable rapid incident response.&lt;/li&gt;\n&lt;li&gt;Drive developer efficiency by building automated tooling and championing Infrastructure-as-Code (IaC) paradigms throughout the engineering organization to improve workflows and operational efficiency.&lt;/li&gt;\n&lt;/ul&gt;\n&lt;p&gt;&lt;strong&gt;What We&#39;re Looking For:&lt;/strong&gt;&lt;/p&gt;\n&lt;ul&gt;\n&lt;li&gt;Proven experience in a senior role, with 5+ years of full-time software engineering experience.&lt;/li&gt;\n&lt;li&gt;Deep understanding of modern infrastructure practices, including CI/CD, IaC (e.g., Terraform, Helm Charts), container orchestration (e.g., Kubernetes) and observability platforms (e.g., Datadog, Prometheus, Grafana).&lt;/li&gt;\n&lt;li&gt;Extensive experience with at least one major cloud provider (AWS, Azure, or GCP).&lt;/li&gt;\n&lt;li&gt;Strong knowledge of security and compliance in enterprise environments, with a focus on access management, data isolation, and customer-specific VPC setups.&lt;/li&gt;\n&lt;li&gt;Proficiency in Python or JavaScript/TypeScript, and SQL.&lt;/li&gt;\n&lt;li&gt;Bonus points: Hands-on experience and a passion for working with Agents, LLMs, vector databases, and other emerging AI technologies.&lt;/li&gt;\n&lt;/ul&gt;\n&lt;/div&gt;&lt;div class=&quot;content-pay-transparency&quot;&gt;&lt;div class=&quot;pay-input&quot;&gt;&lt;div class=&quot;description&quot;&gt;&lt;p&gt;&lt;em&gt;Compensation packages at Scale for eligible roles include base salary, equity, and benefits. The range displayed on each job posting reflects the minimum and maximum target for new hire salaries for the position and may be inclusive of several career levels at Scale; it will be determined during the interview process based on work location and additional factors, including job-related skills, experience, qualifications, interview performance, and relevant education or training. Scale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval. Your recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant. You&#39;ll also receive benefits including, but not limited to: comprehensive health, dental and vision coverage, retirement benefits, a learning and development stipend, and generous PTO. Additionally, this role may be eligible for additional benefits such as a commuter stipend.&lt;/em&gt;&lt;/p&gt;&lt;/div&gt;&lt;div class=&quot;title&quot;&gt;Please reference the job posting&#39;s subtitle for where this position will be located. For pay transparency purposes, the base salary range for this full-time position in the locations of San Francisco, New York, Seattle is:&lt;/div&gt;&lt;div class=&quot;pay-range&quot;&gt;&lt;span&gt;$252,000&lt;/span&gt;&lt;span class=&quot;divider&quot;&gt;&amp;mdash;&lt;/span&gt;&lt;span&gt;$315,000 USD&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;content-conclusion&quot;&gt;&lt;p&gt;&lt;strong&gt;&lt;em&gt;PLEASE NOTE:&amp;nbsp;&lt;/em&gt;&lt;/strong&gt;&lt;em&gt;Our policy requires a 90-day waiting period before reconsidering candidates for the same role. This allows us to ensure a fair and thorough evaluation of all applicants.&lt;/em&gt;&lt;/p&gt;\n&lt;p&gt;&lt;strong&gt;About Us:&lt;/strong&gt;&lt;/p&gt;\n&lt;p&gt;&lt;em&gt;At Scale, our mission is to develop reliable AI systems for the world&#39;s most important decisions. Our products provide the high-quality data and full-stack technologies that power the world&#39;s leading models, and help enterprises and governments build, deploy, and oversee AI applications that deliver real impact. We work closely with industry leaders like Meta, Cisco, DLA Piper, Mayo Clinic, Time Inc., the Government of Qatar, and U.S. government agencies including the Army and Air Force. We are expanding our team to accelerate the development of AI applications.&lt;/em&gt;&lt;/p&gt;\n&lt;p&gt;&lt;em&gt;We believe that everyone should be able to bring their whole selves to work, which is why we are proud to be an inclusive and equal opportunity workplace. We are committed to equal employment opportunity regardless of race, color, ancestry, religion, sex, national origin, sexual orientation, age, citizenship, marital status, disability status, gender identity or Veteran status.&amp;nbsp;&lt;/em&gt;&lt;/p&gt;\n&lt;p&gt;&lt;em&gt;We are committed to working with and providing reasonable accommodations to applicants with physical and mental disabilities. If you need assistance and/or a reasonable accommodation in the application or recruiting process due to a disability, please contact us at accommodations@scale.com. Please see the United States Department of Labor&#39;s &lt;/em&gt;&lt;a href=&quot;https://www.eeoc.gov/sites/default/files/2023-06/22-088_EEOC_KnowYourRights6.12ScreenRdr.pdf&quot;&gt;&lt;em&gt;Know Your Rights poster&lt;/em&gt;&lt;/a&gt;&lt;em&gt; for additional information.&lt;/em&gt;&lt;/p&gt;\n&lt;p&gt;&lt;em&gt;We comply with the United States Department of Labor&#39;s &lt;/em&gt;&lt;em&gt;Pay Transparency provision&lt;/em&gt;&lt;em&gt;.&amp;nbsp;&lt;/em&gt;&lt;/p&gt;\n&lt;p&gt;&lt;em&gt;&lt;strong&gt;PLEASE NOTE: &lt;/strong&gt;We collect, retain and use personal data for our professional business purposes, including notifying you of job opportunities that may be of interest and sharing with our affiliates. We limit the personal data we collect to that which we believe is appropriate and necessary to manage applicants\u2019 needs, provide our services, and comply with applicable laws. Any information we collect in connection with your application will be treated in accordance with our internal policies and programs designed to protect personal data. Please see our &lt;a href=&quot;https://scale.com/legal/privacy&quot; target=&quot;_blank&quot;&gt;privacy policy&lt;/a&gt; for additional information.&lt;/em&gt;&lt;/p&gt;&lt;/div&gt;",
+    "departments": [
+        {
+            "id": 4140829005,
+            "name": "Enterprise Engineering",
+            "child_ids": [],
+            "parent_id": 4005958005
+        }
+    ],
+    "offices": [
+        {
+            "id": 4001480005,
+            "name": "San Francisco, CA",
+            "location": "San Francisco, California, United States",
+            "child_ids": [],
+            "parent_id": 4019441005
+        }
+    ]
+}

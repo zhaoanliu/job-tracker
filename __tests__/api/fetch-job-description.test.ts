@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import leverNoLists from '../fixtures/lever-posting-no-lists.json'
+import leverWithLists from '../fixtures/lever-posting-with-lists.json'
+import greenhouseScaleAI from '../fixtures/greenhouse-scaleai-job.json'
+import eightfoldMicrosoft from '../fixtures/eightfold-microsoft-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -231,23 +235,15 @@ describe('POST /api/fetch-job-description', () => {
   })
 
   describe('Eightfold.ai ATS (/careers/job/{id} URLs)', () => {
-    const EIGHTFOLD_URL = 'https://apply.careers.microsoft.com/careers/job/1234567'
-    const EIGHTFOLD_API = 'https://apply.careers.microsoft.com/api/apply/v2/jobs/1234567'
+    // Real URL from apply.careers.microsoft.com — used as routing key in fetch mock, not called live
+    const EIGHTFOLD_URL = 'https://apply.careers.microsoft.com/careers/job/1970393556868060'
+    const EIGHTFOLD_API = 'https://apply.careers.microsoft.com/api/apply/v2/jobs/1970393556868060'
 
-    it('uses Eightfold API and prepends metadata header', async () => {
+    it('uses Eightfold API and prepends metadata header — real API fixture', async () => {
+      // eightfoldMicrosoft is a snapshot of the real apply.careers.microsoft.com API response
       mockUser()
-      const apiData = {
-        name: 'Principal Data Scientist',
-        display_job_id: '200037915',
-        t_create: 1747699200,
-        locations: ['United States, Multiple Locations', 'United States, Washington, Redmond'],
-        work_location_option: '0 days/week remote',
-        department: 'Data Science',
-        business_unit: 'Research',
-        job_description: '<b>Overview</b><p>Great role.</p>',
-      }
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === EIGHTFOLD_API) return Promise.resolve(jsonResponse(apiData))
+        if (url === EIGHTFOLD_API) return Promise.resolve(jsonResponse(eightfoldMicrosoft))
         return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
@@ -257,10 +253,15 @@ describe('POST /api/fetch-job-description', () => {
       expect(res.status).toBe(200)
       const data = await res.json()
       expect(data.html).toContain('<h1>Principal Data Scientist</h1>')
+      // display_job_id from real fixture
       expect(data.html).toContain('200037915')
+      // department from real fixture
       expect(data.html).toContain('Data Science')
+      // real locations include 'Washington, Redmond' (non-"Multiple Locations" entry)
       expect(data.html).toContain('Washington, Redmond')
+      // 'Multiple Locations' entries are filtered out by buildEightfoldMeta
       expect(data.html).not.toContain('Multiple Locations')
+      // real job_description starts with <b>Overview</b>
       expect(data.html).toContain('<b>Overview</b>')
       // Eightfold API hit first, HTML scraping not used
       expect(fetchMock).toHaveBeenCalledWith(EIGHTFOLD_API, expect.anything())
@@ -328,18 +329,11 @@ describe('POST /api/fetch-job-description', () => {
   describe('Greenhouse ATS', () => {
     const GH_API = 'https://boards-api.greenhouse.io/v1/boards/scaleai/jobs/4599700005'
 
-    const apiData = {
-      title: 'Staff Infrastructure Software Engineer',
-      company_name: 'Scale AI',
-      location: { name: 'New York, NY; San Francisco, CA' },
-      // Greenhouse content is HTML-entity-encoded after JSON.parse
-      content: '&lt;p&gt;About the role&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Build &amp; scale things&lt;/li&gt;&lt;/ul&gt;',
-    }
-
-    it('handles direct boards.greenhouse.io URL — calls API, skips HTML fetch', async () => {
+    it('handles direct boards.greenhouse.io URL — real API fixture', async () => {
+      // greenhouseScaleAI is a snapshot of the real boards-api.greenhouse.io response
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === GH_API) return Promise.resolve(jsonResponse(apiData))
+        if (url === GH_API) return Promise.resolve(jsonResponse(greenhouseScaleAI))
         return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
@@ -348,11 +342,12 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer</h1>')
+      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer, Enterprise AI</h1>')
       expect(data.html).toContain('Scale AI')
       expect(data.html).toContain('New York, NY; San Francisco, CA')
-      expect(data.html).toContain('<p>About the role</p>')
-      expect(data.html).toContain('<li>Build & scale things</li>')
+      // Real content from fixture: double-encoded HTML should be decoded
+      expect(data.html).toContain('<div')
+      expect(data.html).toContain('Scale GP is building')
       // Only one fetch call — no HTML scraping
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(fetchMock).toHaveBeenCalledWith(GH_API, expect.anything())
@@ -361,7 +356,7 @@ describe('POST /api/fetch-job-description', () => {
     it('handles direct job-boards.greenhouse.io URL', async () => {
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === GH_API) return Promise.resolve(jsonResponse(apiData))
+        if (url === GH_API) return Promise.resolve(jsonResponse(greenhouseScaleAI))
         return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
@@ -370,7 +365,7 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer</h1>')
+      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer, Enterprise AI</h1>')
       expect(fetchMock).toHaveBeenCalledWith(GH_API, expect.anything())
       expect(fetchMock).not.toHaveBeenCalledWith(
         'https://job-boards.greenhouse.io/scaleai/jobs/4599700005',
@@ -383,7 +378,7 @@ describe('POST /api/fetch-job-description', () => {
       const pageHtml =
         '<html><body><script>window.__env={"jobUrl":"https://boards.greenhouse.io/scaleai/jobs/4599700005"}</script></body></html>'
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === GH_API) return Promise.resolve(jsonResponse(apiData))
+        if (url === GH_API) return Promise.resolve(jsonResponse(greenhouseScaleAI))
         return Promise.resolve(htmlResponse(pageHtml))
       })
       vi.stubGlobal('fetch', fetchMock)
@@ -392,8 +387,8 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer</h1>')
-      expect(data.html).toContain('<p>About the role</p>')
+      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer, Enterprise AI</h1>')
+      expect(data.html).toContain('Scale GP is building')
       // Page was fetched, then API was called
       expect(fetchMock).toHaveBeenCalledWith('https://scale.com/careers/4599700005', expect.anything())
       expect(fetchMock).toHaveBeenCalledWith(GH_API, expect.anything())
@@ -446,22 +441,148 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toBe('<p>Scraped JD</p>')
     })
 
-    it('decodes double-encoded HTML entities in content', async () => {
+    it('decodes double-encoded HTML entities in content — real fixture exercises this path', async () => {
+      // greenhouseScaleAI.content is already double-encoded (&lt;div ...&gt;)
+      // This test verifies the decoded output contains real HTML tags
       mockUser()
-      // Simulates the actual Greenhouse API encoding: JSON contains &lt; which becomes &lt; after parse
-      const encodedData = {
-        ...apiData,
-        content: '&lt;h2&gt;Requirements&lt;/h2&gt;&lt;p&gt;5+ years &amp; strong skills&lt;/p&gt;',
-      }
-      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(encodedData))
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(greenhouseScaleAI))
       vi.stubGlobal('fetch', fetchMock)
 
       const res = await POST(makeReq({ url: 'https://boards.greenhouse.io/scaleai/jobs/4599700005' }))
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<h2>Requirements</h2>')
-      expect(data.html).toContain('<p>5+ years & strong skills</p>')
+      // Decoded: &lt;div ...&gt; becomes <div ...>
+      expect(data.html).toContain('<div')
+      // Decoded: &quot; becomes "
+      expect(data.html).toContain('"')
+      // No raw entities should remain in the output
+      expect(data.html).not.toContain('&lt;div')
+    })
+  })
+
+  describe('Lever ATS (jobs.lever.co)', () => {
+    // Real URLs from the Lever API — used as routing keys in fetch mocks, not called live in tests
+    const LEVER_URL_NO_LISTS = 'https://jobs.lever.co/mistral/618c9763-cb22-4343-baca-cf1cf6b05f5c'
+    const LEVER_API_NO_LISTS = 'https://api.lever.co/v0/postings/mistral/618c9763-cb22-4343-baca-cf1cf6b05f5c'
+    const LEVER_URL_WITH_LISTS = 'https://jobs.lever.co/mistral/3e8b03e7-ff33-4cd1-8042-90b7ac3c4683'
+    const LEVER_API_WITH_LISTS = 'https://api.lever.co/v0/postings/mistral/3e8b03e7-ff33-4cd1-8042-90b7ac3c4683'
+
+    it('uses Lever API and prepends metadata header — real API fixture (no lists)', async () => {
+      // leverNoLists is a snapshot of the real api.lever.co response for this posting
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API_NO_LISTS) return Promise.resolve(jsonResponse(leverNoLists))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Account Executive, Digital Native US</h1>')
+      expect(data.html).toContain('Business')
+      expect(data.html).toContain('Palo Alto')
+      expect(data.html).toContain('hybrid')
+      // Real description content from the fixture
+      expect(data.html).toContain('About Mistral')
+      // Only one fetch — no HTML scraping
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(LEVER_API_NO_LISTS, expect.anything())
+    })
+
+    it('renders lists and opening sections — real API fixture (with lists + opening)', async () => {
+      // leverWithLists has opening: "<div>About Mistral...</div>" and lists: [{ text: "What we offer", content: "..." }]
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API_WITH_LISTS) return Promise.resolve(jsonResponse(leverWithLists))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL_WITH_LISTS }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>AI Developer Advocate - Singapore</h1>')
+      // Opening section from real fixture
+      expect(data.html).toContain('About Mistral')
+      // List section header from real fixture
+      expect(data.html).toContain('<h3>What we offer</h3>')
+      // List content from real fixture
+      expect(data.html).toContain('Competitive cash salary')
+    })
+
+    it('includes additional field when present', async () => {
+      // No real fixture has additional populated; test the code path with minimal synthetic data
+      mockUser()
+      const withAdditional = { ...leverNoLists, additional: '<p>Equal opportunity employer</p>' }
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(withAdditional))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<p>Equal opportunity employer</p>')
+    })
+
+    it('falls back to HTML scraping when Lever API returns non-2xx', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API_NO_LISTS) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Lever API has no body content', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API_NO_LISTS) return Promise.resolve(jsonResponse({ text: 'Engineer' }))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Lever API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API_NO_LISTS) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not call Lever API for non-Lever URLs', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://example.com/jobs/abc123' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('api.lever.co'), expect.anything())
     })
   })
 })
