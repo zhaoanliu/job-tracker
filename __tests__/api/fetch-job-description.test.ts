@@ -464,4 +464,139 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toContain('<p>5+ years & strong skills</p>')
     })
   })
+
+  describe('Lever ATS (jobs.lever.co)', () => {
+    const LEVER_URL = 'https://jobs.lever.co/mistral/618c9763-cb22-4343-baca-cf1cf6b05f5c'
+    const LEVER_API = 'https://api.lever.co/v0/postings/mistral/618c9763-cb22-4343-baca-cf1cf6b05f5c'
+
+    const apiData = {
+      text: 'Account Executive, Digital Native US',
+      categories: { location: 'Palo Alto', team: 'Business', allLocations: ['Palo Alto'] },
+      workplaceType: 'hybrid',
+      opening: '',
+      description: '<div><p>About Mistral</p></div>',
+      additional: '',
+      lists: [],
+    }
+
+    it('uses Lever API and prepends metadata header', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API) return Promise.resolve(jsonResponse(apiData))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Account Executive, Digital Native US</h1>')
+      expect(data.html).toContain('Business')
+      expect(data.html).toContain('Palo Alto')
+      expect(data.html).toContain('hybrid')
+      expect(data.html).toContain('<p>About Mistral</p>')
+      // Only one fetch — no HTML scraping
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(LEVER_API, expect.anything())
+    })
+
+    it('includes lists sections when present', async () => {
+      mockUser()
+      const withLists = {
+        ...apiData,
+        description: '<p>Intro text</p>',
+        lists: [
+          { text: 'Responsibilities', content: '<li>Sell stuff</li>' },
+          { text: 'Requirements', content: '<li>5+ years</li>' },
+        ],
+      }
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(withLists))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h3>Responsibilities</h3>')
+      expect(data.html).toContain('<li>Sell stuff</li>')
+      expect(data.html).toContain('<h3>Requirements</h3>')
+      expect(data.html).toContain('<li>5+ years</li>')
+    })
+
+    it('includes opening and additional when present', async () => {
+      mockUser()
+      const withOpeningAdditional = {
+        ...apiData,
+        opening: '<p>Exciting opportunity</p>',
+        additional: '<p>We are an equal opportunity employer</p>',
+      }
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(withOpeningAdditional))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<p>Exciting opportunity</p>')
+      expect(data.html).toContain('<p>We are an equal opportunity employer</p>')
+    })
+
+    it('falls back to HTML scraping when Lever API returns non-2xx', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Lever API has no body content', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API) return Promise.resolve(jsonResponse({ text: 'Engineer' }))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Lever API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LEVER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not call Lever API for non-Lever URLs', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://example.com/jobs/abc123' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('api.lever.co'), expect.anything())
+    })
+  })
 })
