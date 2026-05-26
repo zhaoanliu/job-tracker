@@ -3,6 +3,7 @@ import leverNoLists from '../fixtures/lever-posting-no-lists.json'
 import leverWithLists from '../fixtures/lever-posting-with-lists.json'
 import greenhouseScaleAI from '../fixtures/greenhouse-scaleai-job.json'
 import eightfoldMicrosoft from '../fixtures/eightfold-microsoft-job.json'
+import workdayAdobeJob from '../fixtures/workday-adobe-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -587,56 +588,40 @@ describe('POST /api/fetch-job-description', () => {
   })
 
   describe('Workday ATS (*.wd*.myworkdayjobs.com)', () => {
-    // Real URL pattern from Adobe, Amazon, Apple, Uber, etc.
+    // Real URL from the Adobe Workday job page used to capture the fixture
     const WORKDAY_URL =
       'https://adobe.wd5.myworkdayjobs.com/en-US/external_experienced/job/San-Francisco/Senior-Software-Engineer--Test-Automation_R168193'
 
-    // JSON-LD embedded in the real Adobe Workday job page HTML (observed 2026-05-26)
-    const WORKDAY_JOB_LD = {
-      '@type': 'JobPosting',
-      title: 'Senior Software Engineer',
-      description: '<p>We are seeking a highly motivated Senior Software Engineer to join Adobe.</p>',
-      datePosted: '2026-05-26',
-      employmentType: 'FULL_TIME',
-      jobLocation: {
-        '@type': 'Place',
-        address: {
-          '@type': 'PostalAddress',
-          addressLocality: 'San Francisco',
-          addressCountry: 'United States of America',
-        },
-      },
-      hiringOrganization: {
-        '@type': 'Organization',
-        name: 'ADUS-Adobe Inc.',
-      },
-      identifier: {
-        '@type': 'PropertyValue',
-        name: 'Senior Software Engineer',
-        value: 'R168193',
-      },
-    }
-
+    // workdayAdobeJob is a snapshot of the JSON-LD JobPosting block from the real
+    // adobe.wd5.myworkdayjobs.com page (observed 2026-05-26). Workday embeds this in
+    // the initial HTML; the CXS API requires browser cookies so is not used server-side.
     function workdayPage(ld: object): string {
       return `<html><head><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body><div id="root"></div></body></html>`
     }
 
     it('extracts metadata header and description from JSON-LD — real fixture data', async () => {
       mockUser()
-      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(WORKDAY_JOB_LD)))
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(workdayAdobeJob)))
       vi.stubGlobal('fetch', fetchMock)
 
       const res = await POST(makeReq({ url: WORKDAY_URL }))
 
       expect(res.status).toBe(200)
       const data = await res.json()
+      // Title from fixture
       expect(data.html).toContain('<h1>Senior Software Engineer</h1>')
+      // Job ID from identifier.value in fixture
       expect(data.html).toContain('R168193')
+      // Date posted from fixture
       expect(data.html).toContain('2026-05-26')
+      // Location from jobLocation.address in fixture
       expect(data.html).toContain('San Francisco, United States of America')
+      // Employment type: FULL_TIME → Full time
       expect(data.html).toContain('Full time')
+      // Company from hiringOrganization.name in fixture
       expect(data.html).toContain('ADUS-Adobe Inc.')
-      expect(data.html).toContain('<p>We are seeking a highly motivated Senior Software Engineer to join Adobe.</p>')
+      // Description content from fixture (plain text from Workday JSON-LD)
+      expect(data.html).toContain('Project Graph')
       // Only one fetch — page HTML, no separate API call
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(fetchMock).toHaveBeenCalledWith(WORKDAY_URL, expect.anything())
@@ -644,7 +629,7 @@ describe('POST /api/fetch-job-description', () => {
 
     it('handles URL without en-US locale prefix', async () => {
       mockUser()
-      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(WORKDAY_JOB_LD)))
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(workdayAdobeJob)))
       vi.stubGlobal('fetch', fetchMock)
 
       const res = await POST(
@@ -658,7 +643,7 @@ describe('POST /api/fetch-job-description', () => {
 
     it('handles wd1 through wd9 instance numbers', async () => {
       mockUser()
-      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(WORKDAY_JOB_LD)))
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(workdayAdobeJob)))
       vi.stubGlobal('fetch', fetchMock)
 
       const res = await POST(
@@ -671,6 +656,7 @@ describe('POST /api/fetch-job-description', () => {
     })
 
     it('falls back to extractJobContent when JSON-LD has no description', async () => {
+      // Synthetic: real fixture always has description; this tests the missing-field branch
       mockUser()
       const noDescLd = { '@type': 'JobPosting', title: 'Engineer' }
       const fetchMock = vi.fn().mockResolvedValue(
