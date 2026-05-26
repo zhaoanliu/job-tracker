@@ -322,6 +322,210 @@ describe('ApplicationModal — Job Posting URL open button', () => {
   })
 })
 
+describe('ApplicationModal — Import job description', () => {
+  const originalFetch = global.fetch
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    global.fetch = fetchMock as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.clearAllMocks()
+  })
+
+  it('does not render the Import button when the link field is empty', () => {
+    render(<ApplicationModal {...defaultProps} />)
+    expect(
+      screen.queryByRole('button', { name: 'Import job description from URL' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders the Import button when a link is present', () => {
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    expect(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    ).toBeInTheDocument()
+  })
+
+  it('fills the JD when original is empty, with no compare bar', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ html: '<p>Imported JD body</p>', truncated: false }),
+    })
+    const app = { ...existingApp, jd: null }
+    render(<ApplicationModal {...defaultProps} application={app} />)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    )
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    expect(
+      screen.queryByRole('region', {
+        name: 'Compare imported and original job descriptions',
+      })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the compare bar when the JD already has content', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ html: '<p>Fresh body</p>' }),
+    })
+    const app = { ...existingApp, jd: '<p>Existing body</p>' }
+    render(<ApplicationModal {...defaultProps} application={app} />)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    )
+    expect(
+      await screen.findByRole('region', {
+        name: 'Compare imported and original job descriptions',
+      })
+    ).toBeInTheDocument()
+  })
+
+  it('switches compare view between Original and Imported', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ html: '<p>Fresh body</p>' }),
+    })
+    const app = { ...existingApp, jd: '<p>Existing body</p>' }
+    render(<ApplicationModal {...defaultProps} application={app} />)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    )
+    await screen.findByRole('region', {
+      name: 'Compare imported and original job descriptions',
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Original' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Imported' }))
+    // both buttons remain present; clicking just toggles the active view
+    expect(screen.getByRole('button', { name: 'Original' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Imported' })).toBeInTheDocument()
+  })
+
+  it('keeps the original JD when "Keep Original" is clicked', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ html: '<p>Fresh body</p>' }),
+    })
+    const app = { ...existingApp, jd: '<p>Existing body</p>' }
+    render(<ApplicationModal {...defaultProps} application={app} />)
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    )
+    await screen.findByRole('button', { name: 'Keep Original' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Keep Original' }))
+    expect(
+      screen.queryByRole('region', {
+        name: 'Compare imported and original job descriptions',
+      })
+    ).not.toBeInTheDocument()
+  })
+
+  it('commits the imported JD when "Use Imported" is clicked', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ html: '<p>Fresh body</p>' }),
+    })
+    const app = { ...existingApp, jd: '<p>Existing body</p>' }
+    render(<ApplicationModal {...defaultProps} application={app} />)
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    )
+    await screen.findByRole('button', { name: 'Use Imported' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Use Imported' }))
+    expect(
+      screen.queryByRole('region', {
+        name: 'Compare imported and original job descriptions',
+      })
+    ).not.toBeInTheDocument()
+  })
+
+  it('discards the compare bar when switching away from the JD section', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ html: '<p>Fresh body</p>' }),
+    })
+    const app = { ...existingApp, jd: '<p>Existing body</p>' }
+    render(<ApplicationModal {...defaultProps} application={app} />)
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    )
+    await screen.findByRole('region', {
+      name: 'Compare imported and original job descriptions',
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Details' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Job Description' }))
+    expect(
+      screen.queryByRole('region', {
+        name: 'Compare imported and original job descriptions',
+      })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows an error message when the request returns non-ok', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: vi.fn().mockResolvedValue({ error: 'Upstream blew up' }),
+    })
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent('Upstream blew up')
+    errorSpy.mockRestore()
+  })
+
+  it('falls back to a generic message when the network call throws', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    fetchMock.mockRejectedValue('not-an-error')
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Failed to fetch job description/i
+    )
+    errorSpy.mockRestore()
+  })
+
+  it('falls back to a status-based message when the error payload has no message', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: vi.fn().mockRejectedValue(new Error('not json')),
+    })
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Import job description from URL' })
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Import failed/i)
+    errorSpy.mockRestore()
+  })
+})
+
 describe('ApplicationModal — JD preview', () => {
   it('renders HTML job description via dangerouslySetInnerHTML without React errors', async () => {
     const appWithHtml: Application = { ...existingApp, jd: '<p>Hello <strong>world</strong></p>' }
