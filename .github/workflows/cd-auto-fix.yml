@@ -139,6 +139,8 @@ jobs:
           - Do NOT run any git commands — just edit the files
           - Do NOT add code comments explaining what you changed
 
+          Next.js route constraint: Next.js route files (app/**/route.ts) only allow HTTP method exports (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS). Any other named export causes the "is not a valid Route export field" build error. If the fix requires extracting a helper function, put it in lib/ — never export it from the route file itself.
+
           After making the fix, write two output files:
 
           1. /tmp/summary.txt — a markdown summary with exactly these sections:
@@ -191,7 +193,8 @@ jobs:
           GH_PAT: ${{ secrets.GH_PAT }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
-          if [[ -z "$(git diff --name-only)" ]]; then
+          CHANGED_FILES=$({ git diff --name-only; git ls-files --others --exclude-standard; } || true)
+          if [[ -z "$CHANGED_FILES" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Claude analyzed the build failure but made no code changes. Manual investigation required."
             exit 0
@@ -199,7 +202,7 @@ jobs:
           ISSUE_TITLE=$(cat /tmp/issue_title.txt)
           RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
           RISK=${RISK:-high}
-          FILES_CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
+          FILES_CHANGED=$({ git diff --name-only; git ls-files --others --exclude-standard; } | wc -l | tr -d ' ')
           STATS=$(git diff --shortstat)
           INSERTIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
           DELETIONS=$(echo "$STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
@@ -226,12 +229,23 @@ jobs:
             --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
             --body-file /tmp/pr_body.txt \
             --base main)
-          GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
-          {
-            if [[ -s /tmp/summary.txt ]]; then
-              cat /tmp/summary.txt
-              echo ""
-            fi
-            echo "A fix has been proposed: $PR_URL — review before merging (merging triggers a new production deployment)."
-          } > /tmp/issue_comment.txt
+          if [[ "$RISK" == "low" ]]; then
+            GH_TOKEN="${GH_PAT}" gh pr merge "$PR_URL" --auto --squash --delete-branch
+            {
+              if [[ -s /tmp/summary.txt ]]; then
+                cat /tmp/summary.txt
+                echo ""
+              fi
+              echo "A low-risk fix has been proposed and auto-merge is enabled: $PR_URL — it will merge automatically once all CI checks pass."
+            } > /tmp/issue_comment.txt
+          else
+            GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
+            {
+              if [[ -s /tmp/summary.txt ]]; then
+                cat /tmp/summary.txt
+                echo ""
+              fi
+              echo "A fix has been proposed: $PR_URL — review before merging (merging triggers a new production deployment)."
+            } > /tmp/issue_comment.txt
+          fi
           gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
