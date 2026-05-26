@@ -617,6 +617,24 @@ describe('ApplicationModal — Import comparison', () => {
     expect(onClose).toHaveBeenCalled()
     expect(onSave).not.toHaveBeenCalled()
   })
+
+  it('import into empty JD (no comparison view) — Save saves the imported content', async () => {
+    // PATH A: when there is no existing JD the imported html goes directly into
+    // form.jd; no comparison view is shown. Verifies the save contract for this
+    // path — importedHtml is null here so savedForm must use form.jd correctly.
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    render(<ApplicationModal {...defaultProps} application={existingApp} onSave={onSave} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Import job description from URL' }))
+
+    const editor = await screen.findByRole('textbox', { name: 'Job description editor' })
+    expect(editor.innerHTML).toContain('New imported content')
+    expect(screen.queryByTestId('jd-comparison-view')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    expect(onSave.mock.calls[0][0].jd).toBe('<p>New imported content</p>')
+  })
 })
 
 describe('ApplicationModal — JD preview', () => {
