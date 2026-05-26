@@ -486,6 +486,7 @@ jobs:
               claude --dangerously-skip-permissions --max-turns "$max_turns" \
                 -p "$(cat "$prompt_file")" 2>&1 | tee /tmp/claude_output.txt
               CLAUDE_EXIT=${PIPESTATUS[0]}
+              echo ""
               set -eo pipefail
               if [[ $CLAUDE_EXIT -eq 0 ]]; then return 0; fi
               if grep -q "529\|Overloaded\|at capacity" /tmp/claude_output.txt && [[ $RETRY -lt 3 ]]; then
