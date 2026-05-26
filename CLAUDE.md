@@ -316,7 +316,8 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
   - If an issue with that title already exists: adds a **hit comment** (`Another deployment failure — commit \`<sha>\``) instead of opening a duplicate
   - If the issue is new: comments "build succeeds locally — manual investigation required; will auto-close on next successful deploy"
 - **Locally reproducible** (code bug): uses a commit-specific title `"CD failure: Production deployment of <sha7> failed"`, runs Claude with the build output, opens a PR — never pushes directly to main
-- Always opens a PR for code fixes (never direct-push to main) to prevent auto-merge from triggering another deployment before a human reviews
+  - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type / lint fix): enables auto-merge (`GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash`) — merges automatically once all required CI checks pass
+  - **High-risk fix**: opens a PR with "manual merge required" label — a human must approve and merge
 - **No infinite-fix loop**: fix PR pushes via `GITHUB_TOKEN` → Preview deployment; the Production filter ignores Preview failures
 - **Claude prompt is scoped to the error stack trace only** — Claude is explicitly told not to modify `.github/` files or make unrelated improvements. Without this constraint, Claude modifies workflow files (adding retry logic, etc.) instead of fixing the actual broken file.
 - **Safeguard step after Claude runs**: `git checkout origin/main -- .github/ 2>/dev/null || true` — reverts `.github/` to `origin/main` before committing the PR branch. This prevents Claude's workflow modifications from appearing in the PR even if it ignores the prompt constraint. Always revert to `origin/main`, not `HEAD`, because the checked-out SHA may have older workflow versions.
