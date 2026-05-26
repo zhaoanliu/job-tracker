@@ -150,6 +150,8 @@ jobs:
           List any decisions that require owner input before implementation begins. If none, write "None."
 
           Do not implement anything. Write only the design document.
+
+          Next.js route constraint: Next.js route files (app/**/route.ts) only allow HTTP method exports (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS). Any other named export causes a production build failure that tsc and ESLint do not catch. If the design requires a helper function that tests will import directly, that function must live in lib/ — never exported from the route file itself.
           EOF
 
       - name: Run Claude to generate design
@@ -359,6 +361,8 @@ jobs:
           Follow the project's existing patterns and conventions.
           Do NOT run any git commands — just edit the files.
           Do NOT add code comments explaining what you changed.
+
+          Next.js route constraint: Next.js route files (app/**/route.ts) only allow HTTP method exports (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS). Any other named export causes a production build failure that tsc and ESLint do not catch. If you need a helper function that tests will import directly, put it in lib/ — never export it from the route file itself.
 
           TESTS ARE REQUIRED. You must write tests for every new function and behaviour:
           - New API routes: add a test file under __tests__/app/api/ that mocks fetch and verifies the route logic (auth, error cases, happy path)
