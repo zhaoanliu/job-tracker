@@ -9,6 +9,7 @@ const baseApp: Application = {
   user_id: 'user-1',
   company: 'Acme Corp',
   role: 'Principal Engineer',
+  team: null,
   status: 'applied',
   type: 'Principal Engineer',
   priority: 'High',
@@ -57,6 +58,37 @@ describe('KanbanCard', () => {
   it('does not render role when null', () => {
     render(<KanbanCard application={{ ...baseApp, role: null, type: null }} onClick={vi.fn()} />)
     expect(screen.queryByText('Principal Engineer')).not.toBeInTheDocument()
+  })
+
+  it('renders the team when set', () => {
+    render(
+      <KanbanCard
+        application={{ ...baseApp, team: 'Platform Security' }}
+        onClick={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Platform Security')).toBeInTheDocument()
+  })
+
+  it('does not render team when null', () => {
+    const { container } = render(
+      <KanbanCard application={{ ...baseApp, team: null }} onClick={vi.fn()} />
+    )
+    expect(container.textContent).not.toContain('Platform Security')
+    const paragraphs = container.querySelectorAll('p')
+    paragraphs.forEach(p => {
+      expect(p.textContent).not.toBe('')
+    })
+  })
+
+  it('does not render team when empty string', () => {
+    const { container } = render(
+      <KanbanCard application={{ ...baseApp, team: '' }} onClick={vi.fn()} />
+    )
+    const paragraphs = container.querySelectorAll('p')
+    paragraphs.forEach(p => {
+      expect(p.textContent).not.toBe('')
+    })
   })
 
   it('calls onClick when the card is clicked', async () => {
