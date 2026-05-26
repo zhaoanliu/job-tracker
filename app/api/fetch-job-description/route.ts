@@ -212,3 +212,5 @@ export async function POST(req: NextRequest) {
     clearTimeout(timeout)
   }
 }
+
+export const tmpBadExport = 'draft-guard-test'
