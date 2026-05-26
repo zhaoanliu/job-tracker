@@ -7,6 +7,62 @@ const TIMEOUT_MS = 10_000
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
+// Greenhouse `content` field is HTML-entity-encoded after JSON.parse — decode once.
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&amp;/g, '&') // must be last
+}
+
+function buildGreenhouseMeta(data: Record<string, unknown>): string {
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const rows: Array<[string, string]> = []
+
+  const title = str(data.title)
+  const company = str(data.company_name)
+  const location =
+    data.location != null && typeof (data.location as Record<string, unknown>).name === 'string'
+      ? str((data.location as Record<string, unknown>).name)
+      : ''
+
+  if (company) rows.push(['Company', company])
+  if (location) rows.push(['Location', location])
+
+  if (!title && rows.length === 0) return ''
+
+  const header = title ? `<h1>${title}</h1>` : ''
+  if (rows.length === 0) return header
+
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  return `${header}<table>${tableRows}</table><hr>`
+}
+
+async function fetchGreenhouseJob(
+  board: string,
+  jobId: string,
+  signal: AbortSignal
+): Promise<string | null> {
+  try {
+    const apiRes = await fetch(
+      `https://boards-api.greenhouse.io/v1/boards/${board}/jobs/${jobId}`,
+      { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } }
+    )
+    if (!apiRes.ok) return null
+    const data = (await apiRes.json()) as Record<string, unknown>
+    if (typeof data?.content !== 'string' || !data.content.trim()) return null
+    const meta = buildGreenhouseMeta(data)
+    return meta + decodeHtmlEntities(data.content.trim())
+  } catch {
+    return null
+  }
+}
+
 function buildEightfoldMeta(data: Record<string, unknown>): string {
   const rows: Array<[string, string]> = []
 
@@ -102,6 +158,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Greenhouse ATS direct URLs (boards.greenhouse.io or job-boards.greenhouse.io)
+    const directGhMatch =
+      (parsed.hostname === 'boards.greenhouse.io' ||
+        parsed.hostname === 'job-boards.greenhouse.io') &&
+      parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\/jobs\/(\d+)$/)
+    if (directGhMatch) {
+      const ghHtml = await fetchGreenhouseJob(directGhMatch[1], directGhMatch[2], controller.signal)
+      if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
     const res = await fetch(parsed.toString(), {
       signal: controller.signal,
       headers: {
@@ -124,6 +191,16 @@ export async function POST(req: NextRequest) {
 
     const text = await res.text()
     const raw = text.length > MAX_BYTES ? text.slice(0, MAX_BYTES) : text
+
+    // Greenhouse ATS embedded in third-party pages (e.g. Scale.com) — page HTML
+    // contains a reference like greenhouse.io/{board}/jobs/{id}.
+    const embeddedGhMatch = raw.match(/\bgreenhouse\.io\/([A-Za-z0-9_-]+)\/jobs\/(\d+)/)
+    if (embeddedGhMatch) {
+      const ghHtml = await fetchGreenhouseJob(embeddedGhMatch[1], embeddedGhMatch[2], controller.signal)
+      if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to extractJobContent
+    }
+
     const html = extractJobContent(raw)
 
     return NextResponse.json({ html })
