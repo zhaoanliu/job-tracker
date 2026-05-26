@@ -176,6 +176,49 @@ The global Supabase mock in `vitest.setup.ts` is only for component rendering te
 
 **When a page makes multiple fetch calls, test mocks must route by URL.** If `mockFetch` returns the same data for every call, the same fixture appears in every rendered section and causes "Found multiple elements" errors. Route by URL parameter (e.g. `url.includes('labels=planned')`) so each section gets independent data. This applies any time you add a new fetch call to a page that already has tests.
 
+## ATS integrations (`app/api/fetch-job-description/route.ts`)
+
+The JD import route detects ATS-specific URL patterns and calls their public APIs to get structured job data, avoiding JS rendering. Each ATS block follows the same structure: detect URL → call API → build metadata header → return HTML. Falls back to generic HTML scraping on any API failure.
+
+**Adding a new ATS integration — checklist:**
+
+1. **Find the URL pattern and public API.** Look at what the job URL looks like (e.g. `jobs.lever.co/{company}/{uuid}`), then find the corresponding public API endpoint. Most ATS systems expose an unauthenticated JSON endpoint for individual job postings.
+
+2. **Fetch a real job response and save it as a fixture.** Before writing any code, call the real API and save the response:
+   ```bash
+   curl -s "https://<ats-api>/<job-id>" > __tests__/fixtures/<ats-name>-job.json
+   ```
+   Fixtures live in `__tests__/fixtures/`. They are static snapshots of the real API response — tests use them via `import fixture from '../fixtures/<name>.json'` and return them from `vi.fn().mockResolvedValue(jsonResponse(fixture))`. This means tests exercise the exact field shapes the real API returns, not hand-crafted approximations. If you can't get a real response (e.g. the API requires auth), document why in the test file and use a clearly-marked synthetic object.
+
+3. **Identify which fields to display.** Inspect the fixture to find the job title, location, team/department, work type, and description fields. Map them to rows in the metadata `<table>` header (follow the pattern in `buildGreenhouseMeta`, `buildLeverMeta`, `buildEightfoldMeta`).
+
+4. **Add detection + fetch function + meta builder** in `route.ts`, in the try block before the generic HTML fetch. The pattern:
+   - Match the URL pathname/hostname against the ATS pattern
+   - `try { fetch API → build meta + body HTML → return } catch { /* fall through */ }`
+   - Fall through to HTML scraping on any failure — never throw from an ATS block
+
+5. **Write tests using the real fixture.** Required test cases for every ATS:
+   - Happy path: API returns fixture → HTML contains title, key metadata fields, description content
+   - Non-2xx API response → falls back to HTML scraping
+   - API returns no description content → falls back to HTML scraping
+   - API throws → falls back to HTML scraping
+   - Non-matching URL → ATS API not called
+   - Any code path not covered by the real fixture (e.g. an optional field that is null in the real response but populated in some postings) → one synthetic test with a comment explaining why
+
+**ATS integrations already implemented:**
+
+| ATS | URL pattern | API | Fixture |
+|---|---|---|---|
+| Eightfold.ai | `{origin}/careers/job/{id}` | `{origin}/api/apply/v2/jobs/{id}` | `eightfold-microsoft-job.json` (Microsoft, job 1970393556868060) |
+| Greenhouse | `boards.greenhouse.io/{board}/jobs/{id}` or embedded ref in page HTML | `boards-api.greenhouse.io/v1/boards/{board}/jobs/{id}` | `greenhouse-scaleai-job.json` (Scale AI, job 4599700005) |
+| Lever | `jobs.lever.co/{company}/{uuid}` | `api.lever.co/v0/postings/{company}/{uuid}` | `lever-posting-no-lists.json`, `lever-posting-with-lists.json` (Mistral) |
+
+**ATS-specific gotchas learned:**
+- **Greenhouse**: `content` field is double HTML-entity-encoded after `JSON.parse` — `&lt;p&gt;` stays as-is after parse and must be decoded with `decodeHtmlEntities()` before returning.
+- **Eightfold**: The job URL ID (in the path) is a large ~16-digit integer internal ID (e.g. `1970393556868060`), not the human-readable `display_job_id` (e.g. `200037915`). `work_location_option` can be `null` on some postings. `locations` array often includes "Multiple Locations" entries that should be filtered out.
+- **Lever**: Content is split across `opening`, `description`, `lists` (array of `{text, content}` sections), and `additional` — all must be concatenated. Not all fields are populated on every posting.
+- **Finding real job URLs for testing**: For Lever, `api.lever.co/v0/postings/{company}?mode=json&limit=5` returns a list — find one with `lists` populated for full coverage. For Greenhouse, the board API is public. For Eightfold, the individual job API (`{origin}/api/apply/v2/jobs/{id}`) is public but the search API is auth-gated — the 16-digit internal ID cannot be derived without a real job URL. **If you cannot locate a live URL for any ATS, stop and ask the user — do not use a fake ID, do not ship hand-crafted mock data, and do not document "fixture not possible" and move on.** The user can supply a URL in seconds; silently skipping the fixture defeats the whole point of the pattern.
+
 ## Auto-fix pipeline
 
 When a Sentry alert fires:
