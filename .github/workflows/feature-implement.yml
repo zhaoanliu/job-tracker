@@ -379,6 +379,10 @@ jobs:
           One sentence describing what tests cover the new behaviour.
           EOF
 
+      - name: Install dependencies
+        if: steps.pr_check.outputs.skip != 'true'
+        run: npm ci
+
       - name: Run Claude Code
         if: steps.pr_check.outputs.skip != 'true'
         env:
@@ -419,7 +423,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npm ci --prefer-offline
+          npm ci
           FAILURES=""
           npm run lint        || FAILURES="${FAILURES} lint"
           npx tsc --noEmit    || FAILURES="${FAILURES} tsc"
