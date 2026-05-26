@@ -239,11 +239,11 @@ describe('POST /api/fetch-job-description', () => {
       const apiData = {
         name: 'Principal Data Scientist',
         display_job_id: '200037915',
-        t_create: '2026-05-20T00:00:00Z',
-        locations: ['United States, Washington, Redmond'],
+        t_create: 1747699200,
+        locations: ['United States, Multiple Locations', 'United States, Washington, Redmond'],
         work_location_option: '0 days/week remote',
-        type: 'Full-Time',
-        department: 'Research/Applied/Data Sciences',
+        department: 'Data Science',
+        business_unit: 'Research',
         job_description: '<b>Overview</b><p>Great role.</p>',
       }
       const fetchMock = vi.fn().mockImplementation((url: string) => {
@@ -258,7 +258,9 @@ describe('POST /api/fetch-job-description', () => {
       const data = await res.json()
       expect(data.html).toContain('<h1>Principal Data Scientist</h1>')
       expect(data.html).toContain('200037915')
-      expect(data.html).toContain('Full-Time')
+      expect(data.html).toContain('Data Science')
+      expect(data.html).toContain('Washington, Redmond')
+      expect(data.html).not.toContain('Multiple Locations')
       expect(data.html).toContain('<b>Overview</b>')
       // Eightfold API hit first, HTML scraping not used
       expect(fetchMock).toHaveBeenCalledWith(EIGHTFOLD_API, expect.anything())

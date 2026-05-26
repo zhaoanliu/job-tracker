@@ -16,16 +16,23 @@ function buildEightfoldMeta(data: Record<string, unknown>): string {
   const jobId = str(data.display_job_id)
   const location =
     Array.isArray(data.locations) && data.locations.length > 0
-      ? (data.locations as unknown[]).map((l) => str(l)).filter(Boolean).join(', ')
+      ? (data.locations as unknown[])
+          .map((l) => str(l))
+          .filter((l) => l && !l.toLowerCase().includes('multiple locations'))
+          .join(', ')
       : str(data.location)
   const workSite = str(data.work_location_option)
-  const employmentType = str(data.type)
   const department = str(data.department)
+  const businessUnit = str(data.business_unit)
   const travel = str(data.travel_required)
 
   let datePosted = ''
-  if (typeof data.t_create === 'string') {
-    const d = new Date(data.t_create)
+  const tc = data.t_create
+  if (typeof tc === 'number' && tc > 0) {
+    const d = new Date(tc * 1000)
+    if (!isNaN(d.getTime())) datePosted = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  } else if (typeof tc === 'string') {
+    const d = new Date(tc)
     if (!isNaN(d.getTime())) datePosted = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   }
 
@@ -34,8 +41,8 @@ function buildEightfoldMeta(data: Record<string, unknown>): string {
   if (location) rows.push(['Location', location])
   if (workSite) rows.push(['Work site', workSite])
   if (travel) rows.push(['Travel', travel])
-  if (department) rows.push(['Profession', department])
-  if (employmentType) rows.push(['Employment type', employmentType])
+  if (department) rows.push(['Department', department])
+  if (businessUnit) rows.push(['Business unit', businessUnit])
 
   if (!title && rows.length === 0) return ''
 
