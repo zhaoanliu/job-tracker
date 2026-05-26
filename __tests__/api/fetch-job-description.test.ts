@@ -8,7 +8,8 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
-import { POST, extractJobContent } from '@/app/api/fetch-job-description/route'
+import { POST } from '@/app/api/fetch-job-description/route'
+import { extractJobContent } from '@/lib/extract-job-content'
 import { createClient } from '@/lib/supabase/server'
 
 function makeReq(body: unknown) {
