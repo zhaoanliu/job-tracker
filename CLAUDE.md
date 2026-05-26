@@ -172,6 +172,8 @@ The global Supabase mock in `vitest.setup.ts` is only for component rendering te
 
 **`coverage/` and `test-results/` are generated output — never commit them.** Both directories are in `.gitignore`. The ci-auto-fix bot runs `npm run test:coverage` to verify its fixes; any unignored generated file gets swept into the commit. If either directory ever appears in `git status`, it means `.gitignore` is missing an entry.
 
+**Next.js route files only allow HTTP method exports.** Any named export other than `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS` causes a build error ("is not a valid Route export field") that `tsc --noEmit` and ESLint do not catch — it only surfaces at `next build`. If a route helper needs to be tested directly, move it to `lib/` and import it from there; never export it from the route file itself.
+
 **When a page makes multiple fetch calls, test mocks must route by URL.** If `mockFetch` returns the same data for every call, the same fixture appears in every rendered section and causes "Found multiple elements" errors. Route by URL parameter (e.g. `url.includes('labels=planned')`) so each section gets independent data. This applies any time you add a new fetch call to a page that already has tests.
 
 ## Auto-fix pipeline
