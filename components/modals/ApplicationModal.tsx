@@ -28,6 +28,7 @@ interface ApplicationModalProps {
 const EMPTY_FORM: ApplicationFormData = {
   company: '',
   role: null,
+  team: null,
   status: 'future',
   type: null,
   priority: 'Medium',
@@ -57,6 +58,7 @@ export default function ApplicationModal({
       ? {
           company: application.company ?? '',
           role: application.role,
+          team: application.team,
           status: application.status,
           type: application.type,
           priority: application.priority,

@@ -11,6 +11,7 @@ interface ApplicationRow {
   user_id: string
   company: string
   role: string | null
+  team: string | null
   status: string
   type: string | null
   priority: string
