@@ -7,6 +7,85 @@ const TIMEOUT_MS = 10_000
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
+function buildWorkdayMeta(ld: Record<string, unknown>): string {
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const rows: Array<[string, string]> = []
+
+  const title = str(ld.title)
+
+  const jobLocationRaw = ld.jobLocation
+  let location = ''
+  if (jobLocationRaw != null && typeof jobLocationRaw === 'object') {
+    const addr = (jobLocationRaw as Record<string, unknown>).address
+    if (addr != null && typeof addr === 'object') {
+      const a = addr as Record<string, unknown>
+      location = [str(a.addressLocality), str(a.addressCountry)].filter(Boolean).join(', ')
+    }
+  }
+
+  const identifierRaw = ld.identifier
+  let jobId = ''
+  if (identifierRaw != null && typeof identifierRaw === 'object') {
+    jobId = str((identifierRaw as Record<string, unknown>).value)
+  }
+
+  const datePosted = str(ld.datePosted)
+
+  const employmentTypeRaw = str(ld.employmentType)
+  const employmentType = employmentTypeRaw
+    ? employmentTypeRaw.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
+    : ''
+
+  const hiringOrgRaw = ld.hiringOrganization
+  let company = ''
+  if (hiringOrgRaw != null && typeof hiringOrgRaw === 'object') {
+    company = str((hiringOrgRaw as Record<string, unknown>).name)
+  }
+
+  if (jobId) rows.push(['Job ID', jobId])
+  if (datePosted) rows.push(['Date posted', datePosted])
+  if (location) rows.push(['Location', location])
+  if (employmentType) rows.push(['Employment type', employmentType])
+  if (company) rows.push(['Company', company])
+
+  if (!title && rows.length === 0) return ''
+
+  const header = title ? `<h1>${title}</h1>` : ''
+  if (rows.length === 0) return header
+
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  return `${header}<table>${tableRows}</table><hr>`
+}
+
+// Parse JSON-LD JobPosting from page HTML and prepend a structured metadata header.
+// Used for Workday: the CXS API requires browser cookies; JSON-LD is publicly available.
+function extractWorkdayFromPage(html: string): string | null {
+  const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let match: RegExpExecArray | null
+  while ((match = jsonLdRegex.exec(html)) !== null) {
+    try {
+      const data: unknown = JSON.parse(match[1])
+      const items = Array.isArray(data) ? data : [data]
+      for (const item of items) {
+        if (
+          item !== null &&
+          typeof item === 'object' &&
+          (item as Record<string, unknown>)['@type'] === 'JobPosting' &&
+          typeof (item as Record<string, unknown>).description === 'string' &&
+          ((item as Record<string, unknown>).description as string).trim()
+        ) {
+          const ld = item as Record<string, unknown>
+          const meta = buildWorkdayMeta(ld)
+          return meta + (ld.description as string).trim()
+        }
+      }
+    } catch {
+      // invalid JSON-LD block — try next script tag
+    }
+  }
+  return null
+}
+
 // Greenhouse `content` field is HTML-entity-encoded after JSON.parse — decode once.
 function decodeHtmlEntities(s: string): string {
   return s
@@ -199,6 +278,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
   }
 
+  const isWorkdayJob =
+    /^[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com$/.test(parsed.hostname) &&
+    parsed.pathname.includes('/job/')
+
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
@@ -270,6 +353,14 @@ export async function POST(req: NextRequest) {
 
     const text = await res.text()
     const raw = text.length > MAX_BYTES ? text.slice(0, MAX_BYTES) : text
+
+    // Workday ATS — extract structured metadata from JSON-LD embedded in page HTML.
+    // The Workday CXS API requires browser session cookies; JSON-LD is publicly available.
+    if (isWorkdayJob) {
+      const workdayHtml = extractWorkdayFromPage(raw)
+      if (workdayHtml !== null) return NextResponse.json({ html: workdayHtml })
+      // No usable JSON-LD — fall through to extractJobContent
+    }
 
     // Greenhouse ATS embedded in third-party pages (e.g. Scale.com) — page HTML
     // contains a reference like greenhouse.io/{board}/jobs/{id}.

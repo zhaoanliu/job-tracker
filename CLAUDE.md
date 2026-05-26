@@ -182,42 +182,85 @@ The JD import route detects ATS-specific URL patterns and calls their public API
 
 **Adding a new ATS integration — checklist:**
 
-1. **Find the URL pattern and public API.** Look at what the job URL looks like (e.g. `jobs.lever.co/{company}/{uuid}`), then find the corresponding public API endpoint. Most ATS systems expose an unauthenticated JSON endpoint for individual job postings.
+1. **Find the URL pattern and data source.** Look at what the job URL looks like, then find where structured data lives:
+   - **Preferred**: a public unauthenticated JSON API endpoint (Greenhouse, Lever, Eightfold pattern)
+   - **Fallback**: JSON-LD `JobPosting` schema embedded in the page HTML (Workday pattern — use when the API requires browser session cookies or auth)
+   - Test server-side reachability with `curl` before committing to an API approach — a 401/403/406 means the API is browser-gated and you need the HTML fallback instead
 
-2. **Fetch a real job response and save it as a fixture.** Before writing any code, call the real API and save the response:
+2. **Fetch real data and write the fixture file first — before touching route.ts or the test file.**
+
+   For a JSON API:
    ```bash
    curl -s "https://<ats-api>/<job-id>" > __tests__/fixtures/<ats-name>-job.json
    ```
-   Fixtures live in `__tests__/fixtures/`. They are static snapshots of the real API response — tests use them via `import fixture from '../fixtures/<name>.json'` and return them from `vi.fn().mockResolvedValue(jsonResponse(fixture))`. This means tests exercise the exact field shapes the real API returns, not hand-crafted approximations. If you can't get a real response (e.g. the API requires auth), document why in the test file and use a clearly-marked synthetic object.
 
-3. **Identify which fields to display.** Inspect the fixture to find the job title, location, team/department, work type, and description fields. Map them to rows in the metadata `<table>` header (follow the pattern in `buildGreenhouseMeta`, `buildLeverMeta`, `buildEightfoldMeta`).
+   For HTML-embedded JSON-LD (Workday pattern):
+   ```bash
+   # Fetch the page, extract the JSON-LD block, save as the fixture object
+   curl -s "https://<job-url>" | python3 -c "
+   import sys, re, json
+   html = sys.stdin.read()
+   m = re.search(r'<script[^>]*type=[\"\\']application/ld\+json[\"\\'][^>]*>(.*?)</script>', html, re.DOTALL)
+   items = json.loads(m.group(1))
+   items = items if isinstance(items, list) else [items]
+   jp = next(i for i in items if i.get('@type') == 'JobPosting')
+   print(json.dumps(jp, indent=2))
+   " > __tests__/fixtures/<ats-name>-job.json
+   ```
 
-4. **Add detection + fetch function + meta builder** in `route.ts`, in the try block before the generic HTML fetch. The pattern:
-   - Match the URL pathname/hostname against the ATS pattern
-   - `try { fetch API → build meta + body HTML → return } catch { /* fall through */ }`
+   **The fixture file must exist and be committed before the test file references it.** Never write the test first and fill in the data later — the fixture is the ground truth that shapes the assertions.
+
+3. **Identify which fields to display.** Read the fixture to find job title, location, team/department, work type, and description fields. Map them to rows in the metadata `<table>` header (follow the pattern in `buildGreenhouseMeta`, `buildLeverMeta`, `buildEightfoldMeta`, `buildWorkdayMeta`).
+
+4. **Add detection + data extraction + meta builder** in `route.ts`:
+   - For JSON API ATS: add the handler block before the generic HTML fetch. Pattern: match URL → `try { fetch API → build meta + body → return } catch { /* fall through */ }`
+   - For HTML JSON-LD ATS (Workday): detect the hostname before the fetch, fetch the page normally, then parse the JSON-LD from the HTML after the fetch. Pattern: `if (isTargetATS) { const result = extractFromPage(raw); if (result) return result }` — placed after `raw` is populated, before `extractJobContent`.
    - Fall through to HTML scraping on any failure — never throw from an ATS block
 
-5. **Write tests using the real fixture.** Required test cases for every ATS:
-   - Happy path: API returns fixture → HTML contains title, key metadata fields, description content
-   - Non-2xx API response → falls back to HTML scraping
-   - API returns no description content → falls back to HTML scraping
-   - API throws → falls back to HTML scraping
-   - Non-matching URL → ATS API not called
-   - Any code path not covered by the real fixture (e.g. an optional field that is null in the real response but populated in some postings) → one synthetic test with a comment explaining why
+5. **Write tests that import from the fixture file.** Tests must use `import fixture from '../fixtures/<name>.json'` — never inline the fixture data as a literal object in the test. Inlining defeats the purpose: it only tests shapes you invented, not shapes the real API actually returns.
+
+   For JSON API fixtures:
+   ```typescript
+   import myAtsJob from '../fixtures/myats-job.json'
+   // ...
+   const fetchMock = vi.fn().mockImplementation((url: string) => {
+     if (url === MY_ATS_API_URL) return Promise.resolve(jsonResponse(myAtsJob))
+     return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+   })
+   ```
+
+   For HTML JSON-LD fixtures (Workday pattern):
+   ```typescript
+   import workdayAdobeJob from '../fixtures/workday-adobe-job.json'
+   function workdayPage(ld: object): string {
+     return `<html><head><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body></body></html>`
+   }
+   // ...
+   const fetchMock = vi.fn().mockResolvedValue(htmlResponse(workdayPage(workdayAdobeJob)))
+   ```
+
+   Required test cases for every ATS:
+   - Happy path: data source returns fixture → HTML contains title, key metadata fields, description content (assert against values present in the real fixture, not invented strings)
+   - Non-2xx / API throws → falls back to HTML scraping
+   - Missing description field → falls back to HTML scraping
+   - Non-matching URL → handler not triggered (fetch call count = 1)
+   - Any optional field absent in the real fixture but possible in practice → one synthetic test with a `// Synthetic:` comment explaining why
 
 **ATS integrations already implemented:**
 
-| ATS | URL pattern | API | Fixture |
+| ATS | URL pattern | Data source | Fixture |
 |---|---|---|---|
-| Eightfold.ai | `{origin}/careers/job/{id}` | `{origin}/api/apply/v2/jobs/{id}` | `eightfold-microsoft-job.json` (Microsoft, job 1970393556868060) |
-| Greenhouse | `boards.greenhouse.io/{board}/jobs/{id}` or embedded ref in page HTML | `boards-api.greenhouse.io/v1/boards/{board}/jobs/{id}` | `greenhouse-scaleai-job.json` (Scale AI, job 4599700005) |
-| Lever | `jobs.lever.co/{company}/{uuid}` | `api.lever.co/v0/postings/{company}/{uuid}` | `lever-posting-no-lists.json`, `lever-posting-with-lists.json` (Mistral) |
+| Eightfold.ai | `{origin}/careers/job/{id}` | `{origin}/api/apply/v2/jobs/{id}` (JSON API) | `eightfold-microsoft-job.json` (Microsoft, job 1970393556868060) |
+| Greenhouse | `boards.greenhouse.io/{board}/jobs/{id}` or embedded ref in page HTML | `boards-api.greenhouse.io/v1/boards/{board}/jobs/{id}` (JSON API) | `greenhouse-scaleai-job.json` (Scale AI, job 4599700005) |
+| Lever | `jobs.lever.co/{company}/{uuid}` | `api.lever.co/v0/postings/{company}/{uuid}` (JSON API) | `lever-posting-no-lists.json`, `lever-posting-with-lists.json` (Mistral) |
+| Workday | `{tenant}.wd{N}.myworkdayjobs.com/…/job/…` | JSON-LD `JobPosting` block embedded in page HTML (CXS API requires browser cookies) | `workday-adobe-job.json` (Adobe, R168193) |
 
 **ATS-specific gotchas learned:**
 - **Greenhouse**: `content` field is double HTML-entity-encoded after `JSON.parse` — `&lt;p&gt;` stays as-is after parse and must be decoded with `decodeHtmlEntities()` before returning.
 - **Eightfold**: The job URL ID (in the path) is a large ~16-digit integer internal ID (e.g. `1970393556868060`), not the human-readable `display_job_id` (e.g. `200037915`). `work_location_option` can be `null` on some postings. `locations` array often includes "Multiple Locations" entries that should be filtered out.
 - **Lever**: Content is split across `opening`, `description`, `lists` (array of `{text, content}` sections), and `additional` — all must be concatenated. Not all fields are populated on every posting.
-- **Finding real job URLs for testing**: For Lever, `api.lever.co/v0/postings/{company}?mode=json&limit=5` returns a list — find one with `lists` populated for full coverage. For Greenhouse, the board API is public. For Eightfold, the individual job API (`{origin}/api/apply/v2/jobs/{id}`) is public but the search API is auth-gated — the 16-digit internal ID cannot be derived without a real job URL. **If you cannot locate a live URL for any ATS, stop and ask the user — do not use a fake ID, do not ship hand-crafted mock data, and do not document "fixture not possible" and move on.** The user can supply a URL in seconds; silently skipping the fixture defeats the whole point of the pattern.
+- **Workday**: The CXS API (`/wday/cxs/{tenant}/{site}/jobs/{id}`) returns HTTP 406 from server-side requests — it requires browser session cookies. Use the JSON-LD `JobPosting` schema embedded in the page HTML instead (`extractWorkdayFromPage`). The fixture is the JSON-LD object (not a raw API response); wrap it in a minimal HTML page via `workdayPage(ld)` in the test. The description field in Workday JSON-LD is plain text (not HTML), unlike the other ATS handlers which return HTML bodies.
+- **Finding real job URLs for testing**: For Lever, `api.lever.co/v0/postings/{company}?mode=json&limit=5` returns a list — find one with `lists` populated for full coverage. For Greenhouse, the board API is public. For Eightfold, the individual job API (`{origin}/api/apply/v2/jobs/{id}`) is public but the search API is auth-gated — the 16-digit internal ID cannot be derived without a real job URL. For Workday, the search API (`POST /wday/cxs/{tenant}/{site}/jobs`) works with `{"appliedFacets":{},"limit":1,"offset":0,"searchText":""}` — fetch a job's `externalPath`, then load the page HTML and capture the JSON-LD block. **If you cannot locate a live URL for any ATS, stop and ask the user — do not use a fake ID, do not ship hand-crafted mock data, and do not document "fixture not possible" and move on.** The user can supply a URL in seconds; silently skipping the fixture defeats the whole point of the pattern.
 
 ## Auto-fix pipeline
 

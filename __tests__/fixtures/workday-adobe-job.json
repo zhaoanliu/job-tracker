@@ -1,0 +1,25 @@
+{
+  "@type": "JobPosting",
+  "title": "Senior Software Engineer",
+  "description": "EMPLOYEE ROLE Individual Contributor About the Role  We are seeking a highly motivated Senior Software Engineer to join the new Project Graph team at Adobe.  Project Graph is a new creative system that lets you combine first and third-party AI models, Adobe tools, and custom interactive components inside a visual, designer-friendly node graph editor. In this position, you will play a key role in designing and delivering developer-focused features of the Project Graph platform.",
+  "datePosted": "2026-05-26",
+  "employmentType": "FULL_TIME",
+  "jobLocation": {
+    "@type": "Place",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "San Francisco",
+      "addressCountry": "United States of America"
+    }
+  },
+  "hiringOrganization": {
+    "@type": "Organization",
+    "name": "ADUS-Adobe Inc.",
+    "sameAs": ""
+  },
+  "identifier": {
+    "@type": "PropertyValue",
+    "name": "Senior Software Engineer",
+    "value": "R168193"
+  }
+}
