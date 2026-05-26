@@ -1,3 +1,15 @@
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&amp;/g, '&') // must be last
+}
+
 // Extract meaningful job description content from raw page HTML.
 // Priority: JSON-LD JobPosting → meta description → body HTML (scripts/styles stripped).
 export function extractJobContent(html: string): string {
@@ -16,7 +28,8 @@ export function extractJobContent(html: string): string {
           typeof (item as Record<string, unknown>).description === 'string' &&
           ((item as Record<string, unknown>).description as string).trim()
         ) {
-          return ((item as Record<string, unknown>).description as string).trim()
+          // Some sites (e.g. Uber) HTML-entity-encode the description inside JSON-LD
+          return decodeHtmlEntities(((item as Record<string, unknown>).description as string).trim())
         }
       }
     } catch {

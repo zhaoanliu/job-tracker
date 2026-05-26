@@ -83,6 +83,15 @@ describe('extractJobContent', () => {
     expect(extractJobContent(html)).toBe('Array-wrapped desc.')
   })
 
+  it('decodes HTML-entity-encoded description in JSON-LD (e.g. Uber)', () => {
+    const html = `<html><head>
+      <script type="application/ld+json">{"@type":"JobPosting","description":"&lt;p&gt;&lt;strong&gt;About the Role&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;You&#39;ll build great things &amp; more.&lt;/p&gt;"}</script>
+    </head><body></body></html>`
+    expect(extractJobContent(html)).toBe(
+      "<p><strong>About the Role</strong></p><p>You'll build great things & more.</p>"
+    )
+  })
+
   it('skips invalid JSON-LD and falls back to meta description', () => {
     const html = `<html><head>
       <script type="application/ld+json">not valid json</script>
