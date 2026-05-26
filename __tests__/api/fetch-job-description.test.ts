@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import leverNoLists from '../fixtures/lever-posting-no-lists.json'
+import leverWithLists from '../fixtures/lever-posting-with-lists.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -466,28 +468,22 @@ describe('POST /api/fetch-job-description', () => {
   })
 
   describe('Lever ATS (jobs.lever.co)', () => {
-    const LEVER_URL = 'https://jobs.lever.co/mistral/618c9763-cb22-4343-baca-cf1cf6b05f5c'
-    const LEVER_API = 'https://api.lever.co/v0/postings/mistral/618c9763-cb22-4343-baca-cf1cf6b05f5c'
+    // Real URLs from the Lever API — used as routing keys in fetch mocks, not called live in tests
+    const LEVER_URL_NO_LISTS = 'https://jobs.lever.co/mistral/618c9763-cb22-4343-baca-cf1cf6b05f5c'
+    const LEVER_API_NO_LISTS = 'https://api.lever.co/v0/postings/mistral/618c9763-cb22-4343-baca-cf1cf6b05f5c'
+    const LEVER_URL_WITH_LISTS = 'https://jobs.lever.co/mistral/3e8b03e7-ff33-4cd1-8042-90b7ac3c4683'
+    const LEVER_API_WITH_LISTS = 'https://api.lever.co/v0/postings/mistral/3e8b03e7-ff33-4cd1-8042-90b7ac3c4683'
 
-    const apiData = {
-      text: 'Account Executive, Digital Native US',
-      categories: { location: 'Palo Alto', team: 'Business', allLocations: ['Palo Alto'] },
-      workplaceType: 'hybrid',
-      opening: '',
-      description: '<div><p>About Mistral</p></div>',
-      additional: '',
-      lists: [],
-    }
-
-    it('uses Lever API and prepends metadata header', async () => {
+    it('uses Lever API and prepends metadata header — real API fixture (no lists)', async () => {
+      // leverNoLists is a snapshot of the real api.lever.co response for this posting
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === LEVER_API) return Promise.resolve(jsonResponse(apiData))
+        if (url === LEVER_API_NO_LISTS) return Promise.resolve(jsonResponse(leverNoLists))
         return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
 
-      const res = await POST(makeReq({ url: LEVER_URL }))
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
 
       expect(res.status).toBe(200)
       const data = await res.json()
@@ -495,62 +491,58 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toContain('Business')
       expect(data.html).toContain('Palo Alto')
       expect(data.html).toContain('hybrid')
-      expect(data.html).toContain('<p>About Mistral</p>')
+      // Real description content from the fixture
+      expect(data.html).toContain('About Mistral')
       // Only one fetch — no HTML scraping
       expect(fetchMock).toHaveBeenCalledTimes(1)
-      expect(fetchMock).toHaveBeenCalledWith(LEVER_API, expect.anything())
+      expect(fetchMock).toHaveBeenCalledWith(LEVER_API_NO_LISTS, expect.anything())
     })
 
-    it('includes lists sections when present', async () => {
+    it('renders lists and opening sections — real API fixture (with lists + opening)', async () => {
+      // leverWithLists has opening: "<div>About Mistral...</div>" and lists: [{ text: "What we offer", content: "..." }]
       mockUser()
-      const withLists = {
-        ...apiData,
-        description: '<p>Intro text</p>',
-        lists: [
-          { text: 'Responsibilities', content: '<li>Sell stuff</li>' },
-          { text: 'Requirements', content: '<li>5+ years</li>' },
-        ],
-      }
-      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(withLists))
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LEVER_API_WITH_LISTS) return Promise.resolve(jsonResponse(leverWithLists))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
       vi.stubGlobal('fetch', fetchMock)
 
-      const res = await POST(makeReq({ url: LEVER_URL }))
+      const res = await POST(makeReq({ url: LEVER_URL_WITH_LISTS }))
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<h3>Responsibilities</h3>')
-      expect(data.html).toContain('<li>Sell stuff</li>')
-      expect(data.html).toContain('<h3>Requirements</h3>')
-      expect(data.html).toContain('<li>5+ years</li>')
+      expect(data.html).toContain('<h1>AI Developer Advocate - Singapore</h1>')
+      // Opening section from real fixture
+      expect(data.html).toContain('About Mistral')
+      // List section header from real fixture
+      expect(data.html).toContain('<h3>What we offer</h3>')
+      // List content from real fixture
+      expect(data.html).toContain('Competitive cash salary')
     })
 
-    it('includes opening and additional when present', async () => {
+    it('includes additional field when present', async () => {
+      // No real fixture has additional populated; test the code path with minimal synthetic data
       mockUser()
-      const withOpeningAdditional = {
-        ...apiData,
-        opening: '<p>Exciting opportunity</p>',
-        additional: '<p>We are an equal opportunity employer</p>',
-      }
-      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(withOpeningAdditional))
+      const withAdditional = { ...leverNoLists, additional: '<p>Equal opportunity employer</p>' }
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(withAdditional))
       vi.stubGlobal('fetch', fetchMock)
 
-      const res = await POST(makeReq({ url: LEVER_URL }))
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
 
       expect(res.status).toBe(200)
       const data = await res.json()
-      expect(data.html).toContain('<p>Exciting opportunity</p>')
-      expect(data.html).toContain('<p>We are an equal opportunity employer</p>')
+      expect(data.html).toContain('<p>Equal opportunity employer</p>')
     })
 
     it('falls back to HTML scraping when Lever API returns non-2xx', async () => {
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === LEVER_API) return Promise.resolve(jsonResponse({}, 404))
+        if (url === LEVER_API_NO_LISTS) return Promise.resolve(jsonResponse({}, 404))
         return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
 
-      const res = await POST(makeReq({ url: LEVER_URL }))
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
 
       expect(res.status).toBe(200)
       const data = await res.json()
@@ -560,12 +552,12 @@ describe('POST /api/fetch-job-description', () => {
     it('falls back to HTML scraping when Lever API has no body content', async () => {
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === LEVER_API) return Promise.resolve(jsonResponse({ text: 'Engineer' }))
+        if (url === LEVER_API_NO_LISTS) return Promise.resolve(jsonResponse({ text: 'Engineer' }))
         return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
 
-      const res = await POST(makeReq({ url: LEVER_URL }))
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
 
       expect(res.status).toBe(200)
       const data = await res.json()
@@ -575,12 +567,12 @@ describe('POST /api/fetch-job-description', () => {
     it('falls back to HTML scraping when Lever API throws', async () => {
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
-        if (url === LEVER_API) return Promise.reject(new Error('network error'))
+        if (url === LEVER_API_NO_LISTS) return Promise.reject(new Error('network error'))
         return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
       })
       vi.stubGlobal('fetch', fetchMock)
 
-      const res = await POST(makeReq({ url: LEVER_URL }))
+      const res = await POST(makeReq({ url: LEVER_URL_NO_LISTS }))
 
       expect(res.status).toBe(200)
       const data = await res.json()
