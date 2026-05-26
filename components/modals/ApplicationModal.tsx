@@ -80,6 +80,14 @@ export default function ApplicationModal({
   const [section, setSection] = useState<Section>('details')
   const [jdPreview, setJdPreview] = useState(false)
   const [history, setHistory] = useState<StatusHistoryEntry[]>([])
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importCompare, setImportCompare] = useState<{
+    original: string | null
+    imported: string
+    view: 'original' | 'imported'
+  } | null>(null)
+  const [jdEditorKey, setJdEditorKey] = useState(0)
 
   const firstInputRef = useRef<HTMLInputElement>(null)
 
@@ -112,6 +120,73 @@ export default function ApplicationModal({
 
   function set<K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) {
     setForm(f => ({ ...f, [key]: value }))
+  }
+
+  function discardImportCompare() {
+    if (!importCompare) return
+    set('jd', importCompare.original)
+    setImportCompare(null)
+    setJdEditorKey(k => k + 1)
+  }
+
+  useEffect(() => {
+    if (importCompare && section !== 'jd') discardImportCompare()
+  }, [section, importCompare])
+
+  async function handleImport() {
+    if (!form.link || importing) return
+    setImporting(true)
+    setImportError(null)
+    try {
+      const res = await fetch('/api/fetch-job-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: form.link }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.error || `Import failed (${res.status})`)
+      }
+      const imported = (data?.html ?? '') as string
+      const original = form.jd
+      const originalEmpty = !original || !original.trim()
+      setSection('jd')
+      if (originalEmpty) {
+        set('jd', imported)
+        setImportCompare(null)
+      } else {
+        setImportCompare({ original, imported, view: 'imported' })
+        set('jd', imported)
+      }
+      setJdEditorKey(k => k + 1)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch job description'
+      console.error('Import job description failed:', message, err)
+      setImportError(message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  function selectCompareView(view: 'original' | 'imported') {
+    if (!importCompare) return
+    setImportCompare({ ...importCompare, view })
+    set('jd', view === 'original' ? importCompare.original : importCompare.imported)
+    setJdEditorKey(k => k + 1)
+  }
+
+  function commitImported() {
+    if (!importCompare) return
+    set('jd', importCompare.imported)
+    setImportCompare(null)
+    setJdEditorKey(k => k + 1)
+  }
+
+  function keepOriginal() {
+    if (!importCompare) return
+    set('jd', importCompare.original)
+    setImportCompare(null)
+    setJdEditorKey(k => k + 1)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -346,7 +421,32 @@ export default function ApplicationModal({
                           <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </button>
+                      {form.link && (
+                        <button
+                          type="button"
+                          onClick={handleImport}
+                          disabled={importing}
+                          aria-label="Import job description from URL"
+                          title="Import job description from URL"
+                          className="flex-shrink-0 rounded-lg border border-slate-300 px-2.5 flex items-center justify-center text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium gap-1"
+                        >
+                          {importing ? (
+                            <>
+                              <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                                <path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                              </svg>
+                              <span>Importing…</span>
+                            </>
+                          ) : (
+                            <span>Import</span>
+                          )}
+                        </button>
+                      )}
                     </div>
+                    {importError && (
+                      <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{importError}</p>
+                    )}
                   </div>
                 </div>
 
@@ -391,6 +491,46 @@ export default function ApplicationModal({
 
             {section === 'jd' && (
               <div className="space-y-2">
+                {importCompare && (
+                  <div
+                    role="region"
+                    aria-label="Compare imported and original job descriptions"
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1.5"
+                  >
+                    <div className="flex rounded-md border border-indigo-200 dark:border-indigo-700 overflow-hidden text-[11px] font-medium">
+                      <button
+                        type="button"
+                        onClick={() => selectCompareView('original')}
+                        className={`px-2.5 py-0.5 transition-colors ${importCompare.view === 'original' ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'}`}
+                      >
+                        Original
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => selectCompareView('imported')}
+                        className={`px-2.5 py-0.5 transition-colors ${importCompare.view === 'imported' ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'}`}
+                      >
+                        Imported
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={keepOriginal}
+                        className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        Keep Original
+                      </button>
+                      <button
+                        type="button"
+                        onClick={commitImported}
+                        className="rounded-md bg-indigo-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-700 transition-colors"
+                      >
+                        Use Imported
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <label className={labelClass}>Job Description</label>
                   <div className="flex rounded-md border border-slate-200 dark:border-slate-600 overflow-hidden text-[11px] font-medium">
@@ -425,6 +565,7 @@ export default function ApplicationModal({
                   )
                 ) : (
                   <RichTextEditor
+                    key={jdEditorKey}
                     value={form.jd ?? ''}
                     onChange={html => set('jd', html || null)}
                     placeholder="Paste the full job description here…"
