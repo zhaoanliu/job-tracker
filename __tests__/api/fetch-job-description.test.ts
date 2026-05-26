@@ -324,4 +324,144 @@ describe('POST /api/fetch-job-description', () => {
       expect(fetchMock).toHaveBeenCalledWith('https://example.com/jobs/123', expect.anything())
     })
   })
+
+  describe('Greenhouse ATS', () => {
+    const GH_API = 'https://boards-api.greenhouse.io/v1/boards/scaleai/jobs/4599700005'
+
+    const apiData = {
+      title: 'Staff Infrastructure Software Engineer',
+      company_name: 'Scale AI',
+      location: { name: 'New York, NY; San Francisco, CA' },
+      // Greenhouse content is HTML-entity-encoded after JSON.parse
+      content: '&lt;p&gt;About the role&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Build &amp; scale things&lt;/li&gt;&lt;/ul&gt;',
+    }
+
+    it('handles direct boards.greenhouse.io URL — calls API, skips HTML fetch', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GH_API) return Promise.resolve(jsonResponse(apiData))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://boards.greenhouse.io/scaleai/jobs/4599700005' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer</h1>')
+      expect(data.html).toContain('Scale AI')
+      expect(data.html).toContain('New York, NY; San Francisco, CA')
+      expect(data.html).toContain('<p>About the role</p>')
+      expect(data.html).toContain('<li>Build & scale things</li>')
+      // Only one fetch call — no HTML scraping
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(GH_API, expect.anything())
+    })
+
+    it('handles direct job-boards.greenhouse.io URL', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GH_API) return Promise.resolve(jsonResponse(apiData))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://job-boards.greenhouse.io/scaleai/jobs/4599700005' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer</h1>')
+      expect(fetchMock).toHaveBeenCalledWith(GH_API, expect.anything())
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        'https://job-boards.greenhouse.io/scaleai/jobs/4599700005',
+        expect.anything()
+      )
+    })
+
+    it('detects Greenhouse from embedded page HTML (e.g. Scale.com)', async () => {
+      mockUser()
+      const pageHtml =
+        '<html><body><script>window.__env={"jobUrl":"https://boards.greenhouse.io/scaleai/jobs/4599700005"}</script></body></html>'
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GH_API) return Promise.resolve(jsonResponse(apiData))
+        return Promise.resolve(htmlResponse(pageHtml))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://scale.com/careers/4599700005' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Staff Infrastructure Software Engineer</h1>')
+      expect(data.html).toContain('<p>About the role</p>')
+      // Page was fetched, then API was called
+      expect(fetchMock).toHaveBeenCalledWith('https://scale.com/careers/4599700005', expect.anything())
+      expect(fetchMock).toHaveBeenCalledWith(GH_API, expect.anything())
+    })
+
+    it('falls back to extractJobContent when Greenhouse API returns non-2xx', async () => {
+      mockUser()
+      const pageHtml = '<html><body><script>greenhouse.io/scaleai/jobs/4599700005</script><p>Scraped JD</p></body></html>'
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GH_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse(pageHtml))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://scale.com/careers/4599700005' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to extractJobContent when Greenhouse API has no content', async () => {
+      mockUser()
+      const pageHtml = '<html><body><script>greenhouse.io/scaleai/jobs/4599700005</script><p>Scraped JD</p></body></html>'
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GH_API) return Promise.resolve(jsonResponse({ title: 'Engineer' }))
+        return Promise.resolve(htmlResponse(pageHtml))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://scale.com/careers/4599700005' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when direct Greenhouse API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GH_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://boards.greenhouse.io/scaleai/jobs/4599700005' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('decodes double-encoded HTML entities in content', async () => {
+      mockUser()
+      // Simulates the actual Greenhouse API encoding: JSON contains &lt; which becomes &lt; after parse
+      const encodedData = {
+        ...apiData,
+        content: '&lt;h2&gt;Requirements&lt;/h2&gt;&lt;p&gt;5+ years &amp; strong skills&lt;/p&gt;',
+      }
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(encodedData))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://boards.greenhouse.io/scaleai/jobs/4599700005' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h2>Requirements</h2>')
+      expect(data.html).toContain('<p>5+ years & strong skills</p>')
+    })
+  })
 })
