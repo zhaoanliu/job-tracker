@@ -430,6 +430,17 @@ export default function ApplicationModal({
                     placeholder="Paste the full job description here…"
                   />
                 )}
+                {(() => {
+                  const words = (form.jd ?? '')
+                    .replace(/<[^>]*>/g, ' ')
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean).length
+                  if (words === 0) return null
+                  return (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{words} words</p>
+                  )
+                })()}
               </div>
             )}
 

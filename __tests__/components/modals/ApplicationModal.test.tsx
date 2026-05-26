@@ -322,6 +322,34 @@ describe('ApplicationModal — Job Posting URL open button', () => {
   })
 })
 
+describe('ApplicationModal — JD word count', () => {
+  it('shows the word count below the editor when JD has content', async () => {
+    const appWithJd: Application = {
+      ...existingApp,
+      jd: '<p>We are hiring a senior engineer to build great products</p>',
+    }
+    render(<ApplicationModal {...defaultProps} application={appWithJd} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Job Description' }))
+    expect(screen.getByText('10 words')).toBeInTheDocument()
+  })
+
+  it('does not render the word count when JD is empty', async () => {
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Job Description' }))
+    expect(screen.queryByText(/\d+ words/)).not.toBeInTheDocument()
+  })
+
+  it('does not count HTML tags as words', async () => {
+    const appWithHtml: Application = {
+      ...existingApp,
+      jd: '<p><strong>Hello</strong> <em>world</em></p>',
+    }
+    render(<ApplicationModal {...defaultProps} application={appWithHtml} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Job Description' }))
+    expect(screen.getByText('2 words')).toBeInTheDocument()
+  })
+})
+
 describe('ApplicationModal — JD preview', () => {
   it('renders HTML job description via dangerouslySetInnerHTML without React errors', async () => {
     const appWithHtml: Application = { ...existingApp, jd: '<p>Hello <strong>world</strong></p>' }
