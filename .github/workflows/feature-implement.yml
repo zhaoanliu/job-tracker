@@ -359,7 +359,16 @@ jobs:
           Follow the project's existing patterns and conventions.
           Do NOT run any git commands — just edit the files.
           Do NOT add code comments explaining what you changed.
-          Include tests for the new behaviour.
+
+          TESTS ARE REQUIRED. You must write tests for every new function and behaviour:
+          - New API routes: add a test file under __tests__/app/api/ that mocks fetch and verifies the route logic (auth, error cases, happy path)
+          - New or modified React components: update the existing test file under __tests__/components/ to cover every new prop, state, and conditional render
+          - New utility functions: add tests under __tests__/lib/
+          After writing tests, run all of the following and fix any failures before finishing:
+            npm run lint
+            npx tsc --noEmit
+            npm run test:coverage
+          Do not consider the task complete until all three pass.
 
           After implementing, write a markdown summary to /tmp/summary.txt with these sections:
           ## Implementation overview
@@ -369,6 +378,10 @@ jobs:
           ## Tests added
           One sentence describing what tests cover the new behaviour.
           EOF
+
+      - name: Install dependencies
+        if: steps.pr_check.outputs.skip != 'true'
+        run: npm ci
 
       - name: Run Claude Code
         if: steps.pr_check.outputs.skip != 'true'
@@ -393,13 +406,42 @@ jobs:
             fi
           done
 
+      - name: Validate tests were written
+        if: steps.pr_check.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TEST_CHANGES=$({ git diff --name-only; git ls-files --others --exclude-standard; } | grep -E '__tests__/|\.test\.(ts|tsx)' || true)
+          if [[ -z "$TEST_CHANGES" ]]; then
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "Claude implemented the feature but wrote no tests. Tests are required for every new behaviour (see \`__tests__/\`). Re-add \`status: auto-implement\` to retry."
+            exit 1
+          fi
+
+      - name: Run CI checks (lint, tsc, test coverage)
+        if: steps.pr_check.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm ci
+          FAILURES=""
+          npm run lint        || FAILURES="${FAILURES} lint"
+          npx tsc --noEmit    || FAILURES="${FAILURES} tsc"
+          npm run test:coverage || FAILURES="${FAILURES} test:coverage"
+          if [[ -n "$FAILURES" ]]; then
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "CI checks failed:${FAILURES}. Re-add \`status: auto-implement\` to retry."
+            exit 1
+          fi
+
       - name: Open PR
         if: steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
-          if [[ -z $(git diff --name-only) ]]; then
+          ALL_CHANGES=$({ git diff --name-only; git ls-files --others --exclude-standard; } || true)
+          if [[ -z "$ALL_CHANGES" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Claude Code ran but made no changes. The feature may already be implemented or the request needs more detail."
             exit 0

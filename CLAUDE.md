@@ -339,6 +339,13 @@ Then watch with `gh run list --limit 3`. This takes seconds to set up vs. trigge
 
 **Always run `actionlint` locally before pushing changes to any `.github/workflows/` file.** Install: `brew install actionlint` (macOS). The feedback loop for workflow bugs is 5+ minutes per iteration (full CI run); catching them locally is the only way to avoid the churn.
 
+**Before committing any workflow change, self-review across these dimensions — do not wait to be asked:**
+1. **Logic** — does each step do what it claims? Wrong variable, wrong command, wrong order?
+2. **Shell correctness** — quoting, exit codes, heredoc termination; `git diff --name-only` only shows modified tracked files — use `{ git diff --name-only; git ls-files --others --exclude-standard; }` to also capture new untracked files
+3. **Step ordering** — does each step have what it needs from prior steps? (e.g. `node_modules/` must exist before running npm scripts — add `npm ci` before any Claude or test step that needs it)
+4. **Edge cases** — what if Claude makes no changes? Creates only new files? Adds a new package?
+5. **Actionlint** — run it; don't assume it passes
+
 **After any change to ci-auto-fix.yml, verify push attribution with a live test.** The symptom of a broken fix is silent: ci-auto-fix pushes a commit, the PR's status checks go empty ("Waiting for status to be reported"), and no new CI run starts. The pass criterion is new check run timestamps appearing on the PR *after* ci-auto-fix's push timestamp. Test procedure:
 1. Create a branch with an **additive** trivially-fixable unit test failure — add a *new* test (e.g. `it('tmp', () => { expect(true).toBe(false) })`) rather than changing an existing value. Additive is critical: if you change an existing value back (9→999→9), the net diff vs main is zero, detect-doc-only skips all CI, and auto-merge fires unintentionally.
 2. Open the PR as a **draft** (`gh pr create --draft`). Draft PRs are ineligible for auto-merge, preventing ci-auto-fix's auto-merge from firing on the test PR.
