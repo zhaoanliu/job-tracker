@@ -8,7 +8,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
-import { POST } from '@/app/api/fetch-job-description/route'
+import { POST, extractJobContent } from '@/app/api/fetch-job-description/route'
 import { createClient } from '@/lib/supabase/server'
 
 function makeReq(body: unknown) {
@@ -53,6 +53,48 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+})
+
+describe('extractJobContent', () => {
+  it('extracts description from JSON-LD JobPosting', () => {
+    const html = `<html><head>
+      <script type="application/ld+json">{"@type":"JobPosting","description":"Build great things at Acme."}</script>
+    </head><body><div id="root"></div></body></html>`
+    expect(extractJobContent(html)).toBe('Build great things at Acme.')
+  })
+
+  it('handles JSON-LD array wrapping', () => {
+    const html = `<script type="application/ld+json">[{"@type":"JobPosting","description":"Array-wrapped desc."}]</script>`
+    expect(extractJobContent(html)).toBe('Array-wrapped desc.')
+  })
+
+  it('skips invalid JSON-LD and falls back to meta description', () => {
+    const html = `<html><head>
+      <script type="application/ld+json">not valid json</script>
+      <meta name="description" content="Senior Engineer role at Acme Corp.">
+    </head><body></body></html>`
+    expect(extractJobContent(html)).toBe('Senior Engineer role at Acme Corp.')
+  })
+
+  it('decodes HTML entities in meta description', () => {
+    const html = `<meta name="description" content="You&#39;ll love it &amp; so will we.">`
+    expect(extractJobContent(html)).toBe("You'll love it & so will we.")
+  })
+
+  it('falls back to body content when no JSON-LD or meta', () => {
+    const html = `<html><body><h2>Responsibilities</h2><ul><li>Code</li></ul></body></html>`
+    expect(extractJobContent(html)).toBe('<h2>Responsibilities</h2><ul><li>Code</li></ul>')
+  })
+
+  it('strips scripts and styles from body fallback', () => {
+    const html = `<html><body><script>alert(1)</script><style>.x{}</style><p>Job details</p></body></html>`
+    expect(extractJobContent(html)).toBe('<p>Job details</p>')
+  })
+
+  it('returns content as-is when no body tag (HTML fragment)', () => {
+    const html = `<p>Senior Software Engineer</p><ul><li>5+ years</li></ul>`
+    expect(extractJobContent(html)).toBe(html)
+  })
 })
 
 describe('POST /api/fetch-job-description', () => {
@@ -100,18 +142,18 @@ describe('POST /api/fetch-job-description', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('returns html on success', async () => {
+  it('returns extracted body content on success', async () => {
     mockUser()
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(htmlResponse('<html><body>Job description</body></html>'))
+      .mockResolvedValue(htmlResponse('<html><body><p>Job description</p></body></html>'))
     vi.stubGlobal('fetch', fetchMock)
 
     const res = await POST(makeReq({ url: 'https://example.com/job' }))
 
     expect(res.status).toBe(200)
     const data = await res.json()
-    expect(data.html).toBe('<html><body>Job description</body></html>')
+    expect(data.html).toBe('<p>Job description</p>')
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/job',
       expect.objectContaining({
