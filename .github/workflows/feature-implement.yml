@@ -411,7 +411,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TEST_CHANGES=$(git diff --name-only | grep -E '__tests__/|\.test\.(ts|tsx)' || true)
+          TEST_CHANGES=$({ git diff --name-only; git ls-files --others --exclude-standard; } | grep -E '__tests__/|\.test\.(ts|tsx)' || true)
           if [[ -z "$TEST_CHANGES" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Claude implemented the feature but wrote no tests. Tests are required for every new behaviour (see \`__tests__/\`). Re-add \`status: auto-implement\` to retry."
@@ -440,7 +440,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
-          if [[ -z $(git diff --name-only) ]]; then
+          ALL_CHANGES=$({ git diff --name-only; git ls-files --others --exclude-standard; } || true)
+          if [[ -z "$ALL_CHANGES" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Claude Code ran but made no changes. The feature may already be implemented or the request needs more detail."
             exit 0
