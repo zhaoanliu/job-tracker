@@ -1,0 +1,31 @@
+{
+  "@context": "https://schema.org/",
+  "@type": "JobPosting",
+  "Industry": "Internet",
+  "datePosted": "2026-05-19",
+  "description": "&lt;p&gt;&lt;strong&gt;About the Role&lt;/strong&gt;&lt;/p&gt;\n&lt;p&gt;You will drive the development and operations of security services and frameworks that protect Uber\u2019s user-facing products and core platforms. This role is ideal for a strong software engineer with a machine learning background who is excited to apply ML/GenAI techniques to real-world security problems at scale.&lt;/p&gt;\n&lt;p&gt;The security landscape evolves constantly\u2014and with the rise of ML/GenAI and the growing volume of heterogeneous signals (logs, events, graph data, identity signals, endpoints, network telemetry), the attack surface expands just as quickly. You will design and build robust, scalable systems and data pipelines that enable detection, investigation, and automated response\u2014turning noisy telemetry into actionable security insights. You\u2019ll collaborate closely with security leadership and partner engineering teams to embed security-by-design across Uber\u2019s technology stack.&lt;/p&gt;\n&lt;p&gt;&lt;strong&gt;What the Candidate Will Need / Bonus Points&lt;/strong&gt;&lt;/p&gt;\n&lt;p&gt;---- What the Candidate Will Do ----&lt;/p&gt;\n&lt;ol&gt;\n&lt;li&gt;&lt;strong&gt;Build ML-powered security systems:&lt;/strong&gt; Design, develop, and operate software and services that improve Uber\u2019s security posture, with a focus on detection, classification, and risk scoring.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Develop backend infrastructure and ETL pipelines:&lt;/strong&gt; Build reliable data ingestion, transformation, and feature pipelines to support security analytics and machine learning workflows.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Productionize ML for security use cases:&lt;/strong&gt; Help take models from experimentation to deployment\u2014owning performance, scalability, monitoring, and model/data quality in production.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Code review and testing:&lt;/strong&gt; Maintain high engineering standards through design reviews, code reviews, testing, and operational excellence.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Cross-functional collaboration:&lt;/strong&gt; Partner with teams like network operations, incident response, and compliance to ensure cohesive, end-to-end security outcomes.&lt;/li&gt;\n&lt;/ol&gt;\n&lt;p&gt;---- Basic Qualifications ----&lt;/p&gt;\n&lt;ol&gt;\n&lt;li&gt;BS/MS in Computer Science or a related field&lt;/li&gt;\n&lt;li&gt;7+ years of industry experience in a software development environment&lt;/li&gt;\n&lt;li&gt;Proficiency in one or more of &lt;strong&gt;Golang, SQL, Python&lt;/strong&gt;&lt;/li&gt;\n&lt;li&gt;Hands-on experience building and operating &lt;strong&gt;distributed systems&lt;/strong&gt;&lt;/li&gt;\n&lt;li&gt;Hands-on experience with &lt;strong&gt;machine learning&lt;/strong&gt; (e.g., feature engineering, training/evaluation, or deploying models)&lt;/li&gt;\n&lt;li&gt;Experience leading projects with global, cross-functional stakeholders&lt;/li&gt;\n&lt;li&gt;Experience mentoring and guiding junior engineers&lt;/li&gt;\n&lt;/ol&gt;\n&lt;p&gt;---- Preferred Qualifications ----&lt;/p&gt;\n&lt;ol&gt;\n&lt;li&gt;Experience with security detection engineering (threat detection, alerting, triage) and/or threat emulation&lt;/li&gt;\n&lt;li&gt;Experience with streaming data processing (e.g., Flink)&lt;/li&gt;\n&lt;li&gt;Experience with deep learning and/or LLM/GenAI approaches applied to security signals&lt;/li&gt;\n&lt;li&gt;Experience with anomaly detection, graph-based detection, or statistical/ML methods for identifying abuse or attacks&lt;/li&gt;\n&lt;/ol&gt;\n&lt;p&gt;For Seattle, WA-based roles: The base salary range for this role is USD$232,000 per year - USD$258,000 per year.&lt;/p&gt;\n&lt;p&gt;For Sunnyvale, CA-based roles: The base salary range for this role is USD$232,000 per year - USD$258,000 per year.&lt;/p&gt;\n&lt;p&gt;For all US locations, you will be eligible to participate in Uber's bonus program, and may be offered an equity award &amp; other types of comp. All full-time employees are eligible to participate in a 401(k) plan. You will also be eligible for various benefits. More details can be found at the following link https://jobs.uber.com/en/benefits.&lt;/p&gt;\n&lt;p&gt;Uber's mission is to reimagine the way the world moves for the better. Here, bold ideas create real-world impact, challenges drive growth, and speed fuels progress. What moves us, moves the world - let's move it forward, together.&lt;/p&gt;\n&lt;p&gt;Uber is proud to be an Equal Opportunity employer. All qualified applicants will receive consideration for employment without regard to sex, gender identity, sexual orientation, race, color, religion, national origin, disability, protected Veteran status, age, or any other characteristic protected by law. We also consider qualified applicants regardless of criminal histories, consistent with legal requirements. If you have a disability or special need that requires accommodation, please let us know by completing this form.&lt;/p&gt;\n&lt;p&gt;Offices continue to be central to collaboration and Uber's cultural identity. Unless formally approved to work fully remotely, Uber expects employees to spend at least half of their work time in their assigned office. For certain roles, such as those based at green-light hubs, employees are expected to be in-office for 100% of their time. Please speak with your recruiter to better understand in-office expectations for this role.&lt;/p&gt;",
+  "directApply": true,
+  "employmentType": "Full-Time",
+  "hiringOrganization": {
+    "@type": "Organization",
+    "logo": "https://tb-static.uber.com/prod/udam-assets/6b65f287-0bee-44e7-868a-e26b8722364e.png",
+    "name": "Uber",
+    "sameAs": "https://www.uber.com"
+  },
+  "identifier": {
+    "@type": "PropertyValue",
+    "name": "Uber",
+    "value": "156729"
+  },
+  "jobLocation": {
+    "@type": "Place",
+    "address": {
+      "@type": "PostalAddress",
+      "addressCountry": "USA",
+      "addressLocality": "Seattle",
+      "addressRegion": "Washington"
+    }
+  },
+  "occupationalCategory": "Engineering",
+  "title": "Staff Software Engineer"
+}
