@@ -15,6 +15,10 @@ runs:
         GH_TOKEN: ${{ inputs.gh-pat }}
         HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
       run: |
+        if [[ "${{ github.event.pull_request.draft }}" == "true" ]]; then
+          echo "Skipping ci-failure dispatch: PR is a draft"
+          exit 0
+        fi
         jq -n \
           --arg wf "${{ github.workflow }}" \
           --arg id "${{ github.run_id }}" \
