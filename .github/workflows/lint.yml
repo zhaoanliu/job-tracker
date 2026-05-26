@@ -42,6 +42,9 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit
 
+      - name: Check Next.js route exports
+        run: node scripts/check-route-exports.js
+
       - name: actionlint
         uses: rhysd/actionlint@v1.7.12
 
