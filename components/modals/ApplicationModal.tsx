@@ -83,6 +83,9 @@ export default function ApplicationModal({
   const [isImporting, setIsImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const importErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [importedHtml, setImportedHtml] = useState<string | null>(null)
+  const [originalDescription, setOriginalDescription] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'original' | 'imported'>('imported')
 
   const firstInputRef = useRef<HTMLInputElement>(null)
 
@@ -169,6 +172,10 @@ export default function ApplicationModal({
       const html: string = typeof data?.html === 'string' ? data.html : ''
       if (!form.jd || form.jd.trim() === '') {
         set('jd', html || null)
+      } else if (html) {
+        setOriginalDescription(form.jd)
+        setImportedHtml(html)
+        setViewMode('imported')
       }
       setSection('jd')
     } catch (err: unknown) {
@@ -178,6 +185,27 @@ export default function ApplicationModal({
     } finally {
       setIsImporting(false)
     }
+  }
+
+  useEffect(() => {
+    if (importedHtml !== null && section !== 'jd') {
+      setImportedHtml(null)
+      setOriginalDescription(null)
+      setViewMode('imported')
+    }
+  }, [section, importedHtml])
+
+  function handleUseImported() {
+    if (importedHtml !== null) set('jd', importedHtml)
+    setImportedHtml(null)
+    setOriginalDescription(null)
+    setViewMode('imported')
+  }
+
+  function handleKeepOriginal() {
+    setImportedHtml(null)
+    setOriginalDescription(null)
+    setViewMode('imported')
   }
 
   async function handleDelete() {
@@ -475,6 +503,60 @@ export default function ApplicationModal({
 
             {section === 'jd' && (
               <div className="space-y-2">
+                {importedHtml !== null ? (
+                  <>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div
+                        role="group"
+                        aria-label="Compare original and imported description"
+                        className="flex rounded-md border border-slate-200 dark:border-slate-600 overflow-hidden text-[11px] font-medium"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('original')}
+                          aria-pressed={viewMode === 'original'}
+                          className={`px-2.5 py-0.5 transition-colors ${viewMode === 'original' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                        >
+                          Original
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('imported')}
+                          aria-pressed={viewMode === 'imported'}
+                          className={`px-2.5 py-0.5 transition-colors ${viewMode === 'imported' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                        >
+                          Imported
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleKeepOriginal}
+                          className="rounded-md border border-slate-200 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          Keep Original
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleUseImported}
+                          className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
+                        >
+                          Use Imported
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      data-testid="jd-comparison-view"
+                      aria-readonly="true"
+                      aria-label={viewMode === 'imported' ? 'Imported description (read-only)' : 'Original description (read-only)'}
+                      className="jd-preview min-h-[18rem] max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 p-3 text-sm text-slate-700 dark:text-slate-300"
+                      dangerouslySetInnerHTML={{
+                        __html: viewMode === 'imported' ? (importedHtml ?? '') : (originalDescription ?? ''),
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
                 <div className="flex items-center justify-between">
                   <label className={labelClass}>Job Description</label>
                   <div className="flex rounded-md border border-slate-200 dark:border-slate-600 overflow-hidden text-[11px] font-medium">
@@ -513,6 +595,8 @@ export default function ApplicationModal({
                     onChange={html => set('jd', html || null)}
                     placeholder="Paste the full job description here…"
                   />
+                )}
+                  </>
                 )}
               </div>
             )}
