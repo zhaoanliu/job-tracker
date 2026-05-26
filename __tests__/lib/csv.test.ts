@@ -8,6 +8,7 @@ function makeApp(overrides: Partial<Application> = {}): Application {
     user_id: 'user-1',
     company: 'Acme',
     role: 'Engineer',
+    team: null,
     status: 'applied',
     type: 'Principal Engineer',
     priority: 'High',
@@ -37,6 +38,17 @@ describe('exportToCsv', () => {
     expect(header).toContain('role')
     expect(header).toContain('status')
     expect(header).toContain('priority')
+  })
+
+  it('includes team in the header and the team value in each data row', () => {
+    const csv = exportToCsv([
+      makeApp({ team: 'Platform Security' }),
+      makeApp({ company: 'Beta Corp', team: 'Search Infrastructure' }),
+    ])
+    const lines = csv.split('\n')
+    expect(lines[0].split(',')).toContain('team')
+    expect(lines[1]).toContain('Platform Security')
+    expect(lines[2]).toContain('Search Infrastructure')
   })
 
   it('includes status_history column in header', () => {
@@ -105,11 +117,12 @@ describe('exportToCsv', () => {
 // ─── parseCsv ────────────────────────────────────────────────────────────────
 
 describe('parseCsv', () => {
-  const HEADER = 'company,role,status,type,priority,location,workmode,date,link,source,referrer,notes,next_step,jd,order'
+  const HEADER = 'company,role,team,status,type,priority,location,workmode,date,link,source,referrer,notes,next_step,jd,order'
   const HEADER_WITH_HISTORY = HEADER + ',status_history'
+  const LEGACY_HEADER = 'company,role,status,type,priority,location,workmode,date,link,source,referrer,notes,next_step,jd,order'
 
   it('parses a standard row correctly', () => {
-    const csv = `${HEADER}\nAcme,Engineer,applied,Principal Engineer,High,Seattle WA,Hybrid,2026-05-01,https://example.com,LinkedIn,,,,,0`
+    const csv = `${HEADER}\nAcme,Engineer,,applied,Principal Engineer,High,Seattle WA,Hybrid,2026-05-01,https://example.com,LinkedIn,,,,,0`
     const result = parseCsv(csv)
     expect(result).toHaveLength(1)
     expect(result[0].company).toBe('Acme')
@@ -118,40 +131,56 @@ describe('parseCsv', () => {
   })
 
   it('parses multiple rows', () => {
-    const csv = `${HEADER}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0\nBeta,PM,future,,,,,,,LinkedIn,,,,,1`
+    const csv = `${HEADER}\nAcme,Eng,,applied,,,,,,,LinkedIn,,,,,0\nBeta,PM,,future,,,,,,,LinkedIn,,,,,1`
     expect(parseCsv(csv)).toHaveLength(2)
   })
 
   it('handles quoted values containing commas', () => {
-    const csv = `${HEADER}\n"Acme, Inc.",Engineer,applied,,,,,,,LinkedIn,,,,,0`
+    const csv = `${HEADER}\n"Acme, Inc.",Engineer,,applied,,,,,,,LinkedIn,,,,,0`
     const result = parseCsv(csv)
     expect(result[0].company).toBe('Acme, Inc.')
   })
 
   it('handles quoted values containing newlines', () => {
-    // notes is header position 11; one empty field for referrer (10) before it
-    const csv = `${HEADER}\nAcme,Eng,applied,,,,,,,LinkedIn,,"Line 1\nLine 2",,,0`
+    const csv = `${HEADER}\nAcme,Eng,,applied,,,,,,,LinkedIn,,"Line 1\nLine 2",,,0`
     const result = parseCsv(csv)
     expect(result[0].notes).toBe('Line 1\nLine 2')
   })
 
   it('handles escaped double-quotes inside quoted fields', () => {
-    // notes is header position 11; one empty field for referrer (10) before it
-    const csv = `${HEADER}\nAcme,Eng,applied,,,,,,,LinkedIn,,"She said ""hello""",,,0`
+    const csv = `${HEADER}\nAcme,Eng,,applied,,,,,,,LinkedIn,,"She said ""hello""",,,0`
     const result = parseCsv(csv)
     expect(result[0].notes).toBe('She said "hello"')
   })
 
   it('converts order to integer', () => {
-    const csv = `${HEADER}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,3`
+    const csv = `${HEADER}\nAcme,Eng,,applied,,,,,,,LinkedIn,,,,,3`
     expect(parseCsv(csv)[0].order).toBe(3)
   })
 
   it('defaults missing optional fields to null', () => {
-    const csv = `${HEADER}\nAcme,,applied,,,,,,,LinkedIn,,,,,0`
+    const csv = `${HEADER}\nAcme,,,applied,,,,,,,LinkedIn,,,,,0`
     const result = parseCsv(csv)
     expect(result[0].role).toBeNull()
     expect(result[0].referrer).toBeNull()
+  })
+
+  it('returns the team string when the column is present and populated', () => {
+    const csv = `${HEADER}\nAcme,Eng,Platform Security,applied,,,,,,,LinkedIn,,,,,0`
+    const result = parseCsv(csv)
+    expect(result[0].team).toBe('Platform Security')
+  })
+
+  it('returns team: null when the column is present but the value is empty', () => {
+    const csv = `${HEADER}\nAcme,Eng,,applied,,,,,,,LinkedIn,,,,,0`
+    const result = parseCsv(csv)
+    expect(result[0].team).toBeNull()
+  })
+
+  it('returns team: null when the column is missing entirely (pre-feature CSV)', () => {
+    const csv = `${LEGACY_HEADER}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0`
+    const result = parseCsv(csv)
+    expect(result[0].team).toBeNull()
   })
 
   it('returns empty array for header-only input', () => {
@@ -159,37 +188,37 @@ describe('parseCsv', () => {
   })
 
   it('ignores blank lines', () => {
-    const csv = `${HEADER}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0\n\n`
+    const csv = `${HEADER}\nAcme,Eng,,applied,,,,,,,LinkedIn,,,,,0\n\n`
     expect(parseCsv(csv)).toHaveLength(1)
   })
 
   it('skips rows missing a company', () => {
-    const csv = `${HEADER}\n,Eng,applied,,,,,,,LinkedIn,,,,,0`
+    const csv = `${HEADER}\n,Eng,,applied,,,,,,,LinkedIn,,,,,0`
     expect(parseCsv(csv)).toHaveLength(0)
   })
 
   it('parses status_history JSON into _statusHistory when column present', () => {
     const history: CsvHistoryEntry[] = [{ status: 'applied', changed_at: '2024-01-01T00:00:00Z' }]
     const escaped = JSON.stringify(history).replace(/"/g, '""')
-    const csv = `${HEADER_WITH_HISTORY}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0,"${escaped}"`
+    const csv = `${HEADER_WITH_HISTORY}\nAcme,Eng,,applied,,,,,,,LinkedIn,,,,,0,"${escaped}"`
     const result = parseCsv(csv)
     expect(result[0]._statusHistory).toEqual(history)
   })
 
   it('returns _statusHistory as undefined when status_history column is absent (old CSV backward compat)', () => {
-    const csv = `${HEADER}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0`
+    const csv = `${HEADER}\nAcme,Eng,,applied,,,,,,,LinkedIn,,,,,0`
     const result = parseCsv(csv)
     expect(result[0]._statusHistory).toBeUndefined()
   })
 
   it('returns _statusHistory as undefined when status_history field is empty', () => {
-    const csv = `${HEADER_WITH_HISTORY}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0,`
+    const csv = `${HEADER_WITH_HISTORY}\nAcme,Eng,,applied,,,,,,,LinkedIn,,,,,0,`
     const result = parseCsv(csv)
     expect(result[0]._statusHistory).toBeUndefined()
   })
 
   it('returns _statusHistory as undefined when status_history JSON is malformed', () => {
-    const csv = `${HEADER_WITH_HISTORY}\nAcme,Eng,applied,,,,,,,LinkedIn,,,,,0,not-valid-json`
+    const csv = `${HEADER_WITH_HISTORY}\nAcme,Eng,,applied,,,,,,,LinkedIn,,,,,0,not-valid-json`
     const result = parseCsv(csv)
     expect(result[0]._statusHistory).toBeUndefined()
   })

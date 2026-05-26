@@ -1,7 +1,7 @@
 import { Application, ApplicationFormData, CsvHistoryEntry, ImportRow } from './types'
 
 const APP_HEADERS = [
-  'company', 'role', 'status', 'type', 'priority', 'location', 'workmode',
+  'company', 'role', 'team', 'status', 'type', 'priority', 'location', 'workmode',
   'date', 'link', 'source', 'referrer', 'notes', 'next_step', 'jd', 'order',
 ] as const
 
@@ -120,6 +120,7 @@ export function parseCsv(csvText: string): ImportRow[] {
     results.push({
       company: obj.company,
       role: obj.role || null,
+      team: obj.team || null,
       status: (obj.status as ApplicationFormData['status']) || 'future',
       type: (obj.type as ApplicationFormData['type']) || null,
       priority: (obj.priority as ApplicationFormData['priority']) || 'Medium',

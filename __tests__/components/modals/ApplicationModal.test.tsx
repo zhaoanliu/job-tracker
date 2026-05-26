@@ -10,6 +10,7 @@ const existingApp: Application = {
   user_id: 'user-1',
   company: 'Acme Corp',
   role: 'Principal Engineer',
+  team: null,
   status: 'applied',
   type: 'Principal Engineer',
   priority: 'High',
@@ -185,6 +186,45 @@ describe('ApplicationModal — edit application', () => {
     await userEvent.click(screen.getByText('Delete application'))
     await userEvent.click(screen.getByText('Confirm Delete'))
     expect(await screen.findByText('Delete failed')).toBeInTheDocument()
+  })
+})
+
+describe('ApplicationModal — Team field', () => {
+  it('renders an empty Team input for a new application', () => {
+    render(<ApplicationModal {...defaultProps} />)
+    const teamInput = screen.getByPlaceholderText('e.g. Platform Security') as HTMLInputElement
+    expect(teamInput).toBeInTheDocument()
+    expect(teamInput.value).toBe('')
+  })
+
+  it('pre-fills the Team input when editing an application with team set', () => {
+    const appWithTeam: Application = { ...existingApp, team: 'Platform Security' }
+    render(<ApplicationModal {...defaultProps} application={appWithTeam} />)
+    const teamInput = screen.getByPlaceholderText('e.g. Platform Security') as HTMLInputElement
+    expect(teamInput.value).toBe('Platform Security')
+  })
+
+  it('submits the typed team value on save', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    render(<ApplicationModal {...defaultProps} onSave={onSave} />)
+    await userEvent.type(screen.getByPlaceholderText('e.g. Acme Corp'), 'New Co')
+    await userEvent.type(screen.getByPlaceholderText('e.g. Platform Security'), 'Platform Security')
+    await userEvent.click(screen.getByRole('button', { name: 'Add Application' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ team: 'Platform Security' })
+    ))
+  })
+
+  it('submits team as null when an existing value is cleared', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const appWithTeam: Application = { ...existingApp, team: 'Platform Security' }
+    render(<ApplicationModal {...defaultProps} application={appWithTeam} onSave={onSave} />)
+    const teamInput = screen.getByPlaceholderText('e.g. Platform Security')
+    await userEvent.clear(teamInput)
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ team: null })
+    ))
   })
 })
 

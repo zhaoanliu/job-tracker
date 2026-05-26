@@ -53,6 +53,12 @@ export default function KanbanCard({ application, onClick, isDragOverlay = false
         </p>
       )}
 
+      {application.team && (
+        <p className="text-xs text-slate-500 leading-snug line-clamp-1">
+          {application.team}
+        </p>
+      )}
+
       <div className="flex items-center justify-between gap-1 mt-2">
         <TypeBadge type={application.type} />
         <div className="flex items-center gap-1.5 ml-auto">
