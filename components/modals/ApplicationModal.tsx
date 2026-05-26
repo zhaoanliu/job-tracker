@@ -86,7 +86,6 @@ export default function ApplicationModal({
   const [importedHtml, setImportedHtml] = useState<string | null>(null)
   const [originalDescription, setOriginalDescription] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'original' | 'imported'>('imported')
-  const [jdChoice, setJdChoice] = useState<'original' | 'imported'>('imported')
 
   const firstInputRef = useRef<HTMLInputElement>(null)
 
@@ -131,7 +130,7 @@ export default function ApplicationModal({
     setError(null)
     try {
       const savedForm =
-        importedHtml !== null && jdChoice === 'imported'
+        importedHtml !== null && viewMode === 'imported'
           ? { ...form, jd: importedHtml }
           : form
       await onSave(savedForm)
@@ -181,7 +180,6 @@ export default function ApplicationModal({
         setOriginalDescription(form.jd)
         setImportedHtml(html)
         setViewMode('imported')
-        setJdChoice('imported')
       }
       setSection('jd')
     } catch (err: unknown) {
@@ -200,16 +198,6 @@ export default function ApplicationModal({
       setViewMode('imported')
     }
   }, [section, importedHtml])
-
-  function handleUseImported() {
-    setJdChoice('imported')
-    setViewMode('imported')
-  }
-
-  function handleKeepOriginal() {
-    setJdChoice('original')
-    setViewMode('original')
-  }
 
   async function handleDelete() {
     if (!onDelete) return
@@ -529,22 +517,6 @@ export default function ApplicationModal({
                           className={`px-2.5 py-0.5 transition-colors ${viewMode === 'imported' ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                         >
                           Imported
-                        </button>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={handleKeepOriginal}
-                          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${jdChoice === 'original' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                        >
-                          Keep Original
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleUseImported}
-                          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${jdChoice === 'imported' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                        >
-                          Use Imported
                         </button>
                       </div>
                     </div>
