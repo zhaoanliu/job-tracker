@@ -8,6 +8,13 @@ vi.mock('next/link', () => ({
   ),
 }))
 
+// The CTA is a client component with its own auth check; stub it out here so this
+// suite stays focused on the server-rendered roadmap content. Behavior is covered
+// in RoadmapFeedbackCta.test.tsx.
+vi.mock('@/app/roadmap/RoadmapFeedbackCta', () => ({
+  default: () => <span data-testid="roadmap-cta-placeholder" />,
+}))
+
 import RoadmapPage from '@/app/roadmap/page'
 
 const makeIssue = (n: number, title: string, labelNames: string[] = [], state: 'open' | 'closed' = 'open') => ({

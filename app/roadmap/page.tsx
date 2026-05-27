@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
+import RoadmapFeedbackCta from './RoadmapFeedbackCta'
 
 export const revalidate = 3600
 
@@ -181,9 +182,7 @@ export default async function RoadmapPage() {
         <div className="mt-12 text-center">
           <p className="text-xs text-slate-400 dark:text-slate-500">
             Have an idea?{' '}
-            <Link href="/dashboard" className="text-indigo-600 dark:text-indigo-400 hover:underline">
-              Sign in to submit a request
-            </Link>
+            <RoadmapFeedbackCta />
           </p>
         </div>
       </div>
