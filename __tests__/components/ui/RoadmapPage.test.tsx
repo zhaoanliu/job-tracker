@@ -8,6 +8,11 @@ vi.mock('next/link', () => ({
   ),
 }))
 
+// The auth-aware CTA is exercised in its own test file
+vi.mock('@/app/roadmap/RoadmapFeedbackCta', () => ({
+  default: () => <span data-testid="roadmap-cta-placeholder" />,
+}))
+
 import RoadmapPage from '@/app/roadmap/page'
 
 const makeIssue = (n: number, title: string, labelNames: string[] = [], state: 'open' | 'closed' = 'open') => ({
@@ -50,6 +55,13 @@ describe('RoadmapPage', () => {
     mockFetch([], [])
     render(await RoadmapPage())
     expect(screen.getByRole('link', { name: /Back to dashboard/i })).toHaveAttribute('href', '/dashboard')
+  })
+
+  it('renders the "Have an idea?" CTA with the auth-aware client component', async () => {
+    mockFetch([], [])
+    render(await RoadmapPage())
+    expect(screen.getByText(/Have an idea\?/i)).toBeInTheDocument()
+    expect(screen.getByTestId('roadmap-cta-placeholder')).toBeInTheDocument()
   })
 
   it('shows the empty-state message when there are no pending features', async () => {
