@@ -267,7 +267,7 @@ flowchart TD
     T4 --> CIM["ci-auto-fix.yml\nopen fix PR"]
     T5 --> CD["cd-auto-fix.yml\nreproduce build locally\nRun Claude Code"]
     T6 --> DB["db-fix.yml\nRun Claude Code\n(migrations only)"]
-    T7 --> FI["feature-implement.yml\nRun Claude Code\nopen feature PR"]
+    T7 --> FI["feature-design.yml + feature-implement.yml\nRun Claude Code\nopen feature PR"]
 
     AF & BF --> risk{"Risk level?"}
     CIM --> risk
@@ -346,7 +346,7 @@ flowchart LR
     risk -->|"high"| manualpr["PR\n(manual review)"]
 ```
 
-### User feature requests → design-then-implement (`feature-implement.yml`)
+### User feature requests → design-then-implement (`feature-design.yml` + `feature-implement.yml`)
 
 Two entry points feed the same two-phase pipeline:
 
@@ -566,7 +566,8 @@ See `TODO` comments in:
 │   ├── cd-filter.yml             # Filters deployment_status events → production failures only
 │   ├── cd.yml                    # CD orchestrator: 4 CI checks → db push → vercel deploy
 │   ├── db-fix.yml                # Auto-fix supabase db push failures with Claude Code
-│   ├── feature-implement.yml     # Implement approved feature requests on status: auto-implement label
+│   ├── feature-design.yml        # Generate design proposal on status: approved label
+│   ├── feature-implement.yml     # Implement from design on status: auto-implement label
 │   ├── label-pr.yml              # Adds 'manual merge required' when all CI passes, no auto-merge
 │   ├── e2e.yml                   # Auth E2E on every PR/push (no local Supabase)
 │   ├── e2e-local.yml             # Board + CSV E2E — nightly + path-triggered (supabase start)

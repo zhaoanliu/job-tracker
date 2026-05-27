@@ -374,7 +374,7 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - **Infra error**: opens a GitHub issue with the run link for manual investigation, no code fix attempted
 - Claude is constrained to only edit files under `supabase/migrations/`
 
-**`feature-implement.yml`** — two-phase design-then-implement workflow for feature requests:
+**`feature-design.yml`** — Phase 1 of the design-then-implement workflow; triggers on `status: approved` label or `workflow_dispatch` with an `issue_number` input:
 
 **Phase 1 — design** (triggered by `status: approved`):
 - Owner adds `status: approved` to a feature issue (#X) to start the design process
@@ -382,6 +382,8 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - #X label changes to `status: design-review`; a comment on #X links to #Y
 - Owner iterates on the design ad-hoc in Claude Code sessions (read/update #Y via `gh issue view/edit`)
 - Iterate as many rounds as needed before proceeding
+
+**`feature-implement.yml`** — Phase 2 of the design-then-implement workflow; triggers on `status: auto-implement` label or `workflow_dispatch` with an `issue_number` input:
 
 **Phase 2 — implement** (triggered by `status: auto-implement`):
 - Owner adds `status: auto-implement` to #X when the design is finalised
