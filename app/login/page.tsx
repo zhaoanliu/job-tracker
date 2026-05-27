@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import AuthForm from '@/components/auth/AuthForm'
 
 export default function LoginPage() {
@@ -26,6 +27,11 @@ export default function LoginPage() {
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
           <AuthForm />
+        </div>
+        <div className="text-center mt-4">
+          <Link href="/roadmap" className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+            View Roadmap
+          </Link>
         </div>
       </div>
     </main>

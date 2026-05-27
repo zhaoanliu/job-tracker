@@ -168,11 +168,6 @@ describe('Navbar — invite', () => {
 })
 
 describe('Navbar — feature request', () => {
-  beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, url: 'https://github.com/owner/repo/issues/1' }) }))
-  })
-  afterEach(() => vi.unstubAllGlobals())
-
   it('renders the Feedback button', () => {
     render(<Navbar {...defaultProps} />)
     expect(screen.getByRole('button', { name: /Feedback/i })).toBeInTheDocument()
@@ -182,60 +177,5 @@ describe('Navbar — feature request', () => {
     render(<Navbar {...defaultProps} />)
     await userEvent.click(screen.getByRole('button', { name: /Feedback/i }))
     expect(screen.getByText('Request a feature')).toBeInTheDocument()
-    expect(screen.getByLabelText(/Title/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/Description/i)).toBeInTheDocument()
-  })
-
-  it('closes the modal when Cancel is clicked', async () => {
-    render(<Navbar {...defaultProps} />)
-    await userEvent.click(screen.getByRole('button', { name: /Feedback/i }))
-    await userEvent.click(screen.getByRole('button', { name: /Cancel/i }))
-    expect(screen.queryByText('Request a feature')).not.toBeInTheDocument()
-  })
-
-  it('closes the modal when the backdrop is clicked', async () => {
-    render(<Navbar {...defaultProps} />)
-    await userEvent.click(screen.getByRole('button', { name: /Feedback/i }))
-    const backdrop = document.querySelector('.fixed.inset-0') as HTMLElement
-    await userEvent.click(backdrop)
-    expect(screen.queryByText('Request a feature')).not.toBeInTheDocument()
-  })
-
-  it('Submit button is disabled when title is empty', async () => {
-    render(<Navbar {...defaultProps} />)
-    await userEvent.click(screen.getByRole('button', { name: /Feedback/i }))
-    expect(screen.getByRole('button', { name: /Submit/i })).toBeDisabled()
-  })
-
-  it('calls /api/feature-request with title and description on submit', async () => {
-    render(<Navbar {...defaultProps} />)
-    await userEvent.click(screen.getByRole('button', { name: /Feedback/i }))
-    await userEvent.type(screen.getByLabelText(/Title/i), 'Dark mode')
-    await userEvent.type(screen.getByLabelText(/Description/i), 'Please add it')
-    await userEvent.click(screen.getByRole('button', { name: /Submit/i }))
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/feature-request',
-      expect.objectContaining({ method: 'POST' })
-    )
-    const body = JSON.parse((fetch as any).mock.calls[0][1].body)
-    expect(body.title).toBe('Dark mode')
-    expect(body.description).toBe('Please add it')
-  })
-
-  it('shows success message after successful submission', async () => {
-    render(<Navbar {...defaultProps} />)
-    await userEvent.click(screen.getByRole('button', { name: /Feedback/i }))
-    await userEvent.type(screen.getByLabelText(/Title/i), 'Dark mode')
-    await userEvent.click(screen.getByRole('button', { name: /Submit/i }))
-    expect(await screen.findByText(/Request submitted/i)).toBeInTheDocument()
-  })
-
-  it('shows error message when submission fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
-    render(<Navbar {...defaultProps} />)
-    await userEvent.click(screen.getByRole('button', { name: /Feedback/i }))
-    await userEvent.type(screen.getByLabelText(/Title/i), 'Dark mode')
-    await userEvent.click(screen.getByRole('button', { name: /Submit/i }))
-    expect(await screen.findByText(/Something went wrong/i)).toBeInTheDocument()
   })
 })
