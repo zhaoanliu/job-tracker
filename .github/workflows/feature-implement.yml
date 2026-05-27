@@ -143,6 +143,12 @@ jobs:
           ### UI changes
           For any user-visible change: which component, where exactly in the UI it appears, and how the user interacts with it. If there is no UI change, state that explicitly and explain why the feature is complete without one.
 
+          ## Implementation order
+          Numbered list of discrete implementation steps in the order they must be done, with explicit dependencies called out (e.g. "Step 2 depends on Step 1 being merged first"). Each step should be small enough to review independently. If steps are independent and can be done in any order, say so.
+
+          ## Design decisions
+          For each non-obvious choice in the proposed implementation, state: (a) what was chosen, (b) the main alternative considered, and (c) why the chosen approach is better for this codebase. Skip decisions where the choice is obvious or has no meaningful alternative.
+
           ## Acceptance criteria
           Checklist of what a human tester must be able to do to confirm the feature is working. At least one item must be a user-visible action (e.g. "User can click X and see Y").
 
