@@ -633,6 +633,7 @@ jobs:
             if [[ "$ALL_OK" != true ]]; then
               gh issue comment "${ISSUE_NUMBER}" \
                 --body "Implementation stopped at ${FAILED_TASK} after 2 attempts. A partial PR will be opened with completed work for review."
+              echo "IMPL_FAILED=true" >> "$GITHUB_ENV"
             else
               echo "=== Final coverage gate ==="
               if ! npm run test:coverage > /tmp/coverage_out.txt 2>&1; then
@@ -782,3 +783,11 @@ jobs:
             echo "Implementation ready for review: ${PR_URL}"
           } > /tmp/issue_comment.txt
           gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+
+      - name: Fail if implementation incomplete
+        if: always()
+        run: |
+          if [[ "${IMPL_FAILED}" == "true" ]]; then
+            echo "Sub-task implementation did not complete — marking workflow as failed"
+            exit 1
+          fi
