@@ -606,6 +606,20 @@ export async function POST(req: NextRequest) {
       // API unavailable — fall through to extractJobContent
     }
 
+    // Greenhouse embed board — career pages with ?gh_jid= param + embed script tag.
+    // E.g. sofi.com/careers/job/?gh_jid=ID renders via Greenhouse embed JS; the board
+    // name is in the embed script src (?for=board). Job content is JS-rendered so the
+    // HTML scraping fallback returns nothing useful — must use the API.
+    const ghJid = parsed.searchParams.get('gh_jid')
+    if (ghJid && !embeddedGhMatch) {
+      const embedBoardMatch = raw.match(/\bgreenhouse\.io\/embed\/job_board\/js\?for=([A-Za-z0-9_-]+)/)
+      if (embedBoardMatch) {
+        const ghHtml = await fetchGreenhouseJob(embedBoardMatch[1], ghJid, controller.signal)
+        if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+        // API unavailable — fall through to extractJobContent
+      }
+    }
+
     // Generic schema.org/JobPosting JSON-LD handler — covers career sites like Expedia
     // that embed standard markup but don't use a recognised ATS with a dedicated handler.
     const genericJobHtml = extractGenericJobPostingFromPage(raw)

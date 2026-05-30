@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import leverNoLists from '../fixtures/lever-posting-no-lists.json'
 import leverWithLists from '../fixtures/lever-posting-with-lists.json'
 import greenhouseScaleAI from '../fixtures/greenhouse-scaleai-job.json'
+import greenhouseSoFi from '../fixtures/greenhouse-sofi-job.json'
 import eightfoldMicrosoft from '../fixtures/eightfold-microsoft-job.json'
 import workdayAdobeJob from '../fixtures/workday-adobe-job.json'
 import uberJob from '../fixtures/uber-job.json'
@@ -479,6 +480,102 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toContain('"')
       // No raw entities should remain in the output
       expect(data.html).not.toContain('&lt;div')
+    })
+  })
+
+  describe('Greenhouse embed board (?gh_jid= + embed script)', () => {
+    const SOFI_URL = 'https://www.sofi.com/careers/job/?gh_jid=7679621003'
+    const SOFI_GH_API = 'https://boards-api.greenhouse.io/v1/boards/sofi/jobs/7679621003'
+    const embedPageHtml =
+      '<html><body><script src="https://boards.greenhouse.io/embed/job_board/js?for=sofi"></script></body></html>'
+
+    it('detects embed board via ?gh_jid= param + embed script and uses Greenhouse API — real fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === SOFI_GH_API) return Promise.resolve(jsonResponse(greenhouseSoFi))
+        return Promise.resolve(htmlResponse(embedPageHtml))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: SOFI_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title and metadata from real fixture
+      expect(data.html).toContain('<h1>Principal Engineer, Digital Identity</h1>')
+      expect(data.html).toContain('SoFi')
+      expect(data.html).toContain('WA - Seattle; CA - San Francisco')
+      // Content is double-encoded and must be decoded
+      expect(data.html).toContain('<div')
+      expect(data.html).not.toContain('&lt;div')
+      // Page was fetched, then API was called
+      expect(fetchMock).toHaveBeenCalledWith(SOFI_URL, expect.anything())
+      expect(fetchMock).toHaveBeenCalledWith(SOFI_GH_API, expect.anything())
+    })
+
+    it('falls back to HTML scraping when embed board API returns non-2xx', async () => {
+      mockUser()
+      const fallbackHtml =
+        '<html><body><script src="https://boards.greenhouse.io/embed/job_board/js?for=sofi"></script><p>Scraped JD</p></body></html>'
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === SOFI_GH_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse(fallbackHtml))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: SOFI_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when embed board API throws', async () => {
+      mockUser()
+      const fallbackHtml =
+        '<html><body><script src="https://boards.greenhouse.io/embed/job_board/js?for=sofi"></script><p>Scraped JD</p></body></html>'
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === SOFI_GH_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse(fallbackHtml))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: SOFI_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not call embed board API when no embed script in page HTML', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === SOFI_GH_API) return Promise.resolve(jsonResponse(greenhouseSoFi))
+        // Page has ?gh_jid= in URL but no embed script
+        return Promise.resolve(htmlResponse('<html><body><p>No embed script</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: SOFI_URL }))
+
+      expect(res.status).toBe(200)
+      // Greenhouse API should NOT have been called
+      expect(fetchMock).not.toHaveBeenCalledWith(SOFI_GH_API, expect.anything())
+    })
+
+    it('does not trigger for URL without ?gh_jid= param', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === SOFI_GH_API) return Promise.resolve(jsonResponse(greenhouseSoFi))
+        return Promise.resolve(htmlResponse(embedPageHtml))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.sofi.com/careers/job/' }))
+
+      expect(res.status).toBe(200)
+      // Only one fetch call — the page fetch; no Greenhouse API call
+      expect(fetchMock).not.toHaveBeenCalledWith(SOFI_GH_API, expect.anything())
     })
   })
 
