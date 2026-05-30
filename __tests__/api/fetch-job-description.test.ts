@@ -6,6 +6,7 @@ import eightfoldMicrosoft from '../fixtures/eightfold-microsoft-job.json'
 import workdayAdobeJob from '../fixtures/workday-adobe-job.json'
 import uberJob from '../fixtures/uber-job.json'
 import expediaJob from '../fixtures/expedia-job.json'
+import workableGableJob from '../fixtures/workable-gable-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -846,6 +847,101 @@ describe('POST /api/fetch-job-description', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
       const data = await res.json()
       expect(data.html).not.toContain('<table>')
+    })
+  })
+
+  describe('Workable ATS (apply.workable.com)', () => {
+    const WORKABLE_URL = 'https://apply.workable.com/gable/j/6EF9ADEAB7'
+    const WORKABLE_API = 'https://apply.workable.com/api/v1/accounts/gable/jobs/6EF9ADEAB7'
+
+    it('uses Workable API and prepends metadata header — real API fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === WORKABLE_API) return Promise.resolve(jsonResponse(workableGableJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKABLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title from fixture
+      expect(data.html).toContain('<h1>Staff Software Engineer, Infrastructure</h1>')
+      // Location: city + region from fixture
+      expect(data.html).toContain('Seattle, Washington')
+      // Department from fixture
+      expect(data.html).toContain('Engineering')
+      // type "full" → "Full-time"
+      expect(data.html).toContain('Full-time')
+      // workplace "hybrid" → "Hybrid"
+      expect(data.html).toContain('Hybrid')
+      // Description body content from fixture
+      expect(data.html).toContain('Gable helps engineering teams')
+      // Requirements body content from fixture
+      expect(data.html).toContain('7+ years')
+      // Benefits body content from fixture
+      expect(data.html).toContain('Unlimited PTO')
+      // Only one fetch — API, no HTML scraping
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(WORKABLE_API, expect.anything())
+    })
+
+    it('falls back to HTML scraping when Workable API returns non-2xx', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === WORKABLE_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKABLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Workable API has no body content', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === WORKABLE_API) return Promise.resolve(jsonResponse({ title: 'Engineer' }))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKABLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Workable API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === WORKABLE_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKABLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not call Workable API for non-matching URLs', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://example.com/jobs/6EF9ADEAB7' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('apply.workable.com'), expect.anything())
     })
   })
 
