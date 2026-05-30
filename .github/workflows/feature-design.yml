@@ -264,6 +264,9 @@ jobs:
           {
             echo "_Design for feature request #${ISSUE_NUMBER}: ${ISSUE_TITLE}_"
             echo ""
+            echo "> [!WARNING]"
+            echo "> The \`<!-- implementation-plan-json -->\` block in the Implementation plan section is machine-parsed by the implement workflow. Edit the \`- [ ]\` checkboxes to adjust the plan — do not edit the JSON directly."
+            echo ""
             cat /tmp/design_proposal.md
           } > /tmp/design_body.txt
 
