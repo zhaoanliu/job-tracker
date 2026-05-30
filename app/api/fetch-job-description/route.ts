@@ -245,6 +245,74 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&amp;/g, '&') // must be last
 }
 
+function buildWorkableMeta(data: Record<string, unknown>): string {
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const rows: Array<[string, string]> = []
+
+  const title = str(data.title)
+
+  const loc = data.location != null && typeof data.location === 'object'
+    ? (data.location as Record<string, unknown>)
+    : {}
+  const city = str(loc.city)
+  const region = str(loc.region)
+  const country = str(loc.country)
+  const location = [city, region || country].filter(Boolean).join(', ')
+
+  const department = Array.isArray(data.department)
+    ? (data.department as unknown[]).map((d) => str(d)).filter(Boolean).join(', ')
+    : ''
+
+  const typeMap: Record<string, string> = {
+    full: 'Full-time',
+    part: 'Part-time',
+    contract: 'Contract',
+    temporary: 'Temporary',
+    internship: 'Internship',
+  }
+  const workType = typeMap[str(data.type)] ?? ''
+
+  const wpRaw = str(data.workplace)
+  const workplace = wpRaw ? wpRaw.charAt(0).toUpperCase() + wpRaw.slice(1) : ''
+
+  if (location) rows.push(['Location', location])
+  if (department) rows.push(['Department', department])
+  if (workType) rows.push(['Work type', workType])
+  if (workplace) rows.push(['Workplace', workplace])
+
+  if (!title && rows.length === 0) return ''
+
+  const header = title ? `<h1>${title}</h1>` : ''
+  if (rows.length === 0) return header
+
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  return `${header}<table>${tableRows}</table><hr>`
+}
+
+async function fetchWorkableJob(
+  company: string,
+  shortcode: string,
+  signal: AbortSignal
+): Promise<string | null> {
+  try {
+    const apiRes = await fetch(
+      `https://apply.workable.com/api/v1/accounts/${company}/jobs/${shortcode}`,
+      { signal, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } }
+    )
+    if (!apiRes.ok) return null
+    const data = (await apiRes.json()) as Record<string, unknown>
+    const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+    const body = [str(data.description), str(data.requirements), str(data.benefits)]
+      .filter(Boolean)
+      .join('')
+    if (!body) return null
+    const meta = buildWorkableMeta(data)
+    return meta + body
+  } catch {
+    return null
+  }
+}
+
 function buildGreenhouseMeta(data: Record<string, unknown>): string {
   const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
   const rows: Array<[string, string]> = []
@@ -455,6 +523,16 @@ export async function POST(req: NextRequest) {
       } catch {
         // API unavailable — fall through to HTML scraping
       }
+    }
+
+    // Workable ATS — apply.workable.com/{company}/j/{shortcode}
+    const workableMatch =
+      parsed.hostname === 'apply.workable.com' &&
+      parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\/j\/([A-Za-z0-9]+)$/)
+    if (workableMatch) {
+      const workableHtml = await fetchWorkableJob(workableMatch[1], workableMatch[2], controller.signal)
+      if (workableHtml !== null) return NextResponse.json({ html: workableHtml })
+      // API unavailable — fall through to HTML scraping
     }
 
     // Lever ATS (Netflix, Reddit, many startups) — jobs.lever.co/{company}/{uuid}
