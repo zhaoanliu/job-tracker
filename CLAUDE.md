@@ -56,12 +56,12 @@ e2e/
   local/             # board + CSV tests — require supabase start, run via nightly cron only
 .github/
   workflows/         # GitHub Actions CI/CD, auto-fix, and feature design/implement pipelines
+    auto-fix.yml     # auto-fix Sentry bugs with Claude Code
+    lint.yml         # ESLint + tsc + actionlint on every PR
+    e2e.yml          # auth E2E on every PR/push (no local Supabase)
+    e2e-local.yml    # board + CSV E2E — nightly cron + push to main on relevant paths (supabase start)
   actions/           # reusable composite actions
   designs/           # design proposals committed by feature-design.yml; one file per feature
-  auto-fix.yml       # auto-fix Sentry bugs with Claude Code
-  lint.yml           # ESLint + tsc + actionlint on every PR
-  e2e.yml            # auth E2E on every PR/push (no local Supabase)
-  e2e-local.yml      # board + CSV E2E — nightly cron + push to main on relevant paths (supabase start)
 ```
 
 ## Key architectural decisions
