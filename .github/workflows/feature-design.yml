@@ -166,6 +166,8 @@ jobs:
           - 15-25 turns: component with multiple interactions or data flow (2-3 files)
           Each test_file is a single path under __tests__/; files_to_create and files_to_modify are relative paths from repo root; call out step dependencies (e.g. "Step 2 depends on Step 1") explicitly.
 
+          Fixture import rule: JSON fixtures are imported with a standard ES import. Non-JSON fixtures (e.g. raw HTML responses from ATS endpoints) must be loaded with readFileSync from node:fs — never with the ?raw Vite import suffix, which is Vite-specific and would break if the build config changes. Example for an HTML fixture: add "import { readFileSync } from 'node:fs'" and "import { join } from 'node:path'" at the top of the test file, then load with "const html = readFileSync(join(__dirname, '../fixtures/name.html'), 'utf-8')".
+
           ## Design decisions
           For each non-obvious choice in the proposed implementation, state: (a) what was chosen, (b) the main alternative considered, and (c) why the chosen approach is better for this codebase. Skip decisions where the choice is obvious or has no meaningful alternative.
 
@@ -222,7 +224,7 @@ jobs:
           git checkout -B "${DESIGN_BRANCH}"
           git add "${DESIGN_FILE}"
           git commit -m "design: add proposal for #${ISSUE_NUMBER} (${FEATURE_TITLE})"
-          if git push origin "${DESIGN_BRANCH}"; then
+          if git push --force origin "${DESIGN_BRANCH}"; then
             {
               echo "DESIGN_FILE=${DESIGN_FILE}"
               echo "DESIGN_BRANCH=${DESIGN_BRANCH}"
