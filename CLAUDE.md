@@ -385,6 +385,7 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 **Phase 1 — design** (triggered by `status: approved`):
 - Owner adds `status: approved` to a feature issue (#X) to start the design process
 - Claude generates a design proposal and opens a new design issue (#Y) with the `user review required` label
+- The design issue (#Y) includes an `## Implementation plan` section with two parts: a machine-readable `<!-- implementation-plan-json [...] -->` HTML comment and human-readable `- [ ]` checkboxes with turn estimates. The owner can edit these checkboxes before approving.
 - #X label changes to `status: design-review`; a comment on #X links to #Y
 - Owner iterates on the design ad-hoc in Claude Code sessions (read/update #Y via `gh issue view/edit`)
 - Iterate as many rounds as needed before proceeding
@@ -394,6 +395,7 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 **Phase 2 — implement** (triggered by `status: auto-implement`):
 - Owner adds `status: auto-implement` to #X when the design is finalised
 - Claude reads both #X (original request) and #Y (design spec) and implements accordingly
+- If #Y contains an `## Implementation plan` (from Phase 1), the implement workflow parses the `<!-- implementation-plan-json -->` block and executes the pre-planned subtasks; each `- [ ]` checkbox in #Y is ticked off as its subtask completes. If no plan JSON is found (e.g. manually written spec from `/plan-feature`), Claude generates a subtask plan at runtime.
 - Always opens a PR (never pushes to main) — PR body includes `Closes #X` and `Closes #Y` so both close on merge
 - Branch name is `feat/issue-<N>-<timestamp>` to avoid collisions on re-runs
 - If Claude makes no changes, comments on the issue explaining that the request may need more detail
