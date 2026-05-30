@@ -5,6 +5,7 @@ import greenhouseScaleAI from '../fixtures/greenhouse-scaleai-job.json'
 import eightfoldMicrosoft from '../fixtures/eightfold-microsoft-job.json'
 import workdayAdobeJob from '../fixtures/workday-adobe-job.json'
 import uberJob from '../fixtures/uber-job.json'
+import expediaJob from '../fixtures/expedia-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -844,6 +845,131 @@ describe('POST /api/fetch-job-description', () => {
       expect(res.status).toBe(200)
       expect(fetchMock).toHaveBeenCalledTimes(1)
       const data = await res.json()
+      expect(data.html).not.toContain('<table>')
+    })
+  })
+
+  describe('Generic schema.org/JobPosting JSON-LD (e.g. Expedia careers.expediagroup.com)', () => {
+    // Real URL from careers.expediagroup.com — used as the input URL in tests
+    const EXPEDIA_URL =
+      'https://careers.expediagroup.com/job/principal-software-development-engineer-developer-productivity-amp-insights/seattle-wa/R-105467-3/'
+
+    // expediaJob is a snapshot of the JobPosting JSON-LD block embedded in the real
+    // careers.expediagroup.com page (observed 2026-05-30). The site is WordPress-powered
+    // and inlines standard schema.org/JobPosting markup with identifier as a plain string.
+    function expediaPage(ld: object): string {
+      return `<html><head><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body></body></html>`
+    }
+
+    it('extracts metadata header and description from JSON-LD — real fixture data', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(expediaPage(expediaJob)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: EXPEDIA_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title from fixture (HTML entities render correctly in <h1>)
+      expect(data.html).toContain('<h1>Principal Software Development Engineer - Developer Productivity &amp; Insights</h1>')
+      // Company from hiringOrganization.name in fixture
+      expect(data.html).toContain('Expedia Group')
+      // Job ID: fixture has identifier as a plain string "R-105467-3"
+      expect(data.html).toContain('R-105467-3')
+      // Date posted from fixture
+      expect(data.html).toContain('2026-05-22')
+      // Location from jobLocation.address.addressLocality + addressRegion in fixture
+      expect(data.html).toContain('Seattle, WA')
+      // Description content from fixture
+      expect(data.html).toContain('Developer Productivity')
+      // Only one fetch — page HTML, no separate API call
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(EXPEDIA_URL, expect.anything())
+    })
+
+    it('handles identifier as an object with value field', async () => {
+      // Synthetic: real fixture has identifier as string; object form appears in Workday-style JSON-LD
+      mockUser()
+      const withObjId = { ...expediaJob, identifier: { '@type': 'PropertyValue', value: 'EXP-99999' } }
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(expediaPage(withObjId)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: EXPEDIA_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('EXP-99999')
+    })
+
+    it('handles array jobLocation with multiple entries', async () => {
+      // Synthetic: real fixture has one jobLocation; multi-location is possible in practice
+      mockUser()
+      const multiLoc = {
+        ...expediaJob,
+        jobLocation: [
+          { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: 'Seattle', addressRegion: 'WA' } },
+          { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: 'Austin', addressRegion: 'TX' } },
+        ],
+      }
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(expediaPage(multiLoc)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: EXPEDIA_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Seattle, WA | Austin, TX')
+    })
+
+    it('falls back to extractJobContent when JSON-LD has no description', async () => {
+      mockUser()
+      const noDesc = { '@type': 'JobPosting', title: 'Principal SDE', identifier: 'R-105467-3' }
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse(`<html><head><script type="application/ld+json">${JSON.stringify(noDesc)}</script></head><body><p>Body content</p></body></html>`)
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: EXPEDIA_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Body content</p>')
+    })
+
+    it('falls back to extractJobContent when page has no JSON-LD', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Scraped JD</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: EXPEDIA_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('returns 502 when the page fetch fails', async () => {
+      mockUser()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 403 })))
+
+      const res = await POST(makeReq({ url: EXPEDIA_URL }))
+
+      expect(res.status).toBe(502)
+    })
+
+    it('does not fire generic handler for pages with no JobPosting JSON-LD', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://example.com/jobs/123' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const data = await res.json()
+      // No metadata table prepended when there is no JobPosting JSON-LD
       expect(data.html).not.toContain('<table>')
     })
   })
