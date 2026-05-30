@@ -943,6 +943,59 @@ describe('POST /api/fetch-job-description', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('apply.workable.com'), expect.anything())
     })
+
+    it('handles posting with title only and no metadata fields', async () => {
+      // Synthetic: real fixture has every metadata field populated; this exercises the
+      // false branches of location/department/type/workplace handling and the
+      // `rows.length === 0` early-return path inside buildWorkableMeta.
+      mockUser()
+      const minimalJob = {
+        title: 'Minimal Engineer',
+        description: '<p>Body content</p>',
+      }
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === WORKABLE_API) return Promise.resolve(jsonResponse(minimalJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKABLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Minimal Engineer</h1>')
+      expect(data.html).toContain('<p>Body content</p>')
+      expect(data.html).not.toContain('<table>')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('uses country when region is missing and omits title when absent', async () => {
+      // Synthetic: real fixture has region populated and a title; this exercises the
+      // `region || country` fallback and the title-less header path in buildWorkableMeta.
+      mockUser()
+      const job = {
+        description: '<p>Body</p>',
+        location: { city: 'London', region: '', country: 'United Kingdom' },
+        department: ['Platform'],
+        type: 'unknown',
+        workplace: 'remote',
+      }
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === WORKABLE_API) return Promise.resolve(jsonResponse(job))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: WORKABLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).not.toContain('<h1>')
+      expect(data.html).toContain('London, United Kingdom')
+      expect(data.html).toContain('Platform')
+      expect(data.html).toContain('Remote')
+      expect(data.html).not.toContain('Work type')
+    })
   })
 
   describe('Generic schema.org/JobPosting JSON-LD (e.g. Expedia careers.expediagroup.com)', () => {
