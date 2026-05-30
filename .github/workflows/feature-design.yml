@@ -201,14 +201,17 @@ jobs:
           } > "${DESIGN_FILE}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "${DESIGN_BRANCH}"
+          git checkout -B "${DESIGN_BRANCH}"
           git add "${DESIGN_FILE}"
           git commit -m "design: add proposal for #${ISSUE_NUMBER} (${FEATURE_TITLE})"
-          git push origin "${DESIGN_BRANCH}" || echo "Warning: could not push design branch"
-          {
-            echo "DESIGN_FILE=${DESIGN_FILE}"
-            echo "DESIGN_BRANCH=${DESIGN_BRANCH}"
-          } >> "$GITHUB_ENV"
+          if git push origin "${DESIGN_BRANCH}"; then
+            {
+              echo "DESIGN_FILE=${DESIGN_FILE}"
+              echo "DESIGN_BRANCH=${DESIGN_BRANCH}"
+            } >> "$GITHUB_ENV"
+          else
+            echo "Warning: could not push design branch — design file link will be omitted"
+          fi
 
       - name: Create design issue and link back
         if: steps.existing_spec.outputs.exists != 'true'
