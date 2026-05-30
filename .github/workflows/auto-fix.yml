@@ -297,7 +297,7 @@ jobs:
             exit 0
           fi
 
-          echo "Local CI failed — running one fix attempt"
+          echo "Local CI failed — running up to 2 fix attempts"
           : > /tmp/ci_failures.txt
           if [[ "$LINT_OK" != true ]]; then
             { echo "=== lint ==="; tail -30 /tmp/lint_out.txt; echo ""; } >> /tmp/ci_failures.txt
@@ -446,6 +446,7 @@ jobs:
               } > /tmp/issue_comment.txt
               gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
             else
+              GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
               {
                 if [[ -s /tmp/summary.txt ]]; then
                   cat /tmp/summary.txt

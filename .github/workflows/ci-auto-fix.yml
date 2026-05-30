@@ -183,7 +183,7 @@ jobs:
             exit 0
           fi
 
-          echo "Local CI failed — running one fix attempt"
+          echo "Local CI failed — running up to 2 fix attempts"
           : > /tmp/ci_failures.txt
           if [[ "$LINT_OK" != true ]]; then
             { echo "=== lint ==="; tail -30 /tmp/lint_out.txt; echo ""; } >> /tmp/ci_failures.txt
