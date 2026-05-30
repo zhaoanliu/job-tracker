@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: feature-design-${{ github.event.issue.number || github.event.inputs.issue_number }}
-      cancel-in-progress: false
+      cancel-in-progress: true
     permissions:
       contents: write
       issues: write
@@ -83,8 +83,31 @@ jobs:
 
       - name: Check for existing implementation spec
         id: existing_spec
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          EXISTING=""
+
+          # 1. Body contains "Technical tracking: #N" (manually cross-linked pairs)
           EXISTING=$(echo "${ISSUE_BODY}" | grep -oE 'Technical tracking: #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+
+          # 2. A previous completed run posted "<!-- design-issue: N -->" in a comment
+          if [[ -z "$EXISTING" ]]; then
+            EXISTING=$(gh issue view "${ISSUE_NUMBER}" --comments --json comments \
+              --jq '[.comments[].body | select(contains("design-issue:"))] | last' \
+              | grep -oE 'design-issue: [0-9]+' | grep -oE '[0-9]+' || true)
+          fi
+
+          # 3. A previous cancelled run created the design issue but never posted the comment
+          if [[ -z "$EXISTING" ]]; then
+            FEATURE_TITLE=$(printf '%s' "${ISSUE_TITLE}" | sed 's/^\[Feature Request\] //')
+            # $t is a jq variable passed via --arg, not a shell variable
+            # shellcheck disable=SC2016
+            EXISTING=$(gh issue list --state open --limit 50 --json number,title \
+              | jq -r --arg t "Design proposal: ${FEATURE_TITLE}" \
+              '.[] | select(.title == $t) | .number' | head -1 || true)
+          fi
+
           if [[ -n "$EXISTING" ]]; then
             echo "design_number=${EXISTING}" >> "$GITHUB_OUTPUT"
             echo "exists=true" >> "$GITHUB_OUTPUT"
