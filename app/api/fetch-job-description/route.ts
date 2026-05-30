@@ -423,6 +423,79 @@ async function fetchLeverJob(
   }
 }
 
+function buildLinkedInMeta(parsed: {
+  title: string
+  company: string
+  location: string
+  criteria: Array<[string, string]>
+}): string {
+  const rows: Array<[string, string]> = []
+  if (parsed.company) rows.push(['Company', parsed.company])
+  if (parsed.location) rows.push(['Location', parsed.location])
+  for (const [label, value] of parsed.criteria) {
+    if (label && value) rows.push([label, value])
+  }
+
+  if (!parsed.title && rows.length === 0) return ''
+
+  const header = parsed.title ? `<h1>${parsed.title}</h1>` : ''
+  if (rows.length === 0) return header
+
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  return `${header}<table>${tableRows}</table><hr>`
+}
+
+async function fetchLinkedInJob(jobId: string, signal: AbortSignal): Promise<string | null> {
+  try {
+    const apiRes = await fetch(
+      `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${jobId}`,
+      { signal, headers: { 'User-Agent': USER_AGENT } }
+    )
+    if (!apiRes.ok) {
+      console.error('fetch-job-description: LinkedIn non-2xx', apiRes.status, jobId)
+      return null
+    }
+    const raw = await apiRes.text()
+
+    const descMatch = raw.match(
+      /<div[^>]*class="[^"]*show-more-less-html__markup[^"]*"[^>]*>([\s\S]*?)<\/div>/i
+    )
+    if (!descMatch) return null
+
+    const titleMatch = raw.match(
+      /<h2[^>]*class="[^"]*topcard__title[^"]*"[^>]*>([\s\S]*?)<\/h2>/i
+    )
+    const orgMatch = raw.match(
+      /<a[^>]*class="[^"]*topcard__org-name-link[^"]*"[^>]*>([\s\S]*?)<\/a>/i
+    )
+    const locationMatch = raw.match(
+      /<span[^>]*class="[^"]*topcard__flavor--bullet[^"]*"[^>]*>([\s\S]*?)<\/span>/i
+    )
+
+    const criteria: Array<[string, string]> = []
+    const itemRegex =
+      /<li[^>]*class="[^"]*description__job-criteria-item[^"]*"[^>]*>([\s\S]*?)<\/li>/gi
+    let itemMatch: RegExpExecArray | null
+    while ((itemMatch = itemRegex.exec(raw)) !== null) {
+      const labelMatch = itemMatch[1].match(/<h3[^>]*>([\s\S]*?)<\/h3>/i)
+      const valueMatch = itemMatch[1].match(/<span[^>]*>([\s\S]*?)<\/span>/i)
+      if (labelMatch && valueMatch) {
+        criteria.push([labelMatch[1].trim(), valueMatch[1].trim()])
+      }
+    }
+
+    const meta = buildLinkedInMeta({
+      title: titleMatch ? titleMatch[1].trim() : '',
+      company: orgMatch ? orgMatch[1].trim() : '',
+      location: locationMatch ? locationMatch[1].trim() : '',
+      criteria,
+    })
+    return meta + descMatch[1].trim()
+  } catch {
+    return null
+  }
+}
+
 function buildEightfoldMeta(data: Record<string, unknown>): string {
   const rows: Array<[string, string]> = []
 
@@ -555,6 +628,15 @@ export async function POST(req: NextRequest) {
     if (directGhMatch) {
       const ghHtml = await fetchGreenhouseJob(directGhMatch[1], directGhMatch[2], controller.signal)
       if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
+    const linkedInMatch =
+      parsed.hostname === 'www.linkedin.com' &&
+      parsed.pathname.match(/^\/jobs\/view\/.*?(\d+)\/?$/)
+    if (linkedInMatch) {
+      const linkedInHtml = await fetchLinkedInJob(linkedInMatch[1], controller.signal)
+      if (linkedInHtml !== null) return NextResponse.json({ html: linkedInHtml })
       // API unavailable — fall through to HTML scraping
     }
 
