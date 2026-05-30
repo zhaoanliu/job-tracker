@@ -149,8 +149,13 @@ jobs:
 
           List discrete implementation steps that Claude Code will execute during the implement phase. Output this section in EXACTLY the format shown below — the JSON in the HTML comment is machine-parsed by the implement workflow and must be valid.
 
+          CRITICAL: each object's "id" field MUST equal the step number in the corresponding "Step N:" checkbox (id:1 → "Step 1:", id:2 → "Step 2:", etc.). The implement workflow uses this to tick off checkboxes as each step completes.
+
           <!-- implementation-plan-json
-          [{"id":1,"title":"<one-line title>","scope":"<what to implement — specific enough that no research is needed>","files_to_create":["path/to/file.ts"],"files_to_modify":["path/to/file.ts"],"test_file":"__tests__/path/to/test.ts","estimated_turns":15}]
+          [
+            {"id":1,"title":"<one-line title>","scope":"<what to implement — specific enough that no research is needed>","files_to_create":["path/to/new/file.ts"],"files_to_modify":[],"test_file":"__tests__/path/to/test.ts","estimated_turns":10},
+            {"id":2,"title":"<one-line title>","scope":"<what to implement>","files_to_create":[],"files_to_modify":["path/to/existing/file.ts"],"test_file":"__tests__/path/to/test.ts","estimated_turns":15}
+          ]
           -->
 
           - [ ] **Step 1: <title>** (~<N> turns) — <one-sentence scope summary>

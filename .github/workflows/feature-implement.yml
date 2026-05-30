@@ -201,7 +201,6 @@ jobs:
             jq -r '.[] | "  \(.id). \(.title) (~\(.estimated_turns // "?") turns)"' /tmp/subtasks.json
           else
             echo "No implementation-plan-json found in design issue — running Claude to plan sub-tasks"
-            printf '%s' "${ISSUE_BODY}" > /tmp/issue_body.txt
             {
               echo 'Break this feature into sequential implementation sub-tasks.'
               echo 'IMPORTANT: Each sub-task must have estimated_turns <= 25. Split any that would exceed this.'
@@ -414,9 +413,7 @@ jobs:
 
               if [[ "$TASK_OK" == true && -n "${DESIGN_NUMBER}" ]]; then
                 gh issue view "${DESIGN_NUMBER}" --json body --jq '.body' > /tmp/design_current_body.txt
-                TICK_PATTERN="- \\[ \\] \\*\\*Step ${TASK_ID}:"
-                sed "0,/${TICK_PATTERN}/{s/${TICK_PATTERN}/- [x] **Step ${TASK_ID}:/}" \
-                  /tmp/design_current_body.txt > /tmp/design_ticked_body.txt
+                python3 -c "b=open('/tmp/design_current_body.txt').read(); open('/tmp/design_ticked_body.txt','w').write(b.replace('- [ ] **Step ${TASK_ID}:', '- [x] **Step ${TASK_ID}:', 1))"
                 gh issue edit "${DESIGN_NUMBER}" --body-file /tmp/design_ticked_body.txt || true
               fi
 
