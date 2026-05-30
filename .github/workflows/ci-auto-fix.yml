@@ -172,11 +172,24 @@ jobs:
           HEAD_BRANCH: ${{ github.event.client_payload.head_branch }}
         run: |
           if [[ -z "$(git diff --name-only)" ]]; then
-            gh issue comment "${ISSUE_NUMBER}" \
-              --body "Claude analyzed the CI failure but made no code changes."
-            GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" \
-              --remove-label "status: in progress" \
-              --add-label "manual investigation required" || true
+            # A concurrent run for the same branch may have already pushed a fix.
+            # Check the latest commit on origin — if it's an auto-fix commit, close
+            # this issue automatically instead of escalating to manual investigation.
+            git fetch origin "${HEAD_BRANCH}" 2>/dev/null || true
+            LATEST_MSG=$(git log -1 --pretty=%s "origin/${HEAD_BRANCH}" 2>/dev/null || echo "")
+            if [[ "$LATEST_MSG" == *"auto-fix CI failure"* ]]; then
+              gh issue comment "${ISSUE_NUMBER}" \
+                --body "CI failure on \`${HEAD_BRANCH}\` was already resolved by a concurrent auto-fix run. Closing automatically."
+              GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" \
+                --remove-label "status: in progress" || true
+              GH_TOKEN="${GH_PAT}" gh issue close "${ISSUE_NUMBER}"
+            else
+              gh issue comment "${ISSUE_NUMBER}" \
+                --body "Claude analyzed the CI failure but made no code changes."
+              GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" \
+                --remove-label "status: in progress" \
+                --add-label "manual investigation required" || true
+            fi
             exit 0
           fi
           ISSUE_TITLE=$(cat /tmp/issue_title.txt)
