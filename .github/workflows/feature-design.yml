@@ -145,8 +145,26 @@ jobs:
           ### UI changes
           For any user-visible change: which component, where exactly in the UI it appears, and how the user interacts with it. If there is no UI change, state that explicitly and explain why the feature is complete without one.
 
-          ## Implementation order
-          Numbered list of discrete implementation steps in the order they must be done, with explicit dependencies called out (e.g. "Step 2 depends on Step 1 being merged first"). Each step should be small enough to review independently. If steps are independent and can be done in any order, say so.
+          ## Implementation plan
+
+          List discrete implementation steps that Claude Code will execute during the implement phase. Output this section in EXACTLY the format shown below — the JSON in the HTML comment is machine-parsed by the implement workflow and must be valid.
+
+          CRITICAL: each object's "id" field MUST equal the step number in the corresponding "Step N:" checkbox (id:1 → "Step 1:", id:2 → "Step 2:", etc.). The implement workflow uses this to tick off checkboxes as each step completes.
+
+          <!-- implementation-plan-json
+          [
+            {"id":1,"title":"<one-line title>","scope":"<what to implement — specific enough that no research is needed>","files_to_create":["path/to/new/file.ts"],"files_to_modify":[],"test_file":"__tests__/path/to/test.ts","estimated_turns":10},
+            {"id":2,"title":"<one-line title>","scope":"<what to implement>","files_to_create":[],"files_to_modify":["path/to/existing/file.ts"],"test_file":"__tests__/path/to/test.ts","estimated_turns":15}
+          ]
+          -->
+
+          - [ ] **Step 1: <title>** (~<N> turns) — <one-sentence scope summary>
+          - [ ] **Step 2: <title>** (~<N> turns) — <one-sentence scope summary>
+
+          Sizing rules for estimated_turns (MUST be <= 25 — split any step that would exceed this):
+          - 10-15 turns: simple API route or isolated UI change (1-2 files)
+          - 15-25 turns: component with multiple interactions or data flow (2-3 files)
+          Each test_file is a single path under __tests__/; files_to_create and files_to_modify are relative paths from repo root; call out step dependencies (e.g. "Step 2 depends on Step 1") explicitly.
 
           ## Design decisions
           For each non-obvious choice in the proposed implementation, state: (a) what was chosen, (b) the main alternative considered, and (c) why the chosen approach is better for this codebase. Skip decisions where the choice is obvious or has no meaningful alternative.
@@ -245,6 +263,9 @@ jobs:
 
           {
             echo "_Design for feature request #${ISSUE_NUMBER}: ${ISSUE_TITLE}_"
+            echo ""
+            echo "> [!WARNING]"
+            echo "> The \`<!-- implementation-plan-json -->\` block in the Implementation plan section is machine-parsed by the implement workflow. Edit the \`- [ ]\` checkboxes to adjust the plan — do not edit the JSON directly."
             echo ""
             cat /tmp/design_proposal.md
           } > /tmp/design_body.txt
