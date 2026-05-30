@@ -169,7 +169,7 @@ Coverage thresholds (enforced in `vitest.config.ts`):
 
 New code that drops any metric below its threshold will fail CI. KanbanBoard, KanbanColumn, and DragOverlayCard are excluded from unit coverage because they require a real drag context — they are covered by Playwright E2E tests instead.
 
-**Always run `npm run test:coverage` before committing — not `npm test`.** `npm test` runs Vitest without coverage and will not catch threshold failures. `npm run test:coverage` is what CI runs; running it locally is the only way to catch a coverage drop before it reaches CI. If a threshold fails, add the missing tests and re-run. Follow the same cap as the self-healing review loop: up to 2 fix cycles (3 runs total); if still failing after that, push and note the remaining gap explicitly in the PR description.
+**Always run `npm run test:coverage` before committing — not `npm test`.** `npm test` runs Vitest without coverage and will not catch threshold failures. `npm run test:coverage` is what CI runs; running it locally is the only way to catch a coverage drop before it reaches CI. If a threshold fails, add the missing tests and re-run. Follow the same cap as the self-healing review loop: up to 2 fix cycles (3 runs total); if still failing after that, open the PR as a draft (`gh pr create --draft`) and note the remaining gap explicitly in the PR description.
 
 **Do not mock Supabase in integration tests** — the mock singleton caused a production incident where mocked tests passed but a real migration failed. Use real Supabase or test utilities that hit a real DB.
 
