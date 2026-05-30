@@ -54,7 +54,10 @@ e2e/
   auth.email.spec.ts # magic link + signup via Testmail.app — run in CI (skipped if TESTMAIL_API_KEY unset)
   helpers.ts         # shared test utilities (env-var-driven, local Supabase defaults)
   local/             # board + CSV tests — require supabase start, run via nightly cron only
-.github/workflows/
+.github/
+  workflows/         # GitHub Actions CI/CD, auto-fix, and feature design/implement pipelines
+  actions/           # reusable composite actions
+  designs/           # design proposals committed by feature-design.yml; one file per feature
   auto-fix.yml       # auto-fix Sentry bugs with Claude Code
   lint.yml           # ESLint + tsc + actionlint on every PR
   e2e.yml            # auth E2E on every PR/push (no local Supabase)
@@ -434,12 +437,20 @@ Then watch with `gh run list --limit 3`. This takes seconds to set up vs. trigge
 
 **Always run `actionlint` locally before pushing changes to any `.github/workflows/` file.** Install: `brew install actionlint` (macOS). The feedback loop for workflow bugs is 5+ minutes per iteration (full CI run); catching them locally is the only way to avoid the churn.
 
-**Before committing any workflow change, self-review across these dimensions — do not wait to be asked:**
-1. **Logic** — does each step do what it claims? Wrong variable, wrong command, wrong order?
-2. **Shell correctness** — quoting, exit codes, heredoc termination; `git diff --name-only` only shows modified tracked files — use `{ git diff --name-only; git ls-files --others --exclude-standard; }` to also capture new untracked files
+**Self-healing review loop — applies to all significant changes, not just workflows. Do not wait to be asked.**
+
+**For code:** commit first, then review. If the review finds any issue, fix it, commit, and review again. Cap at 2 fix cycles (3 reviews total). If still not clean: push what's committed and note the remaining issues explicitly in the PR description — do not block shipping on perfect.
+
+**For design files (`.github/designs/`):** review the content locally before the first post, because `gh issue create` / `gh issue edit` is the "push" — once it's up it's immediately visible. For subsequent revisions: edit the issue body, then post a comment explaining what changed (this is the visible audit trail, equivalent to a commit message).
+
+Review across these dimensions on every cycle:
+1. **Logic** — does each piece do what it claims? Wrong variable, wrong command, wrong order?
+2. **Shell correctness** — quoting, exit codes, heredoc termination; use `{ git diff --name-only; git ls-files --others --exclude-standard; }` to capture both modified and new untracked files
 3. **Step ordering** — does each step have what it needs from prior steps? (e.g. `node_modules/` must exist before running npm scripts — add `npm ci` before any Claude or test step that needs it)
-4. **Edge cases** — what if Claude makes no changes? Creates only new files? Adds a new package?
-5. **Actionlint** — run it; don't assume it passes
+4. **Edge cases** — what if the happy path fails? Missing files, empty responses, concurrent runs?
+5. **Actionlint** — for workflow files, run it locally; don't assume it passes
+6. **Local execution of text-manipulation commands** — for any sed/awk/python one-liner, test it with representative sample input before committing. Don't reason about whether it works — run it.
+7. **Format round-trip for prompt-generating code** — when code generates a prompt for Claude and then parses Claude's output, trace the full round trip: what format does the prompt specify → what does the parser extract → what does the consuming loop expect. Verify they're consistent and every parser assumption is stated explicitly in the prompt.
 
 **After any change to ci-auto-fix.yml, verify push attribution with a live test.** The symptom of a broken fix is silent: ci-auto-fix pushes a commit, the PR's status checks go empty ("Waiting for status to be reported"), and no new CI run starts. The pass criterion is new check run timestamps appearing on the PR *after* ci-auto-fix's push timestamp. Test procedure:
 1. Create a branch with an **additive** trivially-fixable unit test failure — add a *new* test (e.g. `it('tmp', () => { expect(true).toBe(false) })`) rather than changing an existing value. Additive is critical: if you change an existing value back (9→999→9), the net diff vs main is zero, detect-doc-only skips all CI, and auto-merge fires unintentionally.
