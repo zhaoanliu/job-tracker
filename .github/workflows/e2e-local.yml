@@ -37,7 +37,20 @@ jobs:
           version: 2.101.0
 
       - name: Start local Supabase
-        run: supabase start
+        run: |
+          for attempt in 1 2 3; do
+            if supabase start; then
+              break
+            fi
+            if [[ $attempt -lt 3 ]]; then
+              echo "supabase start failed (attempt $attempt/3), retrying in 30s..."
+              supabase stop || true
+              sleep 30
+            else
+              echo "supabase start failed after 3 attempts"
+              exit 1
+            fi
+          done
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
