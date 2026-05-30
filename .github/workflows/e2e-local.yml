@@ -36,8 +36,7 @@ jobs:
         with:
           version: 2.101.0
 
-      - name: Start local Supabase
-        run: supabase start
+      - uses: ./.github/actions/supabase-start
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
