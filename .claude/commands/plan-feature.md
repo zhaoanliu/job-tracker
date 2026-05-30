@@ -1,4 +1,4 @@
-Create a two-issue pair for a planned feature: one customer-facing roadmap issue and one internal implementation issue, cross-linked.
+Create a customer-facing roadmap issue for a planned feature. The implementation spec is generated later by the design phase.
 
 Usage: /plan-feature <title>
 
@@ -13,14 +13,4 @@ Steps:
    - Do NOT add `user-requested` — that label is reserved for issues submitted via the in-app Feedback form.
    - Capture the issue number as `PUBLIC_N`.
 
-3. Create the **internal implementation issue**:
-   - Title: plain descriptive title (no prefix, no `[Feature Request]`), same subject as the public issue
-   - Label: `status: backlog`
-   - Body: synthesize all technical details from the current conversation — approach, affected files, edge cases, open questions. Include a line `Public roadmap issue: #<PUBLIC_N>` at the top.
-   - Command: `gh issue create --title "<plain title>" --label "status: backlog" --body "..."`
-   - Capture the issue number as `INTERNAL_N`.
-
-4. Add a cross-link comment to the public issue pointing to the internal one:
-   - `gh issue comment <PUBLIC_N> --body "Internal tracking issue: #<INTERNAL_N>"`
-
-5. Report both URLs to the user. Remind them: add `status: auto-implement` to the internal issue (#<INTERNAL_N>) when ready to start implementation.
+3. Report the URL to the user. Remind them: add `status: approved` to kick off the design phase, which will generate a structured implementation spec with a reviewable plan before implementation starts.

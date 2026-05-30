@@ -395,14 +395,14 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 **Phase 2 — implement** (triggered by `status: auto-implement`):
 - Owner adds `status: auto-implement` to #X when the design is finalised
 - Claude reads both #X (original request) and #Y (design spec) and implements accordingly
-- If #Y contains an `## Implementation plan` (from Phase 1), the implement workflow parses the `<!-- implementation-plan-json -->` block and executes the pre-planned subtasks; each `- [ ]` checkbox in #Y is ticked off as its subtask completes. If no plan JSON is found (e.g. manually written spec from `/plan-feature`), Claude generates a subtask plan at runtime.
+- If #Y contains an `## Implementation plan` (from Phase 1), the implement workflow parses the `<!-- implementation-plan-json -->` block and executes the pre-planned subtasks; each `- [ ]` checkbox in #Y is ticked off as its subtask completes. If no plan JSON is found (e.g. a manually written spec using `Technical tracking: #N`), Claude generates a subtask plan at runtime.
 - Always opens a PR (never pushes to main) — PR body includes `Closes #X` and `Closes #Y` so both close on merge
 - Branch name is `feat/issue-<N>-<timestamp>` to avoid collisions on re-runs
 - If Claude makes no changes, comments on the issue explaining that the request may need more detail
 
 **Full approval flow (user-requested)**: user submits via the in-app Feedback form → GitHub issue #X created with `user-requested` label → owner adds `status: approved` → design phase runs, #Y created → owner refines design → owner adds `status: auto-implement` → implementation phase runs, PR opened.
 
-**Full approval flow (/plan-feature)**: owner runs `/plan-feature` → creates roadmap issue #X (`planned` label) + implementation spec issue #Y (`implementation` label, linked via `Technical tracking: #N` in #X's body) → owner adds `status: approved` to #X → design phase detects existing #Y, links it, skips generation → owner refines #Y in a Claude Code session → owner adds `status: auto-implement` → implementation phase runs using #Y as the spec, PR closes both #X and #Y.
+**Full approval flow (/plan-feature)**: owner runs `/plan-feature` → creates roadmap issue #X (`planned` label) only → owner adds `status: approved` to #X → design phase runs, generates #Y with `## Implementation plan` (JSON block + checkboxes) → owner refines design → owner adds `status: auto-implement` → implementation phase runs, PR closes both #X and #Y.
 
 **Manual investigation-based issue pairs** (created outside `/plan-feature`, e.g. during a JD URL investigation): always cross-link using exactly `Technical tracking: #N` in the **body** of the public issue #X. `feature-design.yml` greps the body for that exact string — a comment is invisible to it, and any other wording (e.g. "Internal tracking issue: #N") will not be detected. Omitting this causes a duplicate design issue to be generated when `status: approved` is added.
 
