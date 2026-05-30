@@ -19,7 +19,7 @@ jobs:
       group: feature-design-${{ github.event.issue.number || github.event.inputs.issue_number }}
       cancel-in-progress: false
     permissions:
-      contents: read
+      contents: write
       issues: write
 
     steps:
@@ -182,6 +182,37 @@ jobs:
             fi
           done
 
+      - name: Commit design file to .github/designs
+        if: steps.existing_spec.outputs.exists != 'true'
+        run: |
+          if [[ ! -s /tmp/design_proposal.md ]]; then
+            echo "No design proposal — skipping commit"
+            exit 0
+          fi
+          FEATURE_TITLE=$(printf '%s' "${ISSUE_TITLE}" | sed 's/^\[Feature Request\] //')
+          SLUG=$(printf '%s' "${FEATURE_TITLE}" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-' | sed 's/^-//;s/-$//' | cut -c1-50)
+          DESIGN_FILE=".github/designs/issue-${ISSUE_NUMBER}-${SLUG}.md"
+          DESIGN_BRANCH="design/issue-${ISSUE_NUMBER}-${SLUG}"
+          mkdir -p .github/designs
+          {
+            echo "_Design for feature request #${ISSUE_NUMBER}: ${ISSUE_TITLE}_"
+            echo ""
+            cat /tmp/design_proposal.md
+          } > "${DESIGN_FILE}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "${DESIGN_BRANCH}"
+          git add "${DESIGN_FILE}"
+          git commit -m "design: add proposal for #${ISSUE_NUMBER} (${FEATURE_TITLE})"
+          if git push origin "${DESIGN_BRANCH}"; then
+            {
+              echo "DESIGN_FILE=${DESIGN_FILE}"
+              echo "DESIGN_BRANCH=${DESIGN_BRANCH}"
+            } >> "$GITHUB_ENV"
+          else
+            echo "Warning: could not push design branch — design file link will be omitted"
+          fi
+
       - name: Create design issue and link back
         if: steps.existing_spec.outputs.exists != 'true'
         env:
@@ -227,6 +258,10 @@ jobs:
           {
             echo "Design proposal ready for review: ${DESIGN_URL}"
             echo ""
+            if [[ -n "${DESIGN_BRANCH}" ]]; then
+              echo "Design file: [\`${DESIGN_FILE}\`](https://github.com/${GITHUB_REPOSITORY}/blob/${DESIGN_BRANCH}/${DESIGN_FILE})"
+              echo ""
+            fi
             echo "Discuss and refine the design (ad-hoc in a Claude Code session works well). When the design looks good, add \`status: auto-implement\` to this issue to kick off implementation."
             echo ""
             echo "<!-- design-issue: ${DESIGN_NUMBER} -->"
