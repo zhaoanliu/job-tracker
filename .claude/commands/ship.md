@@ -7,9 +7,12 @@ Steps:
    - If $ARGUMENTS is a number, use it directly.
    - Otherwise, detect it from the current branch: `gh pr view --json number --jq '.number'`
    - If no PR is found, report that and stop.
-2. Show current checks: `gh pr checks <N> || true`
+2. If the PR is a draft, promote it to ready for review first:
+   - Check: `gh pr view <N> --json isDraft --jq '.isDraft'`
+   - If true: `gh pr ready <N>`
+3. Show current checks: `gh pr checks <N> || true`
    (exit code 8 means checks are pending/failing — not a real error; `|| true` prevents a red error block)
-3. Evaluate the result:
+4. Evaluate the result:
    a. **All checks pass** → merge with squash and delete the branch:
       ```
       gh pr merge <N> --squash --delete-branch --repo <owner>/<repo>
@@ -21,15 +24,15 @@ Steps:
       ```
       Report which checks are still running and confirm auto-merge is enabled.
    c. **Some checks have failed** → list the failing checks by name, do NOT merge. Ask the user whether to investigate the failures.
-4. After a successful merge (case a), check whether the linked issue (from "Closes #N" in the PR body) was automatically closed:
+5. After a successful merge (case a), check whether the linked issue (from "Closes #N" in the PR body) was automatically closed:
    - `gh pr view <N> --json closingIssuesReferences --jq '.closingIssuesReferences[].number'`
    - If the issue is still open, close it: `gh issue close <issue-N>`
-5. After a successful merge (case a), pull local main to pick up the merged commit:
+6. After a successful merge (case a), pull local main to pick up the merged commit:
    - `git pull --ff-only 2>&1 || echo "skipped: local changes present"`
    - Run this command exactly as written — do NOT prepend `echo '{}' |` or any other stdin pipe prefix.
    - This ensures any new slash commands or skills are available immediately in the next session.
    - If the pull is blocked by local uncommitted changes, warn the user but do not fail.
-6. After a successful merge (case a), clean up the worktree for this PR's branch if one exists:
+7. After a successful merge (case a), clean up the worktree for this PR's branch if one exists:
    - Find the branch name: `gh pr view <N> --json headRefName --jq '.headRefName'`
    - Find the repo root and locate the worktree for that branch:
      ```

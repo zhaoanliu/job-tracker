@@ -527,7 +527,9 @@ The three steps in order:
    **Never use `cd /path/to/worktree && <command>` in shell commands.** Commands are allowlisted by their leading token — `cd /path && git diff` starts with `cd`, not `git`, and will prompt for permission even though `git *` is in the allowlist. Instead: use `git -C /abs/path/to/worktree <subcommand>` for git operations, or run tools with absolute paths as arguments. Reserve `cd` for standalone navigation only.
 
    **For file reads mid-session:** if a worktree exists for the current task, read files from it — the worktree may have uncommitted changes not yet on main. If no worktree has been created yet in the session, reading from the main working directory is fine. Never create a worktree just to read files.
-3. Open a PR whose title is **`<issue title> (#N)`** — copy the issue title verbatim and append the issue number in parentheses. Example: `[Feature Request] Add dark mode (#88)`. `Closes #N` in the body auto-closes the issue on merge.
+3. Open a PR as a **draft** with `gh pr create --draft`. Title: **`<issue title> (#N)`** — copy the issue title verbatim and append the issue number in parentheses. Example: `[Feature Request] Add dark mode (#88)`. `Closes #N` in the body auto-closes the issue on merge.
+
+   **All session PRs start as drafts.** Draft PRs cannot be merged manually or via auto-merge, preventing premature merges while changes are still being discussed or iterated on. The `/ship` skill promotes a draft to ready (`gh pr ready`) and then merges — never promote manually outside of `/ship`.
 
 ## Code conventions
 

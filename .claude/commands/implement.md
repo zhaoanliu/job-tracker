@@ -18,9 +18,10 @@ Steps:
    - Update README.md if the feature is user-visible
 6. Commit all changes: `git add <files> && git commit -m "feat: <title> (closes #<N>)"`
 7. Push the branch: `git push -u origin feat/issue-<N>-<slug>`
-8. Open a PR whose title matches the issue title plus the issue number:
+8. Open a draft PR whose title matches the issue title plus the issue number:
    ```
    gh pr create \
+     --draft \
      --title "[Feature Request] <title> (#<N>)" \
      --body "Closes #<N>" \
      --base main

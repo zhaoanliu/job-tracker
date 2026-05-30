@@ -277,6 +277,78 @@ jobs:
           git fetch origin main
           git checkout origin/main -- .github/ 2>/dev/null || true
 
+      - name: Verify fix with local CI
+        if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npm ci
+
+          run_ci() {
+            LINT_OK=true; TSC_OK=true; TEST_OK=true
+            npm run lint > /tmp/lint_out.txt 2>&1 || LINT_OK=false
+            npx tsc --noEmit > /tmp/tsc_out.txt 2>&1 || TSC_OK=false
+            npm run test:coverage > /tmp/test_out.txt 2>&1 || TEST_OK=false
+            [[ "$LINT_OK" == true && "$TSC_OK" == true && "$TEST_OK" == true ]]
+          }
+
+          if run_ci; then
+            echo "CI_PASS=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "Local CI failed — running one fix attempt"
+          : > /tmp/ci_failures.txt
+          if [[ "$LINT_OK" != true ]]; then
+            { echo "=== lint ==="; tail -30 /tmp/lint_out.txt; echo ""; } >> /tmp/ci_failures.txt
+          fi
+          if [[ "$TSC_OK" != true ]]; then
+            { echo "=== tsc ==="; tail -30 /tmp/tsc_out.txt; echo ""; } >> /tmp/ci_failures.txt
+          fi
+          if [[ "$TEST_OK" != true ]]; then
+            { echo "=== tests ==="; tail -50 /tmp/test_out.txt; echo ""; } >> /tmp/ci_failures.txt
+          fi
+
+          GIT_DIFF=$(git diff HEAD 2>/dev/null | head -c 20000)
+          NEW_FILES=$({ git diff --name-only; git ls-files --others --exclude-standard; } 2>/dev/null)
+          {
+            echo "Your fix attempt failed local CI. Fix the remaining failures."
+            echo ""
+            if [[ -n "$NEW_FILES" ]]; then
+              echo "=== New/modified files ==="
+              echo "$NEW_FILES"
+              echo ""
+            fi
+            if [[ -n "$GIT_DIFF" ]]; then
+              echo "=== Changes so far ==="
+              echo "$GIT_DIFF"
+              echo ""
+            fi
+            echo "=== CI failures to fix ==="
+            cat /tmp/ci_failures.txt
+            echo "Validate: npm run lint && npx tsc --noEmit && npm run test:coverage"
+          } > /tmp/fix_prompt.txt
+
+          DELAY=30
+          for fix_attempt in 1 2; do
+            set +eo pipefail
+            claude --dangerously-skip-permissions --max-turns 15 \
+              -p "$(cat /tmp/fix_prompt.txt)" 2>&1 | tee /tmp/fix_output.txt
+            set -eo pipefail
+            if grep -q "529\|Overloaded\|at capacity" /tmp/fix_output.txt && [[ $fix_attempt -lt 2 ]]; then
+              sleep $DELAY
+              DELAY=$((DELAY * 2))
+              continue
+            fi
+            if run_ci; then
+              echo "CI_PASS=true" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+
+          echo "CI_PASS=false" >> "$GITHUB_ENV"
+          echo "Local CI still failing after fix attempts — will open draft PR"
+
       - name: Open PR
         if: steps.issue.outputs.skip != 'true' && steps.sentry_details.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         env:
@@ -304,8 +376,6 @@ jobs:
           fi
 
           ISSUE_TITLE=$(cat /tmp/issue_title.txt)
-          RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-          RISK=${RISK:-high}
           FILES_CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
           STATS=$(git diff --shortstat)
           INSERTIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
@@ -314,48 +384,75 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Always create a PR — fixes are verified by CI (lint + e2e-auth) before reaching main
           BRANCH="fix/issue-${ISSUE_NUMBER}-$(date +%s)"
           git checkout -b "$BRANCH"
           git add -A
-          git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
+          git commit -m "fix: auto-fix attempt for issue #${ISSUE_NUMBER}"
           git push origin "$BRANCH"
 
-          {
-            echo "Closes #${ISSUE_NUMBER}"
-            echo ""
-            echo "**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"
-            if [[ -s /tmp/summary.txt ]]; then
+          if [[ "${CI_PASS}" != "true" ]]; then
+            # Bot could not get CI to pass — open draft PR as starting point for human
+            {
+              echo "Closes #${ISSUE_NUMBER}"
               echo ""
-              cat /tmp/summary.txt
-            fi
-          } > /tmp/pr_body.txt
-          PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
-            --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
-            --body-file /tmp/pr_body.txt \
-            --base main)
-
-          if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
-            # Use GH_PAT (not GITHUB_TOKEN) so the merge is attributed to the repo owner,
-            # not github-actions[bot]. This allows the issues: closed event to fire and
-            # resolve-sentry-on-close to run after CI passes.
-            GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL" || true
+              echo "⚠️ Claude attempted a fix but local CI still fails after multiple attempts. This draft PR is a starting point — human investigation is required to complete the fix."
+              if [[ -s /tmp/summary.txt ]]; then
+                echo ""
+                cat /tmp/summary.txt
+              fi
+            } > /tmp/pr_body.txt
+            PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
+              --draft \
+              --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
+              --body-file /tmp/pr_body.txt \
+              --base main)
+            GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual investigation required" || true
             {
               if [[ -s /tmp/summary.txt ]]; then
                 cat /tmp/summary.txt
                 echo ""
               fi
-              echo "Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes. Sentry will be resolved automatically when this issue closes."
+              echo "Claude attempted a fix but could not get CI to pass. A draft PR has been opened as a starting point: $PR_URL — human investigation required."
             } > /tmp/issue_comment.txt
             gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
           else
+            # CI passes — open regular PR with risk-based auto-merge
+            RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+            RISK=${RISK:-high}
             {
+              echo "Closes #${ISSUE_NUMBER}"
+              echo ""
+              echo "**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"
               if [[ -s /tmp/summary.txt ]]; then
-                cat /tmp/summary.txt
                 echo ""
+                cat /tmp/summary.txt
               fi
-              echo "A fix has been proposed: $PR_URL — please review before merging."
-            } > /tmp/issue_comment.txt
-            gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+            } > /tmp/pr_body.txt
+            PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
+              --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
+              --body-file /tmp/pr_body.txt \
+              --base main)
+
+            if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
+              # Use GH_PAT so the merge is attributed to the repo owner, allowing
+              # the issues: closed event to fire and resolve-sentry-on-close to run.
+              GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL" || true
+              {
+                if [[ -s /tmp/summary.txt ]]; then
+                  cat /tmp/summary.txt
+                  echo ""
+                fi
+                echo "Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes. Sentry will be resolved automatically when this issue closes."
+              } > /tmp/issue_comment.txt
+              gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+            else
+              {
+                if [[ -s /tmp/summary.txt ]]; then
+                  cat /tmp/summary.txt
+                  echo ""
+                fi
+                echo "A fix has been proposed: $PR_URL — please review before merging."
+              } > /tmp/issue_comment.txt
+              gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+            fi
           fi
