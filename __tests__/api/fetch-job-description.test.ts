@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import leverNoLists from '../fixtures/lever-posting-no-lists.json'
 import leverWithLists from '../fixtures/lever-posting-with-lists.json'
 import greenhouseScaleAI from '../fixtures/greenhouse-scaleai-job.json'
@@ -1217,6 +1219,145 @@ describe('POST /api/fetch-job-description', () => {
       const data = await res.json()
       // No metadata table prepended when there is no JobPosting JSON-LD
       expect(data.html).not.toContain('<table>')
+    })
+  })
+
+  describe('LinkedIn ATS (linkedin.com/jobs/view/{id} URLs)', () => {
+    const linkedinJobHtml = readFileSync(
+      join(__dirname, '../fixtures/linkedin-job.html'),
+      'utf-8'
+    )
+    const LINKEDIN_URL = 'https://www.linkedin.com/jobs/view/4415502323'
+    const LINKEDIN_API =
+      'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/4415502323'
+
+    it('extracts metadata header and description — real fixture data', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LINKEDIN_API) return Promise.resolve(htmlResponse(linkedinJobHtml))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LINKEDIN_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain(
+        '<h1>Principal Staff Software Engineer, Development Infrastructure</h1>'
+      )
+      expect(data.html).toContain('LinkedIn')
+      expect(data.html).toContain('Bellevue, WA')
+      expect(data.html).toContain('Full-time')
+      expect(data.html).toContain('Director')
+      expect(data.html).toContain('Engineering')
+      expect(data.html).toContain('Technology, Information and Internet')
+      expect(data.html).toContain('transform the way the world works')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(LINKEDIN_API, expect.anything())
+    })
+
+    it('matches URLs with query strings (tracking params)', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LINKEDIN_API) return Promise.resolve(htmlResponse(linkedinJobHtml))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: `${LINKEDIN_URL}?trackingId=abc&refId=xyz` })
+      )
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain(
+        '<h1>Principal Staff Software Engineer, Development Infrastructure</h1>'
+      )
+      expect(fetchMock).toHaveBeenCalledWith(LINKEDIN_API, expect.anything())
+    })
+
+    it('matches URLs with a SEO slug prefix in the path', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LINKEDIN_API) return Promise.resolve(htmlResponse(linkedinJobHtml))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({
+          url: 'https://www.linkedin.com/jobs/view/principal-staff-software-engineer-development-infrastructure-at-linkedin-4415502323',
+        })
+      )
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain(
+        '<h1>Principal Staff Software Engineer, Development Infrastructure</h1>'
+      )
+      expect(fetchMock).toHaveBeenCalledWith(LINKEDIN_API, expect.anything())
+    })
+
+    it('falls back to extractJobContent when LinkedIn API returns 404', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LINKEDIN_API) return Promise.resolve(htmlResponse('', { status: 404 }))
+        return Promise.resolve(htmlResponse('<html><body><p>SENTINEL-FALLBACK-BODY</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LINKEDIN_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>SENTINEL-FALLBACK-BODY</p>')
+    })
+
+    it('falls back to extractJobContent when API response has no show-more-less-html__markup div', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LINKEDIN_API) return Promise.resolve(htmlResponse('<html><body><h2 class="topcard__title">Title</h2></body></html>'))
+        return Promise.resolve(htmlResponse('<html><body><p>SENTINEL-FALLBACK-BODY</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LINKEDIN_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>SENTINEL-FALLBACK-BODY</p>')
+    })
+
+    it('falls back to HTML scraping when LinkedIn API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LINKEDIN_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>SENTINEL-FALLBACK-BODY</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LINKEDIN_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>SENTINEL-FALLBACK-BODY</p>')
+    })
+
+    it('does not trigger handler for non-job LinkedIn URLs', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === LINKEDIN_API) return Promise.resolve(htmlResponse(linkedinJobHtml))
+        return Promise.resolve(htmlResponse('<html><body><p>Feed</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.linkedin.com/feed/' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).not.toHaveBeenCalledWith(LINKEDIN_API, expect.anything())
+      expect(fetchMock).toHaveBeenCalledWith('https://www.linkedin.com/feed/', expect.anything())
     })
   })
 })
