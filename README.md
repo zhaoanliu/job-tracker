@@ -30,7 +30,7 @@ Track every application through a nine-stage pipeline — from passive interest 
 - **Auth** — email + password, magic link, or one-click demo account via Supabase Auth
 - **Row Level Security** — every DB query is scoped to the authenticated user, enforced at the Postgres layer
 
-> See [Development Journal](docs/development-journal.md) for the full story of how this project evolved — original intention, features added step by step, problems encountered and how they were solved, and the architecture decisions behind the production version.
+> See [Development Journal](docs/development-journal.md) for the full story of how this project evolved, [Feature pipeline](docs/feature-pipeline.md) for the end-to-end automation walkthrough, and [GitHub Actions audit](docs/github-actions-audit.md) for the documented limitations and planned Temporal migration.
 
 ---
 
@@ -69,6 +69,38 @@ This is a defense-in-depth layer that costs nothing to add and eliminates an ent
 
 ### Optimistic updates
 Drag-and-drop operations update local React state immediately (via `handleDragOver` for cross-column moves and `handleDragEnd` for final order), then persist to Supabase in the background. The UI never waits for a round-trip, so drag feels instant even on a slow connection.
+
+---
+
+## Automation pipeline
+
+ApplyTrackr's self-healing CI/CD system is built on GitHub Actions and Claude Code. Every production error, CI failure, nightly E2E failure, and deployment issue triggers an automated loop: GitHub issue auto-created → Claude Code diagnoses and fixes → PR opened → CI checks → auto-merged → deployed.
+
+The feature pipeline is the most complex flow: a multi-phase, human-gated workflow spanning design generation, subtask implementation, acceptance criteria verification, and production deployment.
+
+### GitHub Actions vs Temporal
+
+The system currently uses GitHub Actions throughout. The limitations section below documents 13 workarounds required to build reliable orchestration on a platform designed for CI pipelines, not stateful workflows. The feature pipeline is planned for migration to Temporal.
+
+![GitHub Actions limitations vs Temporal solution](docs/applytrackr_temporal.svg)
+
+> See [GitHub Actions audit](docs/github-actions-audit.md) for the full list of workarounds with file names and line numbers.
+
+### Feature pipeline — end to end
+
+![Feature pipeline end to end](docs/applytrackr_feature_pipeline.svg)
+
+**Three automated phases:**
+1. **Design** (`feature-design.yml`) — Claude reads source files, generates a design proposal, creates issue #Y with subtask JSON and acceptance criteria
+2. **Implementation** (`feature-implement.yml`) — Claude implements each subtask in order, running lint + tests after each commit
+3. **AC verification** (`verify-ac`) — Claude generates and runs a Playwright test against the acceptance criteria; self-heals on first failure
+
+**Three human gates:**
+1. Owner adds `status: approved` to #X to trigger design
+2. Owner reviews and refines the design in Claude Code, then adds `status: auto-implement`
+3. Owner reviews the PR (human verification steps listed in PR body) and merges
+
+> See [Feature pipeline](docs/feature-pipeline.md) for the complete end-to-end walkthrough.
 
 ---
 
@@ -244,6 +276,8 @@ flowchart LR
 ---
 
 ## Error monitoring & auto-fix pipeline
+
+> For a visual overview of how these workflows connect, see the [Automation pipeline](#automation-pipeline) section above.
 
 Eight self-healing and self-implementing workflows are powered by Claude Code. Every path ends in a PR — never a direct push to `main`.
 
