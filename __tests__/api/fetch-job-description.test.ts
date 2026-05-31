@@ -5,6 +5,7 @@ import leverNoLists from '../fixtures/lever-posting-no-lists.json'
 import leverWithLists from '../fixtures/lever-posting-with-lists.json'
 import greenhouseScaleAI from '../fixtures/greenhouse-scaleai-job.json'
 import greenhouseSoFi from '../fixtures/greenhouse-sofi-job.json'
+import greenhouseStripe from '../fixtures/greenhouse-stripe-job.json'
 import eightfoldMicrosoft from '../fixtures/eightfold-microsoft-job.json'
 import workdayAdobeJob from '../fixtures/workday-adobe-job.json'
 import uberJob from '../fixtures/uber-job.json'
@@ -482,6 +483,99 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toContain('"')
       // No raw entities should remain in the output
       expect(data.html).not.toContain('&lt;div')
+    })
+  })
+
+  describe('Stripe careers (stripe.com/jobs/listing/{slug}/{id})', () => {
+    const STRIPE_URL =
+      'https://stripe.com/jobs/listing/software-engineer-product-security-data-platforms/7761694'
+    const STRIPE_URL_WITH_SRC =
+      'https://stripe.com/jobs/listing/software-engineer-product-security-data-platforms/7761694?gh_src=73vnei'
+    const STRIPE_GH_API = 'https://boards-api.greenhouse.io/v1/boards/stripe/jobs/7761694'
+
+    it('uses Greenhouse API with board "stripe" and prepends metadata header — real API fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === STRIPE_GH_API) return Promise.resolve(jsonResponse(greenhouseStripe))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: STRIPE_URL_WITH_SRC }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Software Engineer, Product Security Data Platforms</h1>')
+      expect(data.html).toContain('Stripe')
+      expect(data.html).toContain('Seattle')
+      expect(data.html).toContain('<h2><strong>About the team</strong></h2>')
+      expect(data.html).not.toContain('&lt;h2')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(STRIPE_GH_API, expect.anything())
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        expect.stringContaining('stripe.com/jobs/listing'),
+        expect.anything()
+      )
+    })
+
+    it('matches URL without the ?gh_src= tracking param', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === STRIPE_GH_API) return Promise.resolve(jsonResponse(greenhouseStripe))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: STRIPE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Software Engineer, Product Security Data Platforms</h1>')
+      expect(fetchMock).toHaveBeenCalledWith(STRIPE_GH_API, expect.anything())
+    })
+
+    it('falls back to HTML scraping when Greenhouse API returns non-2xx', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === STRIPE_GH_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: STRIPE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Greenhouse API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === STRIPE_GH_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: STRIPE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not trigger handler for stripe.com URLs that are not /jobs/listing/{slug}/{id}', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === STRIPE_GH_API) return Promise.resolve(jsonResponse(greenhouseStripe))
+        return Promise.resolve(htmlResponse('<html><body><p>Other page</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://stripe.com/jobs/search?gh_jid=7761694' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(STRIPE_GH_API, expect.anything())
     })
   })
 
