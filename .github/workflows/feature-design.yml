@@ -152,7 +152,20 @@ jobs:
           User's request:
           $(cat /tmp/issue_body.txt)
 
-          Produce a detailed implementation design proposal and write it to /tmp/design_proposal.md.
+          Before writing the design, you MUST complete the following research steps:
+
+          1. Read the existing codebase. Identify which files the feature will touch, then read them with the Read tool. At minimum read the 2-3 source files most likely to be modified. Do not skip this — the design must reflect what the code actually does, not assumptions about it.
+
+          2. Investigate any external services or URLs mentioned in the request. If the request involves a third-party website, API, or URL pattern:
+             - Fetch the URL(s) with Bash (curl -s -L with a realistic User-Agent) to see what the server actually returns
+             - Inspect the response for structured data (JSON-LD, inline JSON blobs, API endpoint references in JS bundle script src attributes)
+             - Check whether the site uses a known ATS or service backend (Greenhouse, Lever, Workday, Eightfold, Workable, iCIMS, etc.) by looking for references in the page HTML or JS bundle filenames
+             - If you find an ATS backend, test its API directly (e.g. boards-api.greenhouse.io, api.lever.co) to confirm you can retrieve structured job data without JavaScript execution
+             - Do NOT trust user-stated assumptions about how a site works (e.g. "fully JavaScript-rendered") without verifying them yourself
+
+          3. Ground your design in what you found. The implementation must reflect actual observed behavior. If investigation reveals a simpler approach than what the user described (e.g. an existing API rather than an HTML parser), design the simpler approach and note the discrepancy.
+
+          Only after completing this research should you write the design proposal. Write the design to /tmp/design_proposal.md.
 
           The design document must include these sections:
 
@@ -198,7 +211,7 @@ jobs:
           Checklist of what a human tester must be able to do to confirm the feature is working. At least one item must be a user-visible action (e.g. "User can click X and see Y").
 
           ## Open questions
-          For each candidate open question, attempt to resolve it first: check the user's request above and the design you just wrote. If you can answer it from that context, fold the answer into the relevant section (scope, design decisions, or acceptance criteria) instead of listing it here. Only surface questions that genuinely cannot be resolved from available information — i.e. questions that require the owner to supply a URL, credential, external constraint, or decision that isn't present anywhere in the issue or design. If none remain after self-resolution, write "None."
+          Before listing any question here, attempt to resolve it using the tools available to you (Read, Bash). Any question answerable by reading a file, fetching a URL, or grepping the codebase is NOT a valid open question — resolve it yourself first. Only list questions that require information genuinely impossible to obtain through investigation: proprietary credentials, business-scope decisions, or configuration specific to the owner's account. If none remain after investigation, write "None."
 
           Do not implement anything. Write only the design document.
 
@@ -212,7 +225,7 @@ jobs:
         run: |
           DELAY=30
           for attempt in 1 2 3; do
-            claude --dangerously-skip-permissions --max-turns 20 -p "$(cat /tmp/design_prompt.txt)" \
+            claude --dangerously-skip-permissions --max-turns 30 -p "$(cat /tmp/design_prompt.txt)" \
               2>&1 | tee /tmp/claude_output.txt
             CLAUDE_EXIT=${PIPESTATUS[0]}
             if [[ $CLAUDE_EXIT -eq 0 ]]; then break; fi
