@@ -9,6 +9,7 @@ import { Application, CsvHistoryEntry, ImportRow } from '@/lib/types'
 import { downloadCsv, parseCsv } from '@/lib/csv'
 import { useTheme } from '@/components/ui/ThemeProvider'
 import FeatureRequestModal from '@/components/ui/FeatureRequestModal'
+import ShareModal from '@/components/modals/ShareModal'
 
 interface NavbarProps {
   userEmail: string
@@ -23,6 +24,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
   const { theme, toggleTheme } = useTheme()
   const [importing, setImporting] = useState(false)
   const [featureOpen, setFeatureOpen] = useState(false)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
 
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -199,6 +201,13 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
             className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           >
             Invite
+          </button>
+          <span className="text-slate-200 dark:text-slate-600">|</span>
+          <button
+            onClick={() => setIsShareModalOpen(true)}
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          >
+            Share board
           </button>
           <span className="text-slate-200 dark:text-slate-600">|</span>
           <button
@@ -432,6 +441,7 @@ export default function Navbar({ userEmail, applications, onImport, onNewApplica
     )}
 
     <FeatureRequestModal open={featureOpen} onClose={() => setFeatureOpen(false)} />
+    <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
     </>
   )
 }

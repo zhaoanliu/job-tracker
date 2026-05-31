@@ -167,6 +167,38 @@ describe('Navbar — invite', () => {
   })
 })
 
+describe('Navbar — share board', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }))
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('renders the Share board button', () => {
+    render(<Navbar {...defaultProps} />)
+    expect(screen.getByRole('button', { name: /Share board/i })).toBeInTheDocument()
+  })
+
+  it('does not render the ShareModal by default', () => {
+    render(<Navbar {...defaultProps} />)
+    expect(screen.queryByRole('heading', { name: /Share board/i })).not.toBeInTheDocument()
+  })
+
+  it('opens the ShareModal when Share board is clicked', async () => {
+    render(<Navbar {...defaultProps} />)
+    await userEvent.click(screen.getByRole('button', { name: /Share board/i }))
+    expect(screen.getByRole('heading', { name: /Share board/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/Email address/i)).toBeInTheDocument()
+  })
+
+  it('closes the ShareModal when Cancel is clicked', async () => {
+    render(<Navbar {...defaultProps} />)
+    await userEvent.click(screen.getByRole('button', { name: /Share board/i }))
+    expect(screen.getByRole('heading', { name: /Share board/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Cancel/i }))
+    expect(screen.queryByRole('heading', { name: /Share board/i })).not.toBeInTheDocument()
+  })
+})
+
 describe('Navbar — feature request', () => {
   it('renders the Feedback button', () => {
     render(<Navbar {...defaultProps} />)
