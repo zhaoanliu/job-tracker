@@ -35,7 +35,7 @@ runs:
         SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
       run: |
         if [[ -z "${DESIGN_NUMBER}" ]]; then
-          echo "No design issue linked — skipping AC verification"
+          echo "No design issue linked — skipping"
           echo "AC_PASS=skipped" >> "$GITHUB_ENV"
           exit 0
         fi
@@ -44,7 +44,7 @@ runs:
         AC_TEXT=$(python3 -c "import re; b=open('/tmp/design_for_ac.txt').read(); m=re.search(r'## Acceptance criteria\n(.*?)(?=\n## |\Z)', b, re.DOTALL); print(m.group(1).strip() if m else '')" 2>/dev/null || true)
 
         if [[ -z "$AC_TEXT" ]]; then
-          echo "No acceptance criteria section found in design issue — skipping AC verification"
+          echo "No acceptance criteria found — skipping"
           echo "AC_PASS=skipped" >> "$GITHUB_ENV"
           exit 0
         fi
