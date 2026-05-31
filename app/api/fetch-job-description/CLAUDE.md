@@ -11,6 +11,8 @@ The JD import route detects ATS-specific URL patterns and calls their public API
 
 2. **Fetch real data and write the fixture file first — before touching route.ts or the test file.**
 
+   Writing the fixture is a `Write` call — the issue and worktree must already exist before you run `curl` and save the file. Do not write the fixture into local `main` and then create the worktree; untracked files do not carry over to worktrees and the file will be left behind in `main` as a stale artifact.
+
    For a JSON API:
    ```bash
    curl -s "https://<ats-api>/<job-id>" > __tests__/fixtures/<ats-name>-job.json
