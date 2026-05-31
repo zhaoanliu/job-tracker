@@ -1,0 +1,125 @@
+name: "Feature: verify acceptance criteria"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Feature issue number whose open PR should be verified'
+        required: true
+        type: string
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: ./.github/actions/install-claude
+
+      - name: Resolve PR branch and design issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_ISSUE_NUMBER: ${{ github.event.inputs.issue_number }}
+        run: |
+          ISSUE_NUMBER="$INPUT_ISSUE_NUMBER"
+          ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title')
+          ISSUE_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body')
+
+          # Find open PR for this issue (by branch prefix or closing reference)
+          PR_NUMBER=$(gh pr list --state open --json number,headRefName \
+            | jq -r ".[] | select(.headRefName | startswith(\"feat/issue-${ISSUE_NUMBER}-\")) | .number" \
+            | head -1 || true)
+
+          if [[ -z "$PR_NUMBER" ]]; then
+            echo "No open PR found with branch prefix feat/issue-${ISSUE_NUMBER}-"
+            exit 1
+          fi
+
+          PR_BRANCH=$(gh pr view "$PR_NUMBER" --json headRefName --jq '.headRefName')
+          echo "Found PR #${PR_NUMBER} on branch ${PR_BRANCH}"
+
+          # Find design issue — same two-step lookup as feature-implement.yml
+          DESIGN_NUMBER=$(echo "${ISSUE_BODY}" | grep -oE 'Technical tracking: #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+          if [[ -z "$DESIGN_NUMBER" ]]; then
+            DESIGN_NUMBER=$(gh issue view "$ISSUE_NUMBER" --comments --json comments \
+              --jq '[.comments[].body | select(contains("design-issue:"))] | last' \
+              | grep -oE 'design-issue: [0-9]+' | grep -oE '[0-9]+' || true)
+          fi
+
+          DESIGN_BODY=""
+          if [[ -n "$DESIGN_NUMBER" ]]; then
+            DESIGN_BODY=$(gh issue view "$DESIGN_NUMBER" --json body --jq '.body')
+            echo "Found design issue #${DESIGN_NUMBER}"
+          else
+            echo "No design issue found — AC verification will be skipped"
+          fi
+
+          {
+            echo "ISSUE_NUMBER=$ISSUE_NUMBER"
+            echo "ISSUE_TITLE=$ISSUE_TITLE"
+            echo "PR_NUMBER=$PR_NUMBER"
+            echo "PR_BRANCH=$PR_BRANCH"
+            echo "DESIGN_NUMBER=$DESIGN_NUMBER"
+            echo 'DESIGN_BODY<<BODY_EOF'
+            echo "$DESIGN_BODY"
+            echo 'BODY_EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Check out PR branch
+        run: |
+          git fetch origin "${PR_BRANCH}"
+          git checkout "${PR_BRANCH}"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Configure git for self-heal commits
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git"
+
+      - name: Verify acceptance criteria
+        uses: ./.github/actions/verify-ac
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Push self-heal commits if any
+        run: |
+          COMMITS_AHEAD=$(git rev-list "origin/${PR_BRANCH}..HEAD" --count 2>/dev/null || echo 0)
+          if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
+            echo "Pushing ${COMMITS_AHEAD} self-heal commit(s) to ${PR_BRANCH}"
+            git push origin "HEAD:${PR_BRANCH}"
+          else
+            echo "No self-heal commits to push"
+          fi
+
+      - name: Update PR labels and comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          if [[ "${AC_PASS}" == "true" ]]; then
+            GH_TOKEN="${GH_PAT}" gh pr edit "${PR_NUMBER}" --remove-label "needs-acceptance-testing" 2>/dev/null || true
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "✓ All acceptance criteria verified. The PR is ready for review."
+          elif [[ "${AC_PASS}" == "false" ]]; then
+            gh label create "needs-acceptance-testing" --color "E4E669" --force 2>/dev/null || true
+            GH_TOKEN="${GH_PAT}" gh pr edit "${PR_NUMBER}" --add-label "needs-acceptance-testing" || true
+            gh issue comment "${ISSUE_NUMBER}" \
+              --body "⚠️ Acceptance criteria verification failed after 2 self-heal attempts. PR #${PR_NUMBER} has been labeled \`needs-acceptance-testing\`."
+          else
+            echo "AC_PASS=${AC_PASS} — no label change needed"
+          fi
