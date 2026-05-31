@@ -131,10 +131,19 @@ runs:
             echo "Running self-heal..."
             GIT_DIFF=$(git diff HEAD 2>/dev/null | head -c 20000)
             NEW_FILES=$(git ls-files --others --exclude-standard 2>/dev/null | grep -v 'e2e/ac_verify.spec.ts' || true)
+            STRICT_MODE_FAIL=false
+            grep -q "strict mode violation" /tmp/ac_results.txt && STRICT_MODE_FAIL=true
             {
-              echo "Acceptance criteria verification failed. Fix the implementation so all criteria pass."
+              echo "Acceptance criteria verification failed. Fix the failures so all criteria pass."
               echo ""
-              echo "IMPORTANT: Do NOT modify e2e/ac_verify.spec.ts — it is the ground truth. Only fix application code."
+              if [[ "$STRICT_MODE_FAIL" == "true" ]]; then
+                echo "One or more tests failed with a Playwright strict mode violation (a locator matched"
+                echo "multiple elements). This is a selector ambiguity in the test, not a feature bug."
+                echo "Fix the ambiguous locator(s) in e2e/ac_verify.spec.ts to be more specific."
+                echo "For any other failures in the same run, fix the application code instead."
+              else
+                echo "IMPORTANT: Do NOT modify e2e/ac_verify.spec.ts — it is the ground truth. Only fix application code."
+              fi
               echo ""
               echo "=== Failing Playwright output ==="
               tail -100 /tmp/ac_results.txt
