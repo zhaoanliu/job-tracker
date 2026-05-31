@@ -208,7 +208,20 @@ jobs:
           For each non-obvious choice in the proposed implementation, state: (a) what was chosen, (b) the main alternative considered, and (c) why the chosen approach is better for this codebase. Skip decisions where the choice is obvious or has no meaningful alternative.
 
           ## Acceptance criteria
-          Checklist of what a human tester must be able to do to confirm the feature is working. At least one item must be a user-visible action (e.g. "User can click X and see Y").
+          Checklist of behaviors the verify-ac workflow will test automatically with Playwright or unit tests.
+          Only include items where ALL inputs are under our control in a test environment:
+          - UI interactions and visible state on localhost:3000
+          - Network interception (page.route() to mock API responses, simulate errors, or assert a call was/was not made)
+          - Local Supabase data and auth state
+          Do NOT include anything that depends on live external state. If an item requires a real URL, a real email,
+          or a live third-party API response to verify, it belongs in Human verification steps instead.
+          At least one item must be a user-visible UI interaction.
+
+          ## Human verification steps
+          Checklist for the PR reviewer to verify manually before merging.
+          Only include items that depend on live external state that can change independently of the code:
+          real URLs or job postings that may go stale, real email receipt, live API responses with real data.
+          If none exist, write "None."
 
           ## Open questions
           Before listing any question here, attempt to resolve it using the tools available to you (Read, Bash). Any question answerable by reading a file, fetching a URL, or grepping the codebase is NOT a valid open question — resolve it yourself first. Only list questions that require information genuinely impossible to obtain through investigation: proprietary credentials, business-scope decisions, or configuration specific to the owner's account. If none remain after investigation, write "None."
