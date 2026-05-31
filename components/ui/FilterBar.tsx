@@ -139,7 +139,7 @@ export default function FilterBar({ filters, sortBy, onFilterChange, onSortChang
         >
           <option value="order">Manual</option>
           <option value="date">Date</option>
-          <option value="company">Company</option>
+          <option value="company">Name</option>
           <option value="priority">Priority</option>
         </select>
       </div>

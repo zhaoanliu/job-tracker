@@ -25,7 +25,7 @@ export type ApplicationLocation =
 
 export type ApplicationWorkmode = 'On-site' | 'Hybrid' | 'Remote'
 
-export type ApplicationSource = 'LinkedIn' | 'Company website' | 'Other'
+export type ApplicationSource = 'LinkedIn' | 'Employer site' | 'Other'
 
 export interface Application {
   id: string
@@ -178,6 +178,6 @@ export const APPLICATION_WORKMODES: ApplicationWorkmode[] = ['On-site', 'Hybrid'
 
 export const APPLICATION_SOURCES: ApplicationSource[] = [
   'LinkedIn',
-  'Company website',
+  'Employer site',
   'Other',
 ]
