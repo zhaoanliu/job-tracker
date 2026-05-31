@@ -631,6 +631,18 @@ export async function POST(req: NextRequest) {
       // API unavailable — fall through to HTML scraping
     }
 
+    // Stripe careers — stripe.com/jobs/listing/{slug}/{id} is Greenhouse-backed (board "stripe").
+    // The page HTML is JS-rendered with no Greenhouse references in the server response, so
+    // none of the post-fetch handlers match; detect by URL and call the Greenhouse API directly.
+    const stripeMatch =
+      parsed.hostname === 'stripe.com' &&
+      parsed.pathname.match(/^\/jobs\/listing\/[A-Za-z0-9_-]+\/(\d+)$/)
+    if (stripeMatch) {
+      const ghHtml = await fetchGreenhouseJob('stripe', stripeMatch[1], controller.signal)
+      if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
     const linkedInMatch =
       parsed.hostname === 'www.linkedin.com' &&
       parsed.pathname.match(/^\/jobs\/view\/.*?(\d+)\/?$/)
