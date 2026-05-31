@@ -26,6 +26,7 @@ import {
 import { getStageApplications } from '@/lib/utils'
 import KanbanColumn from './KanbanColumn'
 import DragOverlayCard from './DragOverlayCard'
+import SelectionToolbar from './SelectionToolbar'
 import ApplicationModal from '@/components/modals/ApplicationModal'
 import Navbar from '@/components/ui/Navbar'
 import StatsBar from '@/components/ui/StatsBar'
@@ -58,6 +59,41 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
   const [modalOpen, setModalOpen] = useState(false)
   const [editingApp, setEditingApp] = useState<Application | null>(null)
   const [defaultStatus, setDefaultStatus] = useState<ApplicationStatus>('future')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [isArchiving, setIsArchiving] = useState(false)
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  async function handleArchive() {
+    if (selected.size === 0) return
+    const ids = [...selected]
+    const previous = applications
+    setIsArchiving(true)
+    setApplications(prev => prev.filter(a => !selected.has(a.id)))
+    try {
+      const res = await fetch('/api/applications/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, action: 'archive' }),
+      })
+      if (!res.ok) {
+        throw new Error(`Bulk archive failed: ${res.status}`)
+      }
+      setSelected(new Set())
+    } catch (err) {
+      setApplications(previous)
+      console.error(err)
+    } finally {
+      setIsArchiving(false)
+    }
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -324,6 +360,13 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
         onSortChange={setSortBy}
       />
 
+      <SelectionToolbar
+        count={selected.size}
+        onArchive={handleArchive}
+        onClear={() => setSelected(new Set())}
+        isArchiving={isArchiving}
+      />
+
       {/* Board */}
       <DndContext
         sensors={sensors}
@@ -341,6 +384,8 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
                 applications={getStageApplications(applications, stage.id, filters, sortBy)}
                 onCardClick={openEdit}
                 onAddClick={openNew}
+                selectedIds={selected}
+                onToggleSelect={toggleSelect}
               />
             ))}
           </div>

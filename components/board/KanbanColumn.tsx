@@ -10,6 +10,8 @@ interface KanbanColumnProps {
   applications: Application[]
   onCardClick: (app: Application) => void
   onAddClick: (stageId: string) => void
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }
 
 export default function KanbanColumn({
@@ -17,6 +19,8 @@ export default function KanbanColumn({
   applications,
   onCardClick,
   onAddClick,
+  selectedIds,
+  onToggleSelect,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
 
@@ -52,7 +56,13 @@ export default function KanbanColumn({
           ].join(' ')}
         >
           {applications.map(app => (
-            <KanbanCard key={app.id} application={app} onClick={onCardClick} />
+            <KanbanCard
+              key={app.id}
+              application={app}
+              onClick={onCardClick}
+              selected={selectedIds?.has(app.id) ?? false}
+              onToggleSelect={onToggleSelect}
+            />
           ))}
 
           {/* Empty-column drop target (always rendered so the column accepts drops) */}

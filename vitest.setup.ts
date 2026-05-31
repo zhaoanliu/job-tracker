@@ -63,6 +63,13 @@ vi.mock('@dnd-kit/sortable', () => ({
   }),
   SortableContext: ({ children }: { children: React.ReactNode }) => children,
   verticalListSortingStrategy: {},
+  sortableKeyboardCoordinates: vi.fn(),
+  arrayMove: <T,>(arr: T[], from: number, to: number): T[] => {
+    const next = arr.slice()
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    return next
+  },
 }))
 
 vi.mock('@dnd-kit/utilities', () => ({
