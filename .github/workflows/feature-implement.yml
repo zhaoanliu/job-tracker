@@ -520,6 +520,167 @@ jobs:
             fi
           fi
 
+      - name: Install Supabase CLI
+        if: steps.pr_check.outputs.skip != 'true' && env.IMPL_FAILED != 'true'
+        uses: supabase/setup-cli@v2.1.1
+        with:
+          version: 2.101.0
+
+      - name: Start local Supabase
+        if: steps.pr_check.outputs.skip != 'true' && env.IMPL_FAILED != 'true'
+        uses: ./.github/actions/supabase-start
+
+      - name: Verify acceptance criteria
+        if: steps.pr_check.outputs.skip != 'true' && env.IMPL_FAILED != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: "true"
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+          SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+        run: |
+          if [[ -z "${DESIGN_NUMBER}" ]]; then
+            echo "No design issue linked — skipping AC verification"
+            echo "AC_PASS=skipped" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          printf '%s' "${DESIGN_BODY}" > /tmp/design_for_ac.txt
+          AC_TEXT=$(python3 -c "import re; b=open('/tmp/design_for_ac.txt').read(); m=re.search(r'## Acceptance criteria\n(.*?)(?=\n## |\Z)', b, re.DOTALL); print(m.group(1).strip() if m else '')" 2>/dev/null || true)
+
+          if [[ -z "$AC_TEXT" ]]; then
+            echo "No acceptance criteria section found in design issue — skipping AC verification"
+            echo "AC_PASS=skipped" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "$AC_TEXT" > /tmp/ac_text.txt
+          echo "=== Acceptance criteria to verify ==="
+          cat /tmp/ac_text.txt
+
+          npx playwright install --with-deps chromium
+
+          run_claude() {
+            local prompt_file=$1 max_turns=$2
+            local DELAY=30
+            for RETRY in 1 2 3; do
+              set +eo pipefail
+              claude --dangerously-skip-permissions --max-turns "$max_turns" \
+                -p "$(cat "$prompt_file")" 2>&1 | tee /tmp/claude_ac_output.txt
+              CLAUDE_EXIT=${PIPESTATUS[0]}
+              echo ""
+              set -eo pipefail
+              if [[ $CLAUDE_EXIT -eq 0 ]]; then return 0; fi
+              if grep -q "529\|Overloaded\|at capacity" /tmp/claude_ac_output.txt && [[ $RETRY -lt 3 ]]; then
+                echo "API overloaded (retry $RETRY/3), waiting ${DELAY}s..."
+                sleep $DELAY
+                DELAY=$((DELAY * 2))
+              else
+                return 0
+              fi
+            done
+          }
+
+          {
+            echo "Write a Playwright test file to e2e/ac_verify.spec.ts that verifies acceptance criteria for a newly implemented feature."
+            echo ""
+            echo "RULES:"
+            echo "- Import { test, expect } from '@playwright/test'"
+            echo "- Import { createTestUser, deleteTestUser, loginViaUI } from './helpers'"
+            echo "- Use test.beforeAll to call createTestUser() and store userId; test.afterAll to call deleteTestUser(userId)"
+            echo "- Write exactly one test() block per acceptance criterion, named with the criterion text"
+            echo "- Each test must: call loginViaUI(page), navigate to the relevant page, perform the described action, assert the outcome"
+            echo "- The app baseURL is http://localhost:3000 (Playwright webServer config starts npm run dev automatically)"
+            echo "- Use page.locator(), page.getByRole(), page.getByText() — prefer accessible locators"
+            echo "- Read e2e/helpers.ts first to understand the available utilities"
+            echo "- Read relevant component and page files to understand actual HTML structure before writing selectors"
+            echo "- Assert on visible text and user-facing behavior — not class names or implementation details"
+            echo ""
+            echo "=== Acceptance criteria ==="
+            cat /tmp/ac_text.txt
+            echo ""
+            echo "After writing e2e/ac_verify.spec.ts, stop. Do NOT run any commands."
+          } > /tmp/ac_gen_prompt.txt
+
+          run_claude /tmp/ac_gen_prompt.txt 20
+
+          if [[ ! -f e2e/ac_verify.spec.ts ]]; then
+            echo "Claude did not generate e2e/ac_verify.spec.ts — skipping AC verification"
+            echo "AC_PASS=skipped" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          AC_PASS=false
+          for AC_ATTEMPT in 1 2; do
+            echo "=== AC verification attempt ${AC_ATTEMPT}/2 ==="
+            if npx playwright test e2e/ac_verify.spec.ts --reporter=list > /tmp/ac_results.txt 2>&1; then
+              echo "All acceptance criteria verified on attempt ${AC_ATTEMPT}"
+              AC_PASS=true
+              break
+            fi
+
+            echo "AC verification failed on attempt ${AC_ATTEMPT}:"
+            tail -80 /tmp/ac_results.txt
+
+            if [[ $AC_ATTEMPT -eq 1 ]]; then
+              echo "Running self-heal..."
+              GIT_DIFF=$(git diff HEAD 2>/dev/null | head -c 20000)
+              NEW_FILES=$(git ls-files --others --exclude-standard 2>/dev/null | grep -v 'e2e/ac_verify.spec.ts' || true)
+              {
+                echo "Acceptance criteria verification failed. Fix the implementation so all criteria pass."
+                echo ""
+                echo "IMPORTANT: Do NOT modify e2e/ac_verify.spec.ts — it is the ground truth. Only fix application code."
+                echo ""
+                echo "=== Failing Playwright output ==="
+                tail -100 /tmp/ac_results.txt
+                echo ""
+                if [[ -n "$NEW_FILES" ]]; then
+                  echo "=== New files in implementation ==="
+                  echo "$NEW_FILES"
+                  echo "(Use Read for full content)"
+                  echo ""
+                fi
+                if [[ -n "$GIT_DIFF" ]]; then
+                  echo "=== Current implementation diff ==="
+                  echo "$GIT_DIFF"
+                  echo ""
+                fi
+                echo "=== Acceptance criteria (ground truth) ==="
+                cat /tmp/ac_text.txt
+                echo ""
+                echo "After fixing, validate: npm run lint && npx tsc --noEmit && npm run test:coverage"
+                echo "Do not run any git commands."
+              } > /tmp/ac_fix_prompt.txt
+
+              run_claude /tmp/ac_fix_prompt.txt 25
+
+              npm run lint > /tmp/lint_out.txt 2>&1 || true
+              npx tsc --noEmit > /tmp/tsc_out.txt 2>&1 || true
+              npm run test:coverage > /tmp/test_out.txt 2>&1 || true
+
+              git add -A
+              git restore --staged e2e/ac_verify.spec.ts 2>/dev/null || true
+              if ! git diff --cached --quiet; then
+                git commit -m "fix: self-heal from failing acceptance criteria"
+              fi
+            fi
+          done
+
+          echo "AC_PASS=${AC_PASS}" >> "$GITHUB_ENV"
+
+          if [[ "$AC_PASS" == "true" && -n "${DESIGN_NUMBER}" ]]; then
+            gh issue view "${DESIGN_NUMBER}" --json body --jq '.body' > /tmp/design_ac_body.txt
+            python3 -c "import re; b=open('/tmp/design_ac_body.txt').read(); r=re.sub(r'(## Acceptance criteria\n)(.*?)(?=\n## |\Z)', lambda m: m.group(1)+re.sub(r'- \[ \]', '- [x]', m.group(2)), b, flags=re.DOTALL); open('/tmp/design_ac_ticked.txt','w').write(r)" 2>/dev/null || cp /tmp/design_ac_body.txt /tmp/design_ac_ticked.txt
+            gh issue edit "${DESIGN_NUMBER}" --body-file /tmp/design_ac_ticked.txt || true
+          fi
+
+          rm -f e2e/ac_verify.spec.ts
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop || true
+
       - name: Open PR
         if: steps.pr_check.outputs.skip != 'true'
         env:
@@ -562,6 +723,10 @@ jobs:
               echo ""
               cat /tmp/summary.txt
             fi
+            if [[ "${AC_PASS}" == "false" ]]; then
+              echo ""
+              echo "⚠️ **Acceptance criteria**: 2 self-heal attempts did not resolve all Playwright test failures. Run through the acceptance criteria in #${DESIGN_NUMBER} manually before merging."
+            fi
           } > /tmp/pr_body.txt
 
           PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
@@ -569,6 +734,10 @@ jobs:
             --body-file /tmp/pr_body.txt \
             --base main)
           GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
+          if [[ "${AC_PASS}" == "false" ]]; then
+            gh label create "needs-acceptance-testing" --color "E4E669" --force 2>/dev/null || true
+            GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "needs-acceptance-testing" || true
+          fi
 
           {
             if [[ -s /tmp/summary.txt ]]; then
@@ -576,6 +745,10 @@ jobs:
               echo ""
             fi
             echo "Implementation ready for review: ${PR_URL}"
+            if [[ "${AC_PASS}" == "false" ]]; then
+              echo ""
+              echo "⚠️ Acceptance criteria verification failed after 2 self-heal attempts. Check the PR for details and verify manually before merging."
+            fi
           } > /tmp/issue_comment.txt
           gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
 

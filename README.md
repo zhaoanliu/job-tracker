@@ -365,7 +365,8 @@ Two entry points feed the same two-phase pipeline:
 - Tagging either issue works — if `#Y` is tagged, the workflow detects the `implementation` label and finds `#X` via the back-reference in the body
 - Both `#X` and `#Y` move to `status: in progress`
 - Claude implements using both issues as context
-- PR opened with `Closes #X` + `Closes #Y` — both issues close on merge
+- After implementation: Playwright tests are generated from `## Acceptance criteria` in `#Y` and run against a local Supabase + dev server; the workflow self-heals the implementation if tests fail (max 2 attempts); AC checkboxes in `#Y` are ticked on success
+- PR opened with `Closes #X` + `Closes #Y` — both issues close on merge; gets a `needs-acceptance-testing` label if AC verification failed after retries
 
 **Issue status flow:**
 
