@@ -28,7 +28,7 @@ runs:
         fi
 
         printf '%s' "${DESIGN_BODY}" > /tmp/design_for_ac.txt
-        AC_TEXT=$(python3 -c "import re; b=open('/tmp/design_for_ac.txt').read(); m=re.search(r'## Acceptance criteria\n(.*?)(?=\n## |\Z)', b, re.DOTALL); print(m.group(1).strip() if m else '')" 2>/dev/null || true)
+        AC_TEXT=$(node "${GITHUB_WORKSPACE}/scripts/parse-ac.mjs" extract < /tmp/design_for_ac.txt 2>/dev/null || true)
 
         if [[ -z "$AC_TEXT" ]]; then
           echo "No acceptance criteria section found in design issue — skipping AC verification"
@@ -175,7 +175,7 @@ runs:
 
         if [[ "$AC_PASS" == "true" && -n "${DESIGN_NUMBER}" ]]; then
           gh issue view "${DESIGN_NUMBER}" --json body --jq '.body' > /tmp/design_ac_body.txt
-          python3 -c "import re; b=open('/tmp/design_ac_body.txt').read(); r=re.sub(r'(## Acceptance criteria\n)(.*?)(?=\n## |\Z)', lambda m: m.group(1)+re.sub(r'- \[ \]', '- [x]', m.group(2)), b, flags=re.DOTALL); open('/tmp/design_ac_ticked.txt','w').write(r)" 2>/dev/null || cp /tmp/design_ac_body.txt /tmp/design_ac_ticked.txt
+          node "${GITHUB_WORKSPACE}/scripts/parse-ac.mjs" tick < /tmp/design_ac_body.txt > /tmp/design_ac_ticked.txt 2>/dev/null || cp /tmp/design_ac_body.txt /tmp/design_ac_ticked.txt
           gh issue edit "${DESIGN_NUMBER}" --body-file /tmp/design_ac_ticked.txt || true
         fi
 
