@@ -1,6 +1,6 @@
 #!/bin/bash
 # Pull latest main
-git pull --ff-only 2>/dev/null || true
+git pull --ff-only
 
 REPO=$(git rev-parse --show-toplevel)
 
