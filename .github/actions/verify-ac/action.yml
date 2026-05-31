@@ -52,6 +52,14 @@ runs:
       if: steps.ac_check.outputs.has_ac == 'true'
       uses: ./.github/actions/supabase-start
 
+    - name: Cache Playwright browsers
+      id: playwright-cache
+      if: steps.ac_check.outputs.has_ac == 'true'
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+
     - name: Verify acceptance criteria
       if: steps.ac_check.outputs.has_ac == 'true'
       shell: bash
@@ -62,8 +70,13 @@ runs:
         NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
         NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
         SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+        PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright-cache.outputs.cache-hit }}
       run: |
-        npx playwright install --with-deps chromium
+        if [[ "${PLAYWRIGHT_CACHE_HIT}" == "true" ]]; then
+          npx playwright install-deps chromium
+        else
+          npx playwright install --with-deps chromium
+        fi
 
         run_claude() {
           local prompt_file=$1 max_turns=$2
