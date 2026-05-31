@@ -520,6 +520,13 @@ jobs:
             fi
           fi
 
+      - name: Verify acceptance criteria
+        if: steps.pr_check.outputs.skip != 'true' && env.IMPL_FAILED != 'true'
+        uses: ./.github/actions/verify-ac
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
       - name: Open PR
         if: steps.pr_check.outputs.skip != 'true'
         env:
@@ -562,6 +569,10 @@ jobs:
               echo ""
               cat /tmp/summary.txt
             fi
+            if [[ "${AC_PASS}" == "false" ]]; then
+              echo ""
+              echo "⚠️ **Acceptance criteria**: 2 self-heal attempts did not resolve all Playwright test failures. Run through the acceptance criteria in #${DESIGN_NUMBER} manually before merging."
+            fi
           } > /tmp/pr_body.txt
 
           PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
@@ -569,6 +580,10 @@ jobs:
             --body-file /tmp/pr_body.txt \
             --base main)
           GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
+          if [[ "${AC_PASS}" == "false" ]]; then
+            gh label create "needs-acceptance-testing" --color "E4E669" --force 2>/dev/null || true
+            GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "needs-acceptance-testing" || true
+          fi
 
           {
             if [[ -s /tmp/summary.txt ]]; then
@@ -576,6 +591,10 @@ jobs:
               echo ""
             fi
             echo "Implementation ready for review: ${PR_URL}"
+            if [[ "${AC_PASS}" == "false" ]]; then
+              echo ""
+              echo "⚠️ Acceptance criteria verification failed after 2 self-heal attempts. Check the PR for details and verify manually before merging."
+            fi
           } > /tmp/issue_comment.txt
           gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
 
