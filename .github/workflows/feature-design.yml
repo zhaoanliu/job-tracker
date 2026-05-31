@@ -198,7 +198,7 @@ jobs:
           Checklist of what a human tester must be able to do to confirm the feature is working. At least one item must be a user-visible action (e.g. "User can click X and see Y").
 
           ## Open questions
-          List any decisions that require owner input before implementation begins. If none, write "None."
+          For each candidate open question, attempt to resolve it first: check the user's request above and the design you just wrote. If you can answer it from that context, fold the answer into the relevant section (scope, design decisions, or acceptance criteria) instead of listing it here. Only surface questions that genuinely cannot be resolved from available information — i.e. questions that require the owner to supply a URL, credential, external constraint, or decision that isn't present anywhere in the issue or design. If none remain after self-resolution, write "None."
 
           Do not implement anything. Write only the design document.
 
