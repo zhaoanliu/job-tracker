@@ -558,6 +558,8 @@ jobs:
           git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "$BRANCH"
 
+          HUMAN_STEPS=$(python3 -c "import re; b=open('/tmp/design_body.txt').read(); m=re.search(r'## Human verification steps\n(.*?)(?=\n## |\Z)', b, re.DOTALL); t=m.group(1).strip() if m else ''; print('' if t in ('', 'None.', 'None') else t)" 2>/dev/null || true)
+
           {
             echo "Closes #${ISSUE_NUMBER}"
             if [[ -n "${DESIGN_NUMBER}" ]]; then
@@ -568,6 +570,13 @@ jobs:
             if [[ -s /tmp/summary.txt ]]; then
               echo ""
               cat /tmp/summary.txt
+            fi
+            if [[ -n "$HUMAN_STEPS" ]]; then
+              echo ""
+              echo "## Human verification steps"
+              echo "Before merging, please verify these manually:"
+              echo ""
+              echo "$HUMAN_STEPS"
             fi
             if [[ "${AC_PASS}" == "false" ]]; then
               echo ""
