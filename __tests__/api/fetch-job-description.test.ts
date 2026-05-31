@@ -10,6 +10,7 @@ import workdayAdobeJob from '../fixtures/workday-adobe-job.json'
 import uberJob from '../fixtures/uber-job.json'
 import expediaJob from '../fixtures/expedia-job.json'
 import workableGableJob from '../fixtures/workable-gable-job.json'
+import hubspotJob from '../fixtures/hubspot-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -578,6 +579,114 @@ describe('POST /api/fetch-job-description', () => {
       expect(res.status).toBe(200)
       // Only one fetch call — the page fetch; no Greenhouse API call
       expect(fetchMock).not.toHaveBeenCalledWith(SOFI_GH_API, expect.anything())
+    })
+  })
+
+  describe('HubSpot careers (Greenhouse-backed)', () => {
+    const HUBSPOT_GH_API = 'https://boards-api.greenhouse.io/v1/boards/hubspotjobs/jobs/7621322'
+
+    it('handles www.hubspot.com careers URL — real Greenhouse API fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === HUBSPOT_GH_API) return Promise.resolve(jsonResponse(hubspotJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.hubspot.com/careers/jobs/7621322' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain(
+        '<h1>Principal Software Engineer, Security, Detection & Response</h1>'
+      )
+      expect(data.html).toContain('HubSpot')
+      expect(data.html).toContain('Remote - USA')
+      expect(data.html).toContain('HubSpot is looking for a talented Principal Software Engineer')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(HUBSPOT_GH_API, expect.anything())
+    })
+
+    it('handles bare hubspot.com hostname', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === HUBSPOT_GH_API) return Promise.resolve(jsonResponse(hubspotJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://hubspot.com/careers/jobs/7621322' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain(
+        '<h1>Principal Software Engineer, Security, Detection & Response</h1>'
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(HUBSPOT_GH_API, expect.anything())
+    })
+
+    it('handles trailing slash in pathname', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === HUBSPOT_GH_API) return Promise.resolve(jsonResponse(hubspotJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.hubspot.com/careers/jobs/7621322/' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain(
+        '<h1>Principal Software Engineer, Security, Detection & Response</h1>'
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(HUBSPOT_GH_API, expect.anything())
+    })
+
+    it('falls back to HTML scraping when Greenhouse API returns 404', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === HUBSPOT_GH_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.hubspot.com/careers/jobs/7621322' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Greenhouse API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === HUBSPOT_GH_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.hubspot.com/careers/jobs/7621322' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not trigger for non-job HubSpot URL', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === HUBSPOT_GH_API) return Promise.resolve(jsonResponse(hubspotJob))
+        return Promise.resolve(htmlResponse('<html><body><p>Products page</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.hubspot.com/products' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(HUBSPOT_GH_API, expect.anything())
     })
   })
 

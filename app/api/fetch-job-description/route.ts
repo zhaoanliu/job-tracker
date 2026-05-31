@@ -631,6 +631,16 @@ export async function POST(req: NextRequest) {
       // API unavailable — fall through to HTML scraping
     }
 
+    // HubSpot careers — hubspot.com/careers/jobs/{id} is a Greenhouse board (slug: hubspotjobs)
+    const hubspotMatch =
+      (parsed.hostname === 'www.hubspot.com' || parsed.hostname === 'hubspot.com') &&
+      parsed.pathname.match(/^\/careers\/jobs\/(\d+)\/?$/)
+    if (hubspotMatch) {
+      const ghHtml = await fetchGreenhouseJob('hubspotjobs', hubspotMatch[1], controller.signal)
+      if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
     const linkedInMatch =
       parsed.hostname === 'www.linkedin.com' &&
       parsed.pathname.match(/^\/jobs\/view\/.*?(\d+)\/?$/)
