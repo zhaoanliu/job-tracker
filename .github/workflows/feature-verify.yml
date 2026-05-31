@@ -76,6 +76,9 @@ jobs:
         run: |
           git fetch origin "${PR_BRANCH}"
           git checkout "${PR_BRANCH}"
+          # Restore .github/ from main so the verify-ac composite action is always
+          # present, regardless of when the PR branch was cut.
+          git checkout origin/main -- .github/
 
       - uses: actions/setup-node@v6
         with:
