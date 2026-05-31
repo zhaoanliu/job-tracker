@@ -16,27 +16,14 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install Supabase CLI
-      uses: supabase/setup-cli@v2.1.1
-      with:
-        version: 2.101.0
-
-    - name: Start local Supabase
-      uses: ./.github/actions/supabase-start
-
-    - name: Verify acceptance criteria
+    - name: Check for acceptance criteria
+      id: ac_check
       shell: bash
-      env:
-        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-        CI: "true"
-        NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-        SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
       run: |
         if [[ -z "${DESIGN_NUMBER}" ]]; then
           echo "No design issue linked — skipping AC verification"
           echo "AC_PASS=skipped" >> "$GITHUB_ENV"
+          echo "has_ac=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -46,13 +33,36 @@ runs:
         if [[ -z "$AC_TEXT" ]]; then
           echo "No acceptance criteria section found in design issue — skipping AC verification"
           echo "AC_PASS=skipped" >> "$GITHUB_ENV"
+          echo "has_ac=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
         echo "$AC_TEXT" > /tmp/ac_text.txt
         echo "=== Acceptance criteria to verify ==="
         cat /tmp/ac_text.txt
+        echo "has_ac=true" >> "$GITHUB_OUTPUT"
 
+    - name: Install Supabase CLI
+      if: steps.ac_check.outputs.has_ac == 'true'
+      uses: supabase/setup-cli@v2.1.1
+      with:
+        version: 2.101.0
+
+    - name: Start local Supabase
+      if: steps.ac_check.outputs.has_ac == 'true'
+      uses: ./.github/actions/supabase-start
+
+    - name: Verify acceptance criteria
+      if: steps.ac_check.outputs.has_ac == 'true'
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        CI: "true"
+        NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+        SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+      run: |
         npx playwright install --with-deps chromium
 
         run_claude() {
@@ -173,5 +183,5 @@ runs:
 
     - name: Stop local Supabase
       shell: bash
-      if: always()
+      if: always() && steps.ac_check.outputs.has_ac == 'true'
       run: supabase stop || true
