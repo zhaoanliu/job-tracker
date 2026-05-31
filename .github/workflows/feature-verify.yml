@@ -112,15 +112,14 @@ jobs:
       - name: Update PR labels and comment
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           if [[ "${AC_PASS}" == "true" ]]; then
-            GH_TOKEN="${GH_PAT}" gh pr edit "${PR_NUMBER}" --remove-label "needs-acceptance-testing" 2>/dev/null || true
+            gh pr edit "${PR_NUMBER}" --remove-label "needs-acceptance-testing" 2>/dev/null || true
             gh issue comment "${ISSUE_NUMBER}" \
               --body "✓ All acceptance criteria verified. The PR is ready for review."
           elif [[ "${AC_PASS}" == "false" ]]; then
             gh label create "needs-acceptance-testing" --color "E4E669" --force 2>/dev/null || true
-            GH_TOKEN="${GH_PAT}" gh pr edit "${PR_NUMBER}" --add-label "needs-acceptance-testing" || true
+            gh pr edit "${PR_NUMBER}" --add-label "needs-acceptance-testing" || true
             gh issue comment "${ISSUE_NUMBER}" \
               --body "⚠️ Acceptance criteria verification failed after 2 self-heal attempts. PR #${PR_NUMBER} has been labeled \`needs-acceptance-testing\`."
           else
