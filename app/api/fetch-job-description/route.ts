@@ -116,7 +116,8 @@ function buildGenericJobPostingMeta(ld: Record<string, unknown>): string {
     const addr = (loc as Record<string, unknown>).address
     if (addr == null || typeof addr !== 'object') return ''
     const a = addr as Record<string, unknown>
-    return [str(a.addressLocality), str(a.addressRegion)].filter(Boolean).join(', ')
+    const cityRegion = [str(a.addressLocality), str(a.addressRegion)].filter(Boolean).join(', ')
+    return cityRegion || str(a.addressCountry)
   }
   const locationRaw = ld.jobLocation
   const location = Array.isArray(locationRaw)
@@ -308,6 +309,33 @@ async function fetchWorkableJob(
     if (!body) return null
     const meta = buildWorkableMeta(data)
     return meta + body
+  } catch {
+    return null
+  }
+}
+
+// Ashby ATS — custom career domains (e.g. careers.confluent.io) block server-side
+// fetches with Vercel bot protection. jobs.ashbyhq.com/{company}/{uuid} serves the
+// same page without gating and embeds schema.org/JobPosting JSON-LD.
+async function fetchAshbyJobFromCanonical(
+  company: string,
+  jobId: string,
+  signal: AbortSignal
+): Promise<string | null> {
+  try {
+    const pageRes = await fetch(
+      `https://jobs.ashbyhq.com/${company}/${jobId}`,
+      {
+        signal,
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'text/html,application/xhtml+xml,*/*;q=0.8',
+        },
+      }
+    )
+    if (!pageRes.ok) return null
+    const html = await pageRes.text()
+    return extractGenericJobPostingFromPage(html)
   } catch {
     return null
   }
@@ -727,6 +755,37 @@ export async function POST(req: NextRequest) {
       const ghHtml = await fetchGreenhouseJob('hubspotjobs', hubspotMatch[1], controller.signal)
       if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
       // API unavailable — fall through to HTML scraping
+    }
+
+    // Ashby ATS — custom career domains (e.g. careers.confluent.io/jobs/job/{uuid}) block
+    // server-side fetches with Vercel bot protection. The canonical jobs.ashbyhq.com URL
+    // serves identical HTML with JSON-LD and no bot gating. Company slug is the second
+    // hostname component (careers.confluent.io → "confluent"); falls through if wrong slug.
+    const ashbyCustomMatch =
+      parsed.hostname !== 'jobs.ashbyhq.com' &&
+      parsed.pathname.match(
+        /\/jobs\/job\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/)?$/i
+      )
+    if (ashbyCustomMatch) {
+      const hostParts = parsed.hostname.split('.')
+      if (hostParts.length >= 3) {
+        const company = hostParts[hostParts.length - 2]
+        const ashbyHtml = await fetchAshbyJobFromCanonical(company, ashbyCustomMatch[1], controller.signal)
+        if (ashbyHtml !== null) return NextResponse.json({ html: ashbyHtml })
+        // Slug mismatch or page unavailable — fall through to HTML scraping
+      }
+    }
+
+    // Ashby ATS — direct jobs.ashbyhq.com/{company}/{uuid} URLs
+    const ashbyDirectMatch =
+      parsed.hostname === 'jobs.ashbyhq.com' &&
+      parsed.pathname.match(
+        /^\/([A-Za-z0-9_-]+)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/)?$/i
+      )
+    if (ashbyDirectMatch) {
+      const ashbyHtml = await fetchAshbyJobFromCanonical(ashbyDirectMatch[1], ashbyDirectMatch[2], controller.signal)
+      if (ashbyHtml !== null) return NextResponse.json({ html: ashbyHtml })
+      // Page unavailable — fall through to HTML scraping
     }
 
     const linkedInMatch =
