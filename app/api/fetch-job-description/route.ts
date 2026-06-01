@@ -570,6 +570,122 @@ function buildEightfoldMeta(data: Record<string, unknown>): string {
   return `${header}<table>${tableRows}</table><hr>`
 }
 
+function buildGemMeta(posting: Record<string, unknown>): string {
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const rows: Array<[string, string]> = []
+
+  const title = str(posting.title)
+
+  const jobRaw = posting.job
+  const job =
+    jobRaw != null && typeof jobRaw === 'object' ? (jobRaw as Record<string, unknown>) : {}
+
+  const deptRaw = job.department
+  const department =
+    deptRaw != null && typeof deptRaw === 'object'
+      ? str((deptRaw as Record<string, unknown>).name)
+      : ''
+
+  const team = str(job.teamDisplayName)
+
+  const locationsRaw = posting.locations
+  const location = Array.isArray(locationsRaw)
+    ? (locationsRaw as unknown[])
+        .map((l) => {
+          if (l == null || typeof l !== 'object') return ''
+          const loc = l as Record<string, unknown>
+          const name = str(loc.name)
+          if (!name) return ''
+          return loc.isRemote === true ? `${name} (Remote)` : name
+        })
+        .filter(Boolean)
+        .join(' | ')
+    : ''
+
+  const locationTypeMap: Record<string, string> = {
+    IN_OFFICE: 'In office',
+    REMOTE: 'Remote',
+    HYBRID: 'Hybrid',
+  }
+  const workType = locationTypeMap[str(job.locationType)] ?? ''
+
+  const employmentTypeMap: Record<string, string> = {
+    FULL_TIME: 'Full-time',
+    PART_TIME: 'Part-time',
+    CONTRACT: 'Contract',
+    INTERNSHIP: 'Internship',
+    TEMPORARY: 'Temporary',
+  }
+  const employmentType = employmentTypeMap[str(job.employmentType)] ?? ''
+
+  if (department) rows.push(['Department', department])
+  if (team && team !== department) rows.push(['Team', team])
+  if (location) rows.push(['Location', location])
+  if (workType) rows.push(['Work type', workType])
+  if (employmentType) rows.push(['Employment type', employmentType])
+
+  if (!title && rows.length === 0) return ''
+
+  const header = title ? `<h1>${title}</h1>` : ''
+  if (rows.length === 0) return header
+
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  return `${header}<table>${tableRows}</table><hr>`
+}
+
+async function fetchGemJob(
+  boardId: string,
+  extId: string,
+  signal: AbortSignal
+): Promise<string | null> {
+  const query = `query ExternalJobPostingQuery($boardId: String!, $extId: String!) {
+  oatsExternalJobPosting(boardId: $boardId, extId: $extId) {
+    id
+    title
+    descriptionHtml
+    compensationHtml
+    locations { name city isoCountry isRemote }
+    job {
+      locationType
+      employmentType
+      teamDisplayName
+      department { name }
+    }
+  }
+}`
+  try {
+    const apiRes = await fetch('https://jobs.gem.com/api/public/graphql', {
+      method: 'POST',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': USER_AGENT,
+      },
+      body: JSON.stringify({ query, variables: { boardId, extId } }),
+    })
+    if (!apiRes.ok) return null
+    const body = (await apiRes.json()) as Record<string, unknown>
+    if (Array.isArray(body.errors) && body.errors.length > 0) return null
+    const data =
+      body.data != null && typeof body.data === 'object'
+        ? (body.data as Record<string, unknown>)
+        : null
+    if (!data) return null
+    const postingRaw = data.oatsExternalJobPosting
+    if (postingRaw == null || typeof postingRaw !== 'object') return null
+    const posting = postingRaw as Record<string, unknown>
+    const descriptionHtml =
+      typeof posting.descriptionHtml === 'string' ? posting.descriptionHtml.trim() : ''
+    if (!descriptionHtml) return null
+    const compensationHtml =
+      typeof posting.compensationHtml === 'string' ? posting.compensationHtml : ''
+    const meta = buildGemMeta(posting)
+    return meta + descriptionHtml + (compensationHtml ?? '')
+  } catch {
+    return null
+  }
+}
+
 // Google Careers embeds full job data in AF_initDataCallback({key: 'ds:0', ..., data:[...]}).
 // data[0]: [jobId, title, signinUrl, responsibilities, qualifications, projectPath,
 //           null, company, locale, locations, about, ...]
@@ -794,6 +910,18 @@ export async function POST(req: NextRequest) {
     if (linkedInMatch) {
       const linkedInHtml = await fetchLinkedInJob(linkedInMatch[1], controller.signal)
       if (linkedInHtml !== null) return NextResponse.json({ html: linkedInHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
+    // Gem.com ATS — jobs.gem.com/{boardId}/{extId}. The page is a JS-rendered SPA with no
+    // embedded job data; the public GraphQL endpoint at /api/public/graphql is the only
+    // server-side data source. extId is base64url and passed verbatim to the API.
+    const gemMatch =
+      parsed.hostname === 'jobs.gem.com' &&
+      parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_=+-]+)$/)
+    if (gemMatch) {
+      const gemHtml = await fetchGemJob(gemMatch[1], gemMatch[2], controller.signal)
+      if (gemHtml !== null) return NextResponse.json({ html: gemHtml })
       // API unavailable — fall through to HTML scraping
     }
 
