@@ -542,6 +542,77 @@ function buildEightfoldMeta(data: Record<string, unknown>): string {
   return `${header}<table>${tableRows}</table><hr>`
 }
 
+// Google Careers embeds full job data in AF_initDataCallback({key: 'ds:0', ..., data:[...]}).
+// data[0]: [jobId, title, signinUrl, responsibilities, qualifications, projectPath,
+//           null, company, locale, locations, about, ...]
+// The page is a JS-rendered SPA with no JSON-LD, so this is the only server-side data source.
+function extractGoogleCareersFromPage(html: string): string | null {
+  const dsZeroIdx = html.indexOf("key: 'ds:0'")
+  if (dsZeroIdx === -1) return null
+
+  const dataIdx = html.indexOf('data:[', dsZeroIdx)
+  if (dataIdx === -1 || dataIdx - dsZeroIdx > 200) return null
+
+  const arrayStart = dataIdx + 5 // index of '['
+  let depth = 0
+  let i = arrayStart
+  while (i < html.length) {
+    if (html[i] === '[') depth++
+    else if (html[i] === ']') {
+      depth--
+      if (depth === 0) break
+    }
+    i++
+  }
+  if (depth !== 0) return null
+
+  let outer: unknown[][]
+  try {
+    outer = JSON.parse(html.slice(arrayStart, i + 1)) as unknown[][]
+  } catch {
+    return null
+  }
+
+  if (!Array.isArray(outer) || !Array.isArray(outer[0])) return null
+  const job = outer[0] as unknown[]
+  if (job.length < 11) return null
+
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const getContent = (field: unknown): string => {
+    if (Array.isArray(field) && typeof field[1] === 'string') return field[1].trim()
+    return ''
+  }
+
+  const title = str(job[1])
+  const company = str(job[7])
+  const jobId = str(job[0])
+  const locations = Array.isArray(job[9])
+    ? (job[9] as unknown[]).map((l: unknown) => (Array.isArray(l) ? str(l[0]) : '')).filter(Boolean).join(' | ')
+    : ''
+
+  const about = getContent(job[10])
+  const responsibilities = getContent(job[3])
+  const qualifications = getContent(job[4])
+
+  const sections: string[] = []
+  if (about) sections.push(about)
+  if (responsibilities) sections.push('<h3>Responsibilities</h3>' + responsibilities)
+  if (qualifications) sections.push(qualifications)
+
+  const body = sections.join('')
+  if (!body) return null
+
+  const rows: Array<[string, string]> = []
+  if (company) rows.push(['Company', company])
+  if (jobId) rows.push(['Job ID', jobId])
+  if (locations) rows.push(['Location', locations])
+
+  const header = title ? `<h1>${title}</h1>` : ''
+  if (rows.length === 0) return header + body
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  return `${header}<table>${tableRows}</table><hr>${body}`
+}
+
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const {
@@ -571,6 +642,11 @@ export async function POST(req: NextRequest) {
 
   const isUberJob =
     parsed.hostname === 'www.uber.com' && /\/careers\/list\/\d+/.test(parsed.pathname)
+
+  const isGoogleCareers =
+    (parsed.hostname === 'www.google.com' &&
+      /^\/about\/careers\/applications\/jobs\/results\/\d+/.test(parsed.pathname)) ||
+    (parsed.hostname === 'careers.google.com' && /^\/jobs\/results\/\d+/.test(parsed.pathname))
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -699,6 +775,14 @@ export async function POST(req: NextRequest) {
       const uberHtml = extractUberFromPage(raw)
       if (uberHtml !== null) return NextResponse.json({ html: uberHtml })
       // No usable JSON-LD — fall through to extractJobContent
+    }
+
+    // Google Careers — data embedded in AF_initDataCallback({key: 'ds:0', ...}) in page HTML.
+    // No JSON-LD and no public API; server renders the full job data in this callback block.
+    if (isGoogleCareers) {
+      const googleHtml = extractGoogleCareersFromPage(raw)
+      if (googleHtml !== null) return NextResponse.json({ html: googleHtml })
+      // No usable data block — fall through to extractJobContent
     }
 
     // Greenhouse ATS embedded in third-party pages (e.g. Scale.com) — page HTML

@@ -12,6 +12,7 @@ import uberJob from '../fixtures/uber-job.json'
 import expediaJob from '../fixtures/expedia-job.json'
 import workableGableJob from '../fixtures/workable-gable-job.json'
 import hubspotJob from '../fixtures/hubspot-job.json'
+import googleCareersJob from '../fixtures/google-careers-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -1561,6 +1562,130 @@ describe('POST /api/fetch-job-description', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(fetchMock).not.toHaveBeenCalledWith(LINKEDIN_API, expect.anything())
       expect(fetchMock).toHaveBeenCalledWith('https://www.linkedin.com/feed/', expect.anything())
+    })
+  })
+
+  describe('Google Careers (www.google.com/about/careers and careers.google.com)', () => {
+    // Real URL from the job page used to capture the fixture
+    const GOOGLE_URL =
+      'https://www.google.com/about/careers/applications/jobs/results/92918703267422918-staff-software-engineer-ai-agent-google-cloud-iam-infrastructure'
+    const CAREERS_GOOGLE_URL =
+      'https://careers.google.com/jobs/results/92918703267422918-staff-software-engineer-ai-agent-google-cloud-iam-infrastructure'
+
+    // googleCareersJob is a snapshot of the AF_initDataCallback ds:0 data array from the real
+    // Google Careers page (observed 2026-05-31). Google embeds the full job data in this callback;
+    // no JSON-LD and no public API exist for server-side access.
+    function googleCareersPage(dataArray: unknown[][]): string {
+      return `<html><head></head><body><script>AF_initDataCallback({key: 'ds:0', hash: '1', data:${JSON.stringify(dataArray)}, sideChannel: {}});</script></body></html>`
+    }
+
+    it('extracts metadata header and job content from AF_initDataCallback — real fixture data', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(googleCareersPage(googleCareersJob)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GOOGLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title from fixture
+      expect(data.html).toContain('<h1>Staff Software Engineer, AI Agent, Google Cloud IAM Infrastructure</h1>')
+      // Company from fixture
+      expect(data.html).toContain('Google')
+      // Job ID from fixture
+      expect(data.html).toContain('92918703267422918')
+      // Location from fixture
+      expect(data.html).toContain('Kirkland, WA, USA')
+      // Responsibilities section heading added by handler
+      expect(data.html).toContain('<h3>Responsibilities</h3>')
+      // Responsibilities content from fixture
+      expect(data.html).toContain('agentic authorization')
+      // Qualifications heading from fixture
+      expect(data.html).toContain('Minimum qualifications')
+      // Only one fetch — page HTML, no separate API call
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(GOOGLE_URL, expect.anything())
+    })
+
+    it('handles careers.google.com URL variant', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(googleCareersPage(googleCareersJob)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: CAREERS_GOOGLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Staff Software Engineer, AI Agent, Google Cloud IAM Infrastructure</h1>')
+    })
+
+    it('falls back to extractJobContent when page has no AF_initDataCallback', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Scraped fallback</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GOOGLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped fallback</p>')
+    })
+
+    it('falls back to extractJobContent when AF_initDataCallback data is invalid JSON', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse(
+          `<html><body><script>AF_initDataCallback({key: 'ds:0', hash: '1', data:not_json, sideChannel: {}});</script><p>Body</p></body></html>`
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GOOGLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Body</p>')
+    })
+
+    it('falls back to extractJobContent when job entry has no content fields', async () => {
+      // Synthetic: real fixture always has about/responsibilities/qualifications; this tests the empty-body branch
+      mockUser()
+      const emptyJob = [['job-id', 'Title', 'https://...', null, null, null, null, 'Google', 'en-US', [], null]]
+      const html = `<html><head></head><body><script>AF_initDataCallback({key: 'ds:0', hash: '1', data:${JSON.stringify(emptyJob)}, sideChannel: {}});</script><p>Fallback text</p></body></html>`
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(html))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GOOGLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Fallback text</p>')
+    })
+
+    it('returns 502 when the page fetch fails', async () => {
+      mockUser()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 403 })))
+
+      const res = await POST(makeReq({ url: GOOGLE_URL }))
+
+      expect(res.status).toBe(502)
+    })
+
+    it('does not apply Google Careers handler for non-Google Careers URLs', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.google.com/search?q=jobs' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // No Google Careers metadata header prepended
+      expect(data.html).not.toContain('AF_initDataCallback')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith('https://www.google.com/search?q=jobs', expect.anything())
     })
   })
 })
