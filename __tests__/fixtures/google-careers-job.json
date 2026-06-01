@@ -1,0 +1,77 @@
+[
+  [
+    "92918703267422918",
+    "Staff Software Engineer, AI Agent, Google Cloud IAM Infrastructure",
+    "https://www.google.com/about/careers/applications/signin?jobId=CiUAL2Fckdkx8-Chw-5qhg6aSThQOtI-a4RD70376TaiQ01LWyCwEjsACxwdTIbj3QdBMHhmkUW4JGUxHNfv8FDCpU5wmkeUgRhg2VjpC5LEVmsbeMI_YJbZqL5rvzaIrqmwWQ%3D%3D_V2&loc=US&title=Staff+Software+Engineer",
+    [
+      null,
+      "<ul>\n<li>Architect and implement agentic authorization solutions, directly contributing to GCP's Agent Cloud foundation strategy.<br></li>\n<li>Lead the evolution of Cloud Identity and Access Management (IAM) through AI/ML integration. Drive the technical vision and design for the feature development of a highly available, low-latency, and scalable infrastructure systems for IAM policies and resources.<br></li>\n<li>Collaborate with product managers, technical program managers, and other engineering teams across our organization to define the roadmap and deliver on our commitments.<br></li>\n<li>Mentor and grow a team of talented engineers, fostering a culture of technical excellence and innovation.<br></li>\n<li>Ensure the operational health of our systems by participating in on-call rotations and driving improvements to our monitoring and automation.<br></li>\n</ul>"
+    ],
+    [
+      null,
+      "<h3>Minimum qualifications:</h3><ul>\n<li>Bachelor's degree in Computer Science or a related technical field or equivalent practical experience.</li>\n<li>8 years of experience in software development.<br></li>\n<li>5 years of experience in a technical leadership role, designing and building large-scale distributed systems.<br></li>\n<li>5 years of experience with cloud computing technologies.</li>\n<li>3 years of experience in applying artificial intelligence and machine learning techniques to real-world problems, in infrastructure or security domains.</li>\n</ul><br><h3>Preferred qualifications:</h3><ul>\n<li>Master\u2019s degree or PhD in Engineering, Computer Science, or a related technical field.<br></li>\n<li>8 years of experience with data structures and algorithms.</li>\n<li>3 years of experience in a technical leadership role leading project teams and setting technical direction.<br></li>\n<li>3 years of experience working in a matrixed organization involving cross-functional, or cross-business projects.</li>\n<li>Experience programming in C++.</li>\n<li>Experience working in cloud security.</li>\n</ul>"
+    ],
+    "projects/gweb-careers-proto/tenants/60107626-8e00-0000-0000-0071646e0806/companies/ebbbf0d1-8121-483c-8f99-ee92597591fc",
+    null,
+    "Google",
+    "en-US",
+    [
+      [
+        "Kirkland, WA, USA",
+        [
+          "425 Urban Plz Suite#223, Kirkland, WA 98033, USA"
+        ],
+        "Kirkland",
+        "98033",
+        "WA",
+        "US"
+      ],
+      [
+        "Seattle, WA, USA",
+        [
+          "Seattle, WA, USA"
+        ],
+        "Seattle",
+        null,
+        "WA",
+        "US"
+      ]
+    ],
+    [
+      null,
+      "<p>Google's software engineers develop the next-generation technologies that change how billions of users connect, explore, and interact with information and one another. Our products need to handle information at massive scale, and extend well beyond web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As a software engineer, you will work on a specific project critical to Google\u2019s needs with opportunities to switch teams and projects as you and our fast-paced business grow and evolve. We need our engineers to be versatile, display leadership qualities and be enthusiastic to take on new problems across the full-stack as we continue to push technology forward.</p>\n<p>GCP's Identity and Access Management (IAM) team, Capsium, is building the critical access control foundation to secure enterprise AI adoption because self-supporting AI agents shift the security focus from \"Who has access?\" to \"What can this agent do?\", they introduce complex new tests: obscured risk perimeters, the rapid proliferation of high-velocity non-human identities, and dynamic actions that outpace traditional static policies. To address these threats, we are developing the core AUTHZ platform that empowers Google Cloud Platform (GCP) customers to confidently connect Large Language Models (LLMs) and deploy complex, multi-agent ecosystems without compromising their security posture.</p><p>Google Cloud accelerates every organization\u2019s ability to digitally transform its business and industry. We deliver enterprise-grade solutions that leverage Google\u2019s cutting-edge technology, and tools that help developers build more sustainably. Customers in more than 200 countries and territories turn to Google Cloud as their trusted partner to enable growth and solve their most critical business problems.</p><p>The US base salary range for this full-time position is $207,000-$300,000 + bonus + equity + benefits. Our salary ranges are determined by role, level, and location. Within the range, individual pay is determined by work location and additional factors, including job-related skills, experience, and relevant education or training. Your recruiter can share more about the specific salary range for your preferred location during the hiring process. </p><p>Please note that the compensation details listed in US role postings reflect the base salary only, and do not include bonus, equity, or benefits. Learn more about <a href=\"https://careers.google.com/benefits/\" target=\"_blank\">benefits at Google</a>.</p>"
+    ],
+    [
+      2,
+      3,
+      4
+    ],
+    [
+      1777914123,
+      125000000
+    ],
+    [
+      1779373898,
+      444000000
+    ],
+    [
+      1779373898,
+      560000000
+    ],
+    [
+      null,
+      "In accordance with Washington state law, we are highlighting our comprehensive benefits package, which is available to all eligible US based employees. Benefits for this role include:<br><ul><li>Health, dental, vision, life, disability insurance</li><li>Retirement Benefits: 401(k) with company match</li><li>Paid Time Off: 20 days of vacation per year, accruing at a rate of 6.15 hours per pay period for the first five years of employment</li><li>Sick Time: 40 hours/year (increased to 69 hours/year for Seattle) including 5 discretionary sick days per instance </li><li>Maternity Leave (Short-Term Disability + Baby Bonding): 28-30 weeks</li><li>Baby Bonding Leave: 18 weeks</li><li>Holidays: 13 paid days per year</li></ul>"
+    ],
+    null,
+    null,
+    [
+      null,
+      "Note: By applying to this position you will have an opportunity to share your preferred working location from the following: <b>Kirkland, WA, USA; Seattle, WA, USA</b>."
+    ],
+    [
+      null,
+      "<ul>\n<li>Bachelor's degree in Computer Science or a related technical field or equivalent practical experience.</li>\n<li>8 years of experience in software development.<br></li>\n<li>5 years of experience in a technical leadership role, designing and building large-scale distributed systems.<br></li>\n<li>5 years of experience with cloud computing technologies.</li>\n<li>3 years of experience in applying artificial intelligence and machine learning techniques to real-world problems, in infrastructure or security domains.</li>\n</ul>"
+    ],
+    3
+  ]
+]
