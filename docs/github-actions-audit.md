@@ -2,6 +2,8 @@
 
 *Written as supporting context for the planned migration to Temporal ([#505](https://github.com/zhaoanliu/job-tracker/issues/505)).*
 
+> See [Temporal migration plan](temporal-migration-plan.md) for the planned solution.
+
 ---
 
 ## Every limitation we hit and worked around

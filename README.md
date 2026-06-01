@@ -102,6 +102,11 @@ The system currently uses GitHub Actions throughout. The limitations section bel
 
 > See [Feature pipeline](docs/feature-pipeline.md) for the complete end-to-end walkthrough.
 
+### Planned extensions
+
+- **[Temporal migration](docs/temporal-migration-plan.md)** — the feature pipeline (Design → Implement → Verify-AC) is planned for migration to Temporal, replacing the current label-based coordination between three separate GitHub Actions runs with a single durable workflow. See the [GitHub Actions audit](docs/github-actions-audit.md) for the 13 documented limitations driving this decision.
+- **[Snowflake integration](docs/snowflake-integration-plan.md)** — Snowflake will serve as the analytical layer for pipeline event data, enabling DORA metrics, feature cycle time analysis, and self-healing success rate tracking. Supabase remains the operational database.
+
 ---
 
 ## Local development
