@@ -216,6 +216,18 @@ describe('POST /api/fetch-job-description', () => {
     expect(data.error).toBe('Failed to fetch job description')
   })
 
+  it('does not call console.error on upstream rate-limit (429)', async () => {
+    mockUser()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('rate limited', { status: 429 })))
+
+    const res = await POST(makeReq({ url: 'https://example.com/job' }))
+
+    expect(res.status).toBe(502)
+    expect(console.error).not.toHaveBeenCalled()
+    expect(warnSpy).toHaveBeenCalled()
+  })
+
   it('returns 502 on network error', async () => {
     mockUser()
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')))

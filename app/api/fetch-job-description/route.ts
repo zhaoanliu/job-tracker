@@ -452,7 +452,7 @@ async function fetchLinkedInJob(jobId: string, signal: AbortSignal): Promise<str
       { signal, headers: { 'User-Agent': USER_AGENT } }
     )
     if (!apiRes.ok) {
-      console.error('fetch-job-description: LinkedIn non-2xx', apiRes.status, jobId)
+      console.warn('fetch-job-description: LinkedIn non-2xx', apiRes.status, jobId)
       return null
     }
     const raw = await apiRes.text()
@@ -748,13 +748,13 @@ export async function POST(req: NextRequest) {
     })
 
     if (!res.ok) {
-      console.error('fetch-job-description: non-2xx response', res.status, parsed.toString())
+      console.warn('fetch-job-description: non-2xx response', res.status, parsed.toString())
       return NextResponse.json({ error: 'Failed to fetch job description' }, { status: 502 })
     }
 
     const contentType = res.headers.get('content-type') ?? ''
     if (contentType && !/text\/|application\/(xhtml|xml|json)/i.test(contentType)) {
-      console.error('fetch-job-description: non-text content-type', contentType)
+      console.warn('fetch-job-description: non-text content-type', contentType)
       return NextResponse.json({ error: 'Failed to fetch job description' }, { status: 502 })
     }
 
