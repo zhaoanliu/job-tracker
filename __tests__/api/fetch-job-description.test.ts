@@ -14,6 +14,7 @@ import workableGableJob from '../fixtures/workable-gable-job.json'
 import hubspotJob from '../fixtures/hubspot-job.json'
 import googleCareersJob from '../fixtures/google-careers-job.json'
 import ashbyConfluentJob from '../fixtures/ashby-confluent-job.json'
+import gemAugerJob from '../fixtures/gem-auger-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -1830,6 +1831,159 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('jobs.ashbyhq.com'), expect.anything())
+    })
+  })
+
+  describe('Gem.com ATS', () => {
+    // gemAugerJob is a snapshot of the real jobs.gem.com GraphQL response envelope
+    // ({"data":{"oatsExternalJobPosting":{...}}}) for boardId=auger and the base64url extId
+    // captured 2026-06-01.
+    const GEM_URL = 'https://jobs.gem.com/auger/am9icG9zdDqF9OtLq0iQ9-wa_O4b2WV2'
+    const GEM_API = 'https://jobs.gem.com/api/public/graphql'
+
+    it('uses Gem GraphQL API and prepends metadata header — real API fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GEM_API) return Promise.resolve(jsonResponse(gemAugerJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GEM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Principal Software Development Engineer</h1>')
+      expect(data.html).toContain('Bellevue')
+      expect(data.html).toContain('AI Enablement Engineering')
+      expect(data.html).toContain('Full-time')
+      expect(data.html).toContain('In office')
+      expect(data.html).toContain('autonomous operating system for the supply chain')
+      expect(data.html).toContain('$280,000')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(GEM_API, expect.anything())
+    })
+
+    it('falls back to extractJobContent when GraphQL endpoint returns non-2xx', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GEM_API) return Promise.resolve(jsonResponse({}, 500))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GEM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to extractJobContent when GraphQL returns errors[] payload (HTTP 200)', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GEM_API)
+          return Promise.resolve(jsonResponse({ errors: [{ message: 'Posting not found' }] }))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GEM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to extractJobContent when GraphQL returns null oatsExternalJobPosting', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GEM_API)
+          return Promise.resolve(jsonResponse({ data: { oatsExternalJobPosting: null } }))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GEM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to extractJobContent when descriptionHtml is empty', async () => {
+      mockUser()
+      const empty = {
+        data: {
+          oatsExternalJobPosting: {
+            ...gemAugerJob.data.oatsExternalJobPosting,
+            descriptionHtml: '',
+          },
+        },
+      }
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GEM_API) return Promise.resolve(jsonResponse(empty))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GEM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not trigger Gem handler for non-matching path (single path segment)', async () => {
+      mockUser()
+      const NON_MATCH_URL = 'https://jobs.gem.com/auger'
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Regular</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: NON_MATCH_URL }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(NON_MATCH_URL, expect.anything())
+      expect(fetchMock).not.toHaveBeenCalledWith(GEM_API, expect.anything())
+    })
+
+    it('renders multi-location posting joined by " | " with "(Remote)" appended', async () => {
+      // Synthetic: the real fixture has a single in-office location; multi-location postings
+      // with isRemote set on one entry are possible in practice on Gem boards.
+      mockUser()
+      const multi = {
+        data: {
+          oatsExternalJobPosting: {
+            title: 'Distributed Engineer',
+            descriptionHtml: '<p>Body</p>',
+            compensationHtml: '',
+            locations: [
+              { name: 'Bellevue', city: 'Bellevue', isoCountry: 'USA', isRemote: false },
+              { name: 'United States', city: '', isoCountry: 'USA', isRemote: true },
+            ],
+            job: {
+              locationType: 'HYBRID',
+              employmentType: 'FULL_TIME',
+              teamDisplayName: 'Platform',
+              department: { name: 'Engineering' },
+            },
+          },
+        },
+      }
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === GEM_API) return Promise.resolve(jsonResponse(multi))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GEM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Bellevue | United States (Remote)')
     })
   })
 })
