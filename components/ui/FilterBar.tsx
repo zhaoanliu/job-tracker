@@ -19,6 +19,7 @@ interface FilterBarProps {
   sortBy: SortField
   onFilterChange: (filters: Filters) => void
   onSortChange: (sort: SortField) => void
+  matchInfo?: { total: number; byStage: { label: string; count: number }[] }
 }
 
 function toggleItem<T>(arr: T[], item: T): T[] {
@@ -54,7 +55,7 @@ function MultiChip<T extends string>({ label, options, selected, onToggle }: Mul
   )
 }
 
-export default function FilterBar({ filters, sortBy, onFilterChange, onSortChange }: FilterBarProps) {
+export default function FilterBar({ filters, sortBy, onFilterChange, onSortChange, matchInfo }: FilterBarProps) {
   const active = hasActiveFilters(filters)
 
   function clearFilters() {
@@ -92,6 +93,23 @@ export default function FilterBar({ filters, sortBy, onFilterChange, onSortChang
           )}
         </div>
       </div>
+
+      {matchInfo && (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className={`text-xs font-medium rounded-full px-2 py-0.5 border whitespace-nowrap ${
+            matchInfo.total === 0
+              ? 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-700 dark:text-slate-500 dark:border-slate-600'
+              : 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800'
+          }`}>
+            {matchInfo.total === 0 ? 'No matches' : `${matchInfo.total} match${matchInfo.total !== 1 ? 'es' : ''}`}
+          </span>
+          {matchInfo.total > 0 && matchInfo.byStage.length > 0 && (
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">
+              {matchInfo.byStage.map(s => `${s.label} ${s.count}`).join(' · ')}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
       <MultiChip

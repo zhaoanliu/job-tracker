@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import {
   DndContext,
   DragEndEvent,
@@ -23,7 +23,7 @@ import {
   STAGES,
   SortField,
 } from '@/lib/types'
-import { getStageApplications } from '@/lib/utils'
+import { getStageApplications, filterApplications, hasActiveFilters } from '@/lib/utils'
 import KanbanColumn from './KanbanColumn'
 import DragOverlayCard from './DragOverlayCard'
 import ApplicationModal from '@/components/modals/ApplicationModal'
@@ -304,6 +304,17 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
     }
   }
 
+  const matchInfo = useMemo(() => {
+    if (!hasActiveFilters(filters)) return undefined
+    const matched = filterApplications(applications, filters)
+    return {
+      total: matched.length,
+      byStage: STAGES
+        .map(s => ({ label: s.label, count: matched.filter(a => a.status === s.id).length }))
+        .filter(s => s.count > 0),
+    }
+  }, [applications, filters])
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <Navbar
@@ -322,6 +333,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
           if (active > 0) trackEvent('filter_applied')
         }}
         onSortChange={setSortBy}
+        matchInfo={matchInfo}
       />
 
       {/* Board */}
