@@ -13,6 +13,7 @@ import expediaJob from '../fixtures/expedia-job.json'
 import workableGableJob from '../fixtures/workable-gable-job.json'
 import hubspotJob from '../fixtures/hubspot-job.json'
 import googleCareersJob from '../fixtures/google-careers-job.json'
+import ashbyConfluentJob from '../fixtures/ashby-confluent-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -1686,6 +1687,137 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).not.toContain('AF_initDataCallback')
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(fetchMock).toHaveBeenCalledWith('https://www.google.com/search?q=jobs', expect.anything())
+    })
+  })
+
+  describe('Ashby ATS', () => {
+    // ashbyConfluentJob is the schema.org/JobPosting JSON-LD block embedded in the real
+    // jobs.ashbyhq.com/confluent/85107937-8f12-4336-abb8-e88f344c6bcc page (2026-06-01).
+    // Custom domain careers.confluent.io blocks server-side fetches (Vercel bot protection / 429);
+    // the handler redirects to jobs.ashbyhq.com which serves the same page without gating.
+    const CUSTOM_URL = 'https://careers.confluent.io/jobs/job/85107937-8f12-4336-abb8-e88f344c6bcc'
+    const DIRECT_URL = 'https://jobs.ashbyhq.com/confluent/85107937-8f12-4336-abb8-e88f344c6bcc'
+    const CANONICAL_FETCH_URL = 'https://jobs.ashbyhq.com/confluent/85107937-8f12-4336-abb8-e88f344c6bcc'
+
+    function ashbyPage(ld: object): string {
+      return `<html><head><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body></body></html>`
+    }
+
+    it('fetches from jobs.ashbyhq.com for custom career domain — real fixture data', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === CANONICAL_FETCH_URL) return Promise.resolve(htmlResponse(ashbyPage(ashbyConfluentJob)))
+        return Promise.resolve(htmlResponse('<html><body><p>SENTINEL-FALLBACK</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: CUSTOM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title from fixture
+      expect(data.html).toContain('<h1>Principal Engineer, Engineering AI Productivity</h1>')
+      // Company from hiringOrganization.name
+      expect(data.html).toContain('Confluent')
+      // Date posted from fixture
+      expect(data.html).toContain('2026-05-13')
+      // Location from jobLocation.address.addressCountry
+      expect(data.html).toContain('United States')
+      // Description content from fixture
+      expect(data.html).toContain('We’re not just building better tech')
+      // Fetches from canonical Ashby URL only — custom domain is never fetched
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(CANONICAL_FETCH_URL, expect.anything())
+      expect(fetchMock).not.toHaveBeenCalledWith(CUSTOM_URL, expect.anything())
+    })
+
+    it('extracts metadata header and description for direct jobs.ashbyhq.com URL — real fixture data', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === CANONICAL_FETCH_URL) return Promise.resolve(htmlResponse(ashbyPage(ashbyConfluentJob)))
+        return Promise.resolve(htmlResponse('<html><body><p>SENTINEL-FALLBACK</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DIRECT_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Principal Engineer, Engineering AI Productivity</h1>')
+      expect(data.html).toContain('Confluent')
+      expect(data.html).toContain('We’re not just building better tech')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(CANONICAL_FETCH_URL, expect.anything())
+    })
+
+    it('falls back to HTML scraping when jobs.ashbyhq.com returns non-2xx (custom domain)', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === CANONICAL_FETCH_URL) return Promise.resolve(htmlResponse('', { status: 404 }))
+        return Promise.resolve(htmlResponse('<html><body><p>SENTINEL-FALLBACK</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: CUSTOM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>SENTINEL-FALLBACK</p>')
+    })
+
+    it('falls back to HTML scraping when jobs.ashbyhq.com has no JobPosting JSON-LD', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === CANONICAL_FETCH_URL) return Promise.resolve(htmlResponse('<html><body><p>No JSON-LD</p></body></html>'))
+        return Promise.resolve(htmlResponse('<html><body><p>SENTINEL-FALLBACK</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: CUSTOM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>SENTINEL-FALLBACK</p>')
+    })
+
+    it('falls back to HTML scraping when jobs.ashbyhq.com throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === CANONICAL_FETCH_URL) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>SENTINEL-FALLBACK</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: CUSTOM_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>SENTINEL-FALLBACK</p>')
+    })
+
+    it('does not trigger Ashby handler for custom domain with only 2-part hostname', async () => {
+      // Synthetic: Ashby handler requires 3+ hostname parts to derive company slug;
+      // a bare 2-part hostname like "confluent.io/jobs/job/{uuid}" is not a recognised Ashby pattern
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://confluent.io/jobs/job/85107937-8f12-4336-abb8-e88f344c6bcc' }))
+
+      expect(res.status).toBe(200)
+      // No Ashby fetch — only the direct page fetch
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('jobs.ashbyhq.com'), expect.anything())
+    })
+
+    it('does not trigger Ashby handler for non-UUID path segments', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://careers.confluent.io/jobs/job/12345' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('jobs.ashbyhq.com'), expect.anything())
     })
   })
 })
