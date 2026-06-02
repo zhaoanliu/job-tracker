@@ -10,9 +10,16 @@ export type ApplicationStatus =
   | 'closed'
 
 export type ApplicationType =
-  | 'Principal Engineer'
+  | 'Principal Software Engineer'
   | 'Security Engineer'
   | 'Security Architect'
+  | 'Program Manager'
+  | 'Product Manager'
+  | 'Operation Manager'
+  | 'Business Manager'
+  | 'Chief of Staff'
+  | 'Staff Software Engineer'
+  | 'Senior Staff Software Engineer'
   | 'Other'
 
 export type ApplicationPriority = 'High' | 'Medium' | 'Low'
@@ -159,9 +166,16 @@ export const PRIORITY_RANK: Record<ApplicationPriority, number> = {
 }
 
 export const APPLICATION_TYPES: ApplicationType[] = [
-  'Principal Engineer',
+  'Principal Software Engineer',
   'Security Engineer',
   'Security Architect',
+  'Program Manager',
+  'Product Manager',
+  'Operation Manager',
+  'Business Manager',
+  'Chief of Staff',
+  'Staff Software Engineer',
+  'Senior Staff Software Engineer',
   'Other',
 ]
 

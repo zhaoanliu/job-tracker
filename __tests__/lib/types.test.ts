@@ -53,8 +53,24 @@ describe('PRIORITY_RANK', () => {
 })
 
 describe('enum constant arrays', () => {
-  it('APPLICATION_TYPES includes Other as the catch-all', () => {
+  it('APPLICATION_TYPES includes Other as the last entry', () => {
     expect(APPLICATION_TYPES).toContain('Other')
+    expect(APPLICATION_TYPES[APPLICATION_TYPES.length - 1]).toBe('Other')
+  })
+
+  it('APPLICATION_TYPES contains the renamed Principal Software Engineer (not Principal Engineer)', () => {
+    expect(APPLICATION_TYPES).toContain('Principal Software Engineer')
+    expect(APPLICATION_TYPES).not.toContain('Principal Engineer')
+  })
+
+  it('APPLICATION_TYPES contains all new entries', () => {
+    expect(APPLICATION_TYPES).toContain('Program Manager')
+    expect(APPLICATION_TYPES).toContain('Product Manager')
+    expect(APPLICATION_TYPES).toContain('Operation Manager')
+    expect(APPLICATION_TYPES).toContain('Business Manager')
+    expect(APPLICATION_TYPES).toContain('Chief of Staff')
+    expect(APPLICATION_TYPES).toContain('Staff Software Engineer')
+    expect(APPLICATION_TYPES).toContain('Senior Staff Software Engineer')
   })
 
   it('APPLICATION_PRIORITIES has exactly three levels', () => {

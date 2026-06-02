@@ -171,6 +171,68 @@ describe('FilterBar', () => {
     expect(screen.getByText('No matches')).toBeInTheDocument()
   })
 
+  it('calls onFilterChange with toggled type when a type chip is clicked', async () => {
+    const onFilterChange = vi.fn()
+    render(<FilterBar filters={emptyFilters} sortBy="order" onFilterChange={onFilterChange} onSortChange={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Other', exact: true }))
+    expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ type: ['Other'] }))
+  })
+
+  it('removes a type from active filters when clicked again', async () => {
+    const onFilterChange = vi.fn()
+    render(
+      <FilterBar
+        filters={{ ...emptyFilters, type: ['Other'] }}
+        sortBy="order"
+        onFilterChange={onFilterChange}
+        onSortChange={vi.fn()}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Other', exact: true }))
+    expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ type: [] }))
+  })
+
+  it('calls onFilterChange with toggled workmode when a mode chip is clicked', async () => {
+    const onFilterChange = vi.fn()
+    render(<FilterBar filters={emptyFilters} sortBy="order" onFilterChange={onFilterChange} onSortChange={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: 'On-site', exact: true }))
+    expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ workmode: ['On-site'] }))
+  })
+
+  it('calls onFilterChange with toggled location when a location chip is clicked', async () => {
+    const onFilterChange = vi.fn()
+    render(<FilterBar filters={emptyFilters} sortBy="order" onFilterChange={onFilterChange} onSortChange={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Bellevue WA', exact: true }))
+    expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ location: ['Bellevue WA'] }))
+  })
+
+  it('renders matchInfo with matches when total > 0', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        matchInfo={{ total: 3, byStage: [{ label: 'Applied', count: 2 }, { label: 'HR', count: 1 }] }}
+      />
+    )
+    expect(screen.getByText('3 matches')).toBeInTheDocument()
+    expect(screen.getByText('Applied 2 · HR 1')).toBeInTheDocument()
+  })
+
+  it('renders matchInfo with singular "match" when total is 1', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        matchInfo={{ total: 1, byStage: [{ label: 'Applied', count: 1 }] }}
+      />
+    )
+    expect(screen.getByText('1 match')).toBeInTheDocument()
+  })
+
   it('shows singular "1 match" and stage breakdown when total is 1', () => {
     render(
       <FilterBar
