@@ -16,9 +16,22 @@ to `claude-opus-4-7` ($5/$25 per MTok). The current CLI (v2.1.160) defaults to
 
 No `--model` flag anywhere. Pinned CLI version = Opus default.
 
-**Fix (PR #1 — #528, merged):** `install-claude/action.yml` now exports
-`CLAUDE_MODEL=claude-sonnet-4-6` to `$GITHUB_ENV`. All 11 call sites use
-`--model "$CLAUDE_MODEL"`. To change the model: one line in `install-claude/action.yml`.
+**Fix (PR #1 — #528):** `install-claude/action.yml` installs a `claude-logged`
+wrapper script alongside the CLI. The wrapper hard-codes `--dangerously-skip-permissions`,
+`--model "${CLAUDE_MODEL}"`, and `--output-format json`, so all 11 call sites reduce to:
+
+```bash
+claude-logged --max-turns N -p "$(cat /tmp/prompt.txt)"
+```
+
+The wrapper also appends a cost line to `$GITHUB_STEP_SUMMARY` on every run:
+```
+cost=$0.24 in=5000 cache=120000 out=312
+```
+
+`CLAUDE_MODEL` defaults to `claude-sonnet-4-6` (set by `install-claude` via
+`$GITHUB_ENV`). Override per step with `env: CLAUDE_MODEL: <model>` for future
+routing. To change the default: one line in `install-claude/action.yml`.
 
 Expected effect: ~40% cost reduction (Opus at $5/$25 → Sonnet at $3/$15).
 

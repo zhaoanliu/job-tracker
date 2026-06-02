@@ -1,16 +1,3 @@
-## Claude model configuration
-
-The model used by all workflow `claude` invocations is set in one place:
-`.github/actions/install-claude/action.yml` exports `CLAUDE_MODEL=claude-sonnet-4-6`
-to `$GITHUB_ENV`. Every call site uses `--model "$CLAUDE_MODEL"` — no model strings
-at individual call sites.
-
-**To change the model:** edit that one line in `install-claude/action.yml`. Do not
-add `--model` flags at individual call sites.
-
-For the full cost analysis, routing spec (Haiku vs Sonnet), and future optimization
-plan, see [`docs/workflow-cost-optimization.md`](../docs/workflow-cost-optimization.md).
-
 ## Auto-fix pipeline
 
 When a Sentry alert fires:
