@@ -68,7 +68,7 @@ jobs:
                 CONFLICTED_FILES=$(git diff --name-only --diff-filter=U)
                 echo "PR #${pr_num}: conflict in ${CONFLICTED_FILES} — attempting Claude resolution"
                 PROMPT="Resolve git merge conflict markers in this rebase. Branch '${branch}' conflicts with main in: ${CONFLICTED_FILES}. For each conflicted file: (1) read it and find all conflict blocks — they start with seven '<' chars followed by HEAD, a divider of seven '=' chars, and end with seven '>' chars; (2) remove the marker lines themselves; (3) when both sides add independent content in the same region keep BOTH additions with HEAD content first; (4) when changes are genuinely incompatible prefer the HEAD version; (5) write the resolved file back; (6) run: git add <filename>. After resolving all files stop — do not run git rebase --continue."
-                claude --dangerously-skip-permissions --max-turns 15 -p "$PROMPT"
+                claude --dangerously-skip-permissions --model "$CLAUDE_MODEL" --max-turns 15 -p "$PROMPT"
                 REMAINING=$(git diff --name-only --diff-filter=U | wc -l | tr -d ' ')
                 if [[ "$REMAINING" -eq 0 ]]; then
                   if GIT_EDITOR=true git rebase --continue; then

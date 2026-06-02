@@ -235,7 +235,7 @@ jobs:
             DELAY=30
             for PATTEMPT in 1 2 3; do
               set +eo pipefail
-              claude --dangerously-skip-permissions --max-turns 10 \
+              claude --dangerously-skip-permissions --model "$CLAUDE_MODEL" --max-turns 10 \
                 -p "$(cat /tmp/plan_prompt.txt)" 2>&1 | tee /tmp/plan_output.txt
               PLAN_EXIT=${PIPESTATUS[0]}
               set -eo pipefail
@@ -278,7 +278,7 @@ jobs:
             local DELAY=30
             for RETRY in 1 2 3; do
               set +eo pipefail
-              claude --dangerously-skip-permissions --max-turns "$max_turns" \
+              claude --dangerously-skip-permissions --model "$CLAUDE_MODEL" --max-turns "$max_turns" \
                 -p "$(cat "$prompt_file")" 2>&1 | tee /tmp/claude_output.txt
               CLAUDE_EXIT=${PIPESTATUS[0]}
               echo ""

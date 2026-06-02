@@ -105,7 +105,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          claude --dangerously-skip-permissions --max-turns 10 -p "$(cat /tmp/prompt.txt)" || echo "claude exited, continuing"
+          claude --dangerously-skip-permissions --model "$CLAUDE_MODEL" --max-turns 10 -p "$(cat /tmp/prompt.txt)" || echo "claude exited, continuing"
 
       - name: Open PR
         if: steps.logs.outputs.error_type == 'code'
