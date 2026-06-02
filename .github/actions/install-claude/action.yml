@@ -17,13 +17,17 @@ runs:
         npm install -g @anthropic-ai/claude-code@2.1.145
         echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
         echo "CLAUDE_MODEL=claude-sonnet-4-6" >> "$GITHUB_ENV"
-        cat > "$HOME/.npm-global/bin/claude-logged" << 'WRAPPER_EOF'
+        mv "$HOME/.npm-global/bin/claude" "$HOME/.npm-global/bin/_claude_bin"
+        cat > "$HOME/.npm-global/bin/claude" << 'WRAPPER_EOF'
         #!/bin/bash
+        for arg in "$@"; do
+          [[ "$arg" == "--version" || "$arg" == "--help" ]] && exec _claude_bin "$@"
+        done
         RAW_JSON=/tmp/claude_raw.json
-        claude --dangerously-skip-permissions --model "${CLAUDE_MODEL}" --output-format json "$@" > "$RAW_JSON" 2>&1
+        _claude_bin --dangerously-skip-permissions --model "${CLAUDE_MODEL}" --output-format json "$@" > "$RAW_JSON" 2>&1
         EXIT=$?
         { jq -re '.result // ""' "$RAW_JSON" 2>/dev/null || cat "$RAW_JSON"; }
         jq -r '"cost=$\(.total_cost_usd // 0) in=\(.usage.input_tokens // 0) cache=\(.usage.cache_read_input_tokens // 0) out=\(.usage.output_tokens // 0)"' "$RAW_JSON" >> "${GITHUB_STEP_SUMMARY:-/dev/null}" 2>/dev/null || true
         exit $EXIT
         WRAPPER_EOF
-        chmod +x "$HOME/.npm-global/bin/claude-logged"
+        chmod +x "$HOME/.npm-global/bin/claude"

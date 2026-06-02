@@ -1,11 +1,14 @@
 ## Claude model configuration
 
-All workflow `claude` invocations go through `claude-logged`, a wrapper script
-installed by `.github/actions/install-claude/action.yml`. The wrapper:
-- Runs `claude --dangerously-skip-permissions --model "${CLAUDE_MODEL}" --output-format json`
-- Extracts the text result for existing `| tee` / `grep` / `PIPESTATUS` logic
-- Appends one cost line to `$GITHUB_STEP_SUMMARY` per run:
+The `claude` command in CI is an instrumented wrapper installed by
+`.github/actions/install-claude/action.yml`. The original binary is renamed to
+`_claude_bin`; the new `claude` wraps it to add:
+- `--dangerously-skip-permissions --model "${CLAUDE_MODEL}" --output-format json` automatically
+- Text extraction so existing `| tee` / `grep` / `PIPESTATUS` patterns work unchanged
+- A cost line appended to `$GITHUB_STEP_SUMMARY` per run:
   `cost=$0.24 in=5000 cache=120000 out=312`
+
+Call sites just use `claude --max-turns N -p "..."` — no extra flags needed.
 
 **Default model:** `install-claude` exports `CLAUDE_MODEL=claude-sonnet-4-6` to
 `$GITHUB_ENV` — job-scoped, available to all subsequent steps including inside
@@ -18,7 +21,7 @@ composite actions.
 - name: Run Claude
   env:
     CLAUDE_MODEL: claude-haiku-4-5-20251001
-  run: claude-logged --max-turns 8 -p "$(cat /tmp/prompt.txt)" | tee /tmp/output.txt
+  run: claude --max-turns 8 -p "$(cat /tmp/prompt.txt)" | tee /tmp/output.txt
 ```
 Step-level `env:` takes precedence over `$GITHUB_ENV` for that step only.
 

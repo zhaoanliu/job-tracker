@@ -17,8 +17,8 @@ jobs:
       - name: Verify claude is on PATH
         run: claude --version
 
-      - name: Verify claude-logged is on PATH
-        run: which claude-logged
+      - name: Verify _claude_bin exists (original binary renamed)
+        run: which _claude_bin
 
       - name: Verify CLAUDE_MODEL default
         run: |
@@ -26,7 +26,7 @@ jobs:
             || { echo "FAIL: CLAUDE_MODEL=$CLAUDE_MODEL"; exit 1; }
           echo "PASS: CLAUDE_MODEL=$CLAUDE_MODEL"
 
-      - name: Verify wrapper text extraction (JSON success path)
+      - name: Verify claude wrapper text extraction (JSON success path)
         run: |
           printf '{"result":"hello","total_cost_usd":0.01,"usage":{"input_tokens":5,"cache_read_input_tokens":0,"output_tokens":3}}' \
             > /tmp/claude_raw.json
@@ -34,7 +34,7 @@ jobs:
           [[ "$OUT" == "hello" ]] || { echo "FAIL: got '$OUT'"; exit 1; }
           echo "PASS: text extraction works"
 
-      - name: Verify wrapper fallback (non-JSON / overload path)
+      - name: Verify claude wrapper fallback (non-JSON / overload path)
         run: |
           echo "Error: 529 Overloaded" > /tmp/claude_raw.json
           OUT=$({ jq -re '.result // ""' /tmp/claude_raw.json 2>/dev/null || cat /tmp/claude_raw.json; })

@@ -238,7 +238,7 @@ jobs:
         run: |
           DELAY=30
           for attempt in 1 2 3; do
-            claude-logged --max-turns 30 -p "$(cat /tmp/design_prompt.txt)" \
+            claude --max-turns 30 -p "$(cat /tmp/design_prompt.txt)" \
               2>&1 | tee /tmp/claude_output.txt
             CLAUDE_EXIT=${PIPESTATUS[0]}
             if [[ $CLAUDE_EXIT -eq 0 ]]; then break; fi
