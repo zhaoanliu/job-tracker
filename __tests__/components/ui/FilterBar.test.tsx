@@ -152,4 +152,50 @@ describe('FilterBar', () => {
     await userEvent.selectOptions(screen.getByRole('combobox'), 'company')
     expect(onSortChange).toHaveBeenCalledWith('company')
   })
+
+  it('does not render the match badge when matchInfo is not provided', () => {
+    render(<FilterBar filters={emptyFilters} sortBy="order" onFilterChange={vi.fn()} onSortChange={vi.fn()} />)
+    expect(screen.queryByText(/match/i)).not.toBeInTheDocument()
+  })
+
+  it('shows "No matches" when matchInfo.total is 0', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        matchInfo={{ total: 0, byStage: [] }}
+      />
+    )
+    expect(screen.getByText('No matches')).toBeInTheDocument()
+  })
+
+  it('shows singular "1 match" and stage breakdown when total is 1', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        matchInfo={{ total: 1, byStage: [{ label: 'Applied', count: 1 }] }}
+      />
+    )
+    expect(screen.getByText('1 match')).toBeInTheDocument()
+    expect(screen.getByText('Applied 1')).toBeInTheDocument()
+  })
+
+  it('shows plural "N matches" and multi-stage breakdown when total is > 1', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        matchInfo={{ total: 3, byStage: [{ label: 'Applied', count: 2 }, { label: 'Interviewing', count: 1 }] }}
+      />
+    )
+    expect(screen.getByText('3 matches')).toBeInTheDocument()
+    expect(screen.getByText('Applied 2 · Interviewing 1')).toBeInTheDocument()
+  })
 })

@@ -12,7 +12,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: ['lib/**', 'components/**', 'app/api/**'],
+      include: ['lib/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'app/api/**/*.{ts,tsx}'],
       exclude: [
         'lib/supabase/**',
         '**/*.d.ts',
