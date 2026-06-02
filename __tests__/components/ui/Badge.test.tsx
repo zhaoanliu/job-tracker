@@ -36,7 +36,19 @@ describe('TypeBadge', () => {
   })
 
   it('renders each valid type', () => {
-    const types = ['Principal Engineer', 'Security Engineer', 'Security Architect', 'Other'] as const
+    const types: import('@/lib/types').ApplicationType[] = [
+      'Principal Software Engineer',
+      'Security Engineer',
+      'Security Architect',
+      'Program Manager',
+      'Product Manager',
+      'Operation Manager',
+      'Business Manager',
+      'Chief of Staff',
+      'Staff Software Engineer',
+      'Senior Staff Software Engineer',
+      'Other',
+    ]
     types.forEach(type => {
       const { unmount } = render(<TypeBadge type={type} />)
       expect(screen.getByText(type)).toBeInTheDocument()
