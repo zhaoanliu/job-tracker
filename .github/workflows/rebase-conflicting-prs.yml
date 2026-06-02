@@ -36,7 +36,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           gh pr list --state open --json number,headRefName,mergeable \
-            --jq '.[] | [.number | tostring, .headRefName, .mergeable] | @tsv' \
+            --jq '.[] | [(.number | tostring), .headRefName, .mergeable] | @tsv' \
           | while IFS=$'\t' read -r pr_num branch mergeable; do
               echo "Checking PR #${pr_num} (${branch}): mergeable=${mergeable}"
               if [[ "$mergeable" == "UNKNOWN" ]]; then
