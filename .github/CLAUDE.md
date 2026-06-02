@@ -1,15 +1,32 @@
 ## Claude model configuration
 
-The model used by all workflow `claude` invocations is set in one place:
-`.github/actions/install-claude/action.yml` exports `CLAUDE_MODEL=claude-sonnet-4-6`
-to `$GITHUB_ENV`. Every call site uses `--model "$CLAUDE_MODEL"` — no model strings
-at individual call sites.
+The `claude` command in CI is an instrumented wrapper installed by
+`.github/actions/install-claude/action.yml`. The original binary is renamed to
+`_claude_bin`; the new `claude` wraps it to add:
+- `--dangerously-skip-permissions --model "${CLAUDE_MODEL}" --output-format json` automatically
+- Text extraction so existing `| tee` / `grep` / `PIPESTATUS` patterns work unchanged
+- A cost line appended to `$GITHUB_STEP_SUMMARY` per run:
+  `cost=$0.24 in=5000 cache=120000 out=312`
 
-**To change the model:** edit that one line in `install-claude/action.yml`. Do not
-add `--model` flags at individual call sites.
+Call sites just use `claude --max-turns N -p "..."` — no extra flags needed.
 
-For the full cost analysis, routing spec (Haiku vs Sonnet), and future optimization
-plan, see [`docs/workflow-cost-optimization.md`](../docs/workflow-cost-optimization.md).
+**Default model:** `install-claude` exports `CLAUDE_MODEL=claude-sonnet-4-6` to
+`$GITHUB_ENV` — job-scoped, available to all subsequent steps including inside
+composite actions.
+
+**To change the default:** edit that one line in `install-claude/action.yml`.
+
+**To override per step** (used by future Haiku routing, #531):
+```yaml
+- name: Run Claude
+  env:
+    CLAUDE_MODEL: claude-haiku-4-5-20251001
+  run: claude --max-turns 8 -p "$(cat /tmp/prompt.txt)" | tee /tmp/output.txt
+```
+Step-level `env:` takes precedence over `$GITHUB_ENV` for that step only.
+
+For the full cost analysis, routing plan, and per-run spend tracking, see
+[`docs/workflow-cost-optimization.md`](../docs/workflow-cost-optimization.md).
 
 ## Auto-fix pipeline
 
@@ -20,7 +37,7 @@ When a Sentry alert fires:
    - Finds open GitHub issue matching the error title via list API, or creates one
    - Fetches the full Sentry event (stack trace, error type/message, culprit) from the Sentry API and injects it into Claude's prompt — without this, Claude only sees the vague GitHub issue title and exhausts its turn limit without finding the bug
    - Skips `replay_hydration_error` issues (Sentry `issueType`) — these have no stack trace and are caused by browser extensions, not application code; the workflow comments on and closes the GitHub issue automatically
-   - Runs `claude --dangerously-skip-permissions` to fix the bug
+   - Runs `claude-logged` to fix the bug
    - **Always creates a PR** — no direct-to-main pushes; every fix is verified by CI (`lint` + `unit-test` + `e2e-auth` + `migrate-validate`) before reaching production
    - **Low-risk fix** (≤2 files, ≤20 lines, null guard / type fix): opens a PR and enables auto-merge (`GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash`) — merges automatically once all required CI checks pass
    - **High-risk fix**: opens a PR for review; no auto-merge — a human must approve and merge

@@ -178,7 +178,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          claude --dangerously-skip-permissions --max-turns 20 -p "$(cat /tmp/prompt.txt)" || echo "claude exited with code $? (max-turns or error), continuing"
+          claude --max-turns 20 -p "$(cat /tmp/prompt.txt)" || echo "claude exited with code $? (max-turns or error), continuing"
 
       - name: Revert workflow file changes
         if: steps.build.outputs.reproducible == 'true' && steps.pr_check.outputs.skip != 'true'

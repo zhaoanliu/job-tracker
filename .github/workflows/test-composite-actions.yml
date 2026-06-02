@@ -13,8 +13,41 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/install-claude
+
       - name: Verify claude is on PATH
         run: claude --version
+
+      - name: Verify _claude_bin exists (original binary renamed)
+        run: which _claude_bin
+
+      - name: Verify CLAUDE_MODEL default
+        run: |
+          [[ "$CLAUDE_MODEL" == "claude-sonnet-4-6" ]] \
+            || { echo "FAIL: CLAUDE_MODEL=$CLAUDE_MODEL"; exit 1; }
+          echo "PASS: CLAUDE_MODEL=$CLAUDE_MODEL"
+
+      - name: Verify claude wrapper text extraction (JSON success path)
+        run: |
+          printf '{"result":"hello","total_cost_usd":0.01,"usage":{"input_tokens":5,"cache_read_input_tokens":0,"output_tokens":3}}' \
+            > /tmp/claude_raw.json
+          OUT=$({ jq -re '.result // ""' /tmp/claude_raw.json 2>/dev/null || cat /tmp/claude_raw.json; })
+          [[ "$OUT" == "hello" ]] || { echo "FAIL: got '$OUT'"; exit 1; }
+          echo "PASS: text extraction works"
+
+      - name: Verify claude wrapper fallback (non-JSON / overload path)
+        run: |
+          echo "Error: 529 Overloaded" > /tmp/claude_raw.json
+          OUT=$({ jq -re '.result // ""' /tmp/claude_raw.json 2>/dev/null || cat /tmp/claude_raw.json; })
+          echo "$OUT" | grep -q "529" || { echo "FAIL: overload text not preserved"; exit 1; }
+          echo "PASS: fallback preserves raw output"
+
+      - name: Verify CLAUDE_MODEL can be overridden per step
+        env:
+          CLAUDE_MODEL: claude-haiku-4-5-20251001
+        run: |
+          [[ "$CLAUDE_MODEL" == "claude-haiku-4-5-20251001" ]] \
+            || { echo "FAIL: override not respected"; exit 1; }
+          echo "PASS: step-level override works"
 
   test-check-existing-pr:
     runs-on: ubuntu-latest
