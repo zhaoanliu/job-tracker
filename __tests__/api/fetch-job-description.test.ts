@@ -15,6 +15,7 @@ import hubspotJob from '../fixtures/hubspot-job.json'
 import googleCareersJob from '../fixtures/google-careers-job.json'
 import ashbyConfluentJob from '../fixtures/ashby-confluent-job.json'
 import gemAugerJob from '../fixtures/gem-auger-job.json'
+import amperityNextdataJob from '../fixtures/amperity-nextdata-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -1984,6 +1985,106 @@ describe('POST /api/fetch-job-description', () => {
       expect(res.status).toBe(200)
       const data = await res.json()
       expect(data.html).toContain('Bellevue | United States (Remote)')
+    })
+  })
+
+  describe('Greenhouse __NEXT_DATA__ embed', () => {
+    const AMPERITY_URL = 'https://amperity.com/careers/7931915?gh_jid=7931915'
+
+    function nextDataPage(nextData: object): string {
+      return `<html><head><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(nextData)}</script></head><body></body></html>`
+    }
+
+    it('happy path — returns title, company, location, and body text from __NEXT_DATA__', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(nextDataPage(amperityNextdataJob)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: AMPERITY_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Lead Software Development Engineer - Infrastructure')
+      expect(data.html).toContain('Amperity')
+      expect(data.html).toContain('Seattle, WA')
+      expect(data.html).toContain('AI-first company')
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        expect.stringContaining('boards-api.greenhouse.io'),
+        expect.anything()
+      )
+    })
+
+    it('missing content — falls through to extractJobContent when job.content is absent', async () => {
+      mockUser()
+      const noContentFixture = {
+        props: {
+          pageProps: {
+            job: { title: 'Some Job', company_name: 'Acme', location: { name: 'Remote' } },
+          },
+        },
+      }
+      const pageHtml = `<html><head><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(noContentFixture)}</script></head><body><p>Scraped content</p></body></html>`
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(pageHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: AMPERITY_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Scraped content')
+      expect(data.html).not.toContain('<h1>Some Job</h1>')
+    })
+
+    it('malformed JSON — does not throw, falls through to extractJobContent', async () => {
+      mockUser()
+      const malformedHtml = `<html><head><script id="__NEXT_DATA__" type="application/json">{not valid json}</script></head><body><p>Fallback body</p></body></html>`
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(malformedHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: AMPERITY_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Fallback body')
+    })
+
+    it('URL without ?gh_jid= — fetch to greenhouse.io is never called', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(nextDataPage(amperityNextdataJob)))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://amperity.com/careers/7931915' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        expect.stringContaining('greenhouse.io'),
+        expect.anything()
+      )
+    })
+
+    it('URL with embed script tag (SoFi-style) — uses embed-board API, not __NEXT_DATA__ path', async () => {
+      mockUser()
+      const SOFI_URL = 'https://www.sofi.com/careers/job/?gh_jid=7679621003'
+      const SOFI_GH_API = 'https://boards-api.greenhouse.io/v1/boards/sofi/jobs/7679621003'
+      const pageHtml = `<html><head>
+        <script id="__NEXT_DATA__" type="application/json">${JSON.stringify(amperityNextdataJob)}</script>
+      </head><body>
+        <script src="https://boards.greenhouse.io/embed/job_board/js?for=sofi"></script>
+      </body></html>`
+
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === SOFI_GH_API) return Promise.resolve(jsonResponse(greenhouseSoFi))
+        return Promise.resolve(htmlResponse(pageHtml))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: SOFI_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(fetchMock).toHaveBeenCalledWith(SOFI_GH_API, expect.anything())
+      expect(data.html).toContain('Principal Engineer, Digital Identity')
+      expect(data.html).not.toContain('Lead Software Development Engineer - Infrastructure')
     })
   })
 })
