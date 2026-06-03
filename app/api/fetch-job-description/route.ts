@@ -384,6 +384,24 @@ async function fetchGreenhouseJob(
   }
 }
 
+function extractNextDataGreenhouseJob(html: string): string | null {
+  try {
+    const match = html.match(
+      /<script\s+id="__NEXT_DATA__"\s+type="application\/json">([\s\S]*?)<\/script>/
+    )
+    if (!match) return null
+    const parsed = JSON.parse(match[1]) as Record<string, unknown>
+    const pageProps = (parsed?.props as Record<string, unknown>)
+      ?.pageProps as Record<string, unknown>
+    const job = pageProps?.job as Record<string, unknown>
+    if (typeof job?.content !== 'string') return null
+    const meta = buildGreenhouseMeta(job)
+    return meta + decodeHtmlEntities(job.content.trim())
+  } catch {
+    return null
+  }
+}
+
 function buildLeverMeta(data: Record<string, unknown>): string {
   const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
   const rows: Array<[string, string]> = []
@@ -993,6 +1011,8 @@ export async function POST(req: NextRequest) {
         if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
         // API unavailable — fall through to extractJobContent
       }
+      const nextDataHtml = extractNextDataGreenhouseJob(raw)
+      if (nextDataHtml !== null) return NextResponse.json({ html: nextDataHtml })
     }
 
     // Generic schema.org/JobPosting JSON-LD handler — covers career sites like Expedia
