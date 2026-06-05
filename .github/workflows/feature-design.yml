@@ -94,7 +94,7 @@ jobs:
           # 2. A previous completed run posted "<!-- design-issue: N -->" in a comment
           if [[ -z "$EXISTING" ]]; then
             EXISTING=$(gh issue view "${ISSUE_NUMBER}" --comments --json comments \
-              --jq '[.comments[].body | select(contains("design-issue:"))] | last' \
+              --jq '[.comments[] | select(.body != null) | .body | select(contains("design-issue:"))] | last' \
               | grep -oE 'design-issue: [0-9]+' | grep -oE '[0-9]+' || true)
           fi
 

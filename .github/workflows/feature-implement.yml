@@ -87,7 +87,7 @@ jobs:
           else
             # Labeled issue is #X — find #Y via comment tag or body link
             DESIGN_NUMBER=$(gh issue view "$ISSUE_NUMBER" --comments --json comments \
-              --jq '[.comments[].body | select(contains("design-issue:"))] | last' \
+              --jq '[.comments[] | select(.body != null) | .body | select(contains("design-issue:"))] | last' \
               | grep -oE 'design-issue: [0-9]+' | grep -oE '[0-9]+' || true)
             # Fallback: /plan-feature links via "Technical tracking: #N" in the body
             if [[ -z "$DESIGN_NUMBER" ]]; then

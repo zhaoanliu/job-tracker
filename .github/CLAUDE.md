@@ -92,6 +92,8 @@ Sentry alerts fire `repository_dispatch` (primary path). The `on: issues: labele
 - Required secrets: `SUPABASE_ACCESS_TOKEN`, `NEXT_PUBLIC_SUPABASE_URL`, `VERCEL_TOKEN`
 - **Supabase CLI note**: `supabase db push --project-ref` was removed in CLI v2 — `cd.yml` uses `supabase link` first, then `supabase db push`
 - **Supabase CLI baseline pitfall**: when first connecting to an existing project, the CLI may baseline all local migrations without executing the SQL. To force a specific migration to re-run: add `supabase migration repair --status reverted <timestamp>` before `supabase db push` in the deploy job. Remove it after one successful run.
+- **Supabase SQL dollar-quoting**: use `$$` not `$` — `DO $ begin ... end $;` fails with syntax error 42601. Always write `DO $$ begin ... end $$;`.
+- **Idempotent policy creation**: bare `CREATE POLICY` fails if the policy already exists. Wrap in `do $$ begin create policy "..." on public.<table> ...; exception when duplicate_object then null; end $$;`.
 - **Supabase CLI version is pinned** (`version: 2.100.1`) in `cd.yml`, `migrate-validate.yml`, and `e2e-local.yml` — `version: latest` makes a GitHub API call to resolve the latest release and fails with a rate-limit error on busy runners. When upgrading, update the version in all three files. Check the latest stable release at `gh release list --repo supabase/cli --limit 5`.
 
 **Async / non-blocking:**
@@ -163,6 +165,8 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 
 **Full approval flow (/plan-feature)**: owner runs `/plan-feature` → creates roadmap issue #X (`planned` label) only → owner adds `status: approved` to #X → design phase runs, generates #Y with `## Implementation plan` (JSON block + checkboxes) → owner refines design → owner adds `status: auto-implement` → implementation phase runs → AC verification runs → PR closes both #X and #Y.
 
+**`status: auto-implement` skips Phase 1 design** — adding it to #X without `status: approved` first goes straight to implementation with no design spec. The correct sequence is always: `status: approved` first (design phase) → review #Y → `status: auto-implement` (implementation phase). At the end of every `/plan-feature` run, tell the user: "Add `status: approved` to #X to start the design spec phase."
+
 **Manual investigation-based issue pairs** (created outside `/plan-feature`, e.g. during a JD URL investigation): always cross-link using exactly `Technical tracking: #N` in the **body** of the public issue #X. `feature-design.yml` greps the body for that exact string — a comment is invisible to it, and any other wording (e.g. "Internal tracking issue: #N") will not be detected. Omitting this causes a duplicate design issue to be generated when `status: approved` is added.
 
 - **`user-requested` is reserved for the Feedback form** — the `/api/feature-request` route sets it automatically. Never add it manually to owner-initiated issues; it drives the public roadmap filter.
@@ -185,6 +189,13 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - Reuses existing secrets `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GH_PAT`
 
 **Run tests proactively — do not wait to be asked, and do not ask permission first.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication, smoke-testing a new route's error path), just run it and report the result. Never offer to run a test as a question — just run it. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
+
+**When investigating a live workflow failure, check actual run logs before static YAML analysis.** Static review misses runtime failures (credit exhaustion, API errors, environment issues, partial execution). First action:
+```bash
+gh run list --workflow=<name>.yml --limit 5
+gh run view <run-id> --log-failed
+```
+Only then cross-reference with the YAML. Never report a workflow as correct based solely on static analysis when a live failure is being discussed.
 
 **Test the workflow directly — do not trigger end-to-end through Sentry.** The `repository_dispatch` event can be fired locally with one command:
 
@@ -213,7 +224,10 @@ Review across these dimensions on every cycle:
 3. **Step ordering** — does each step have what it needs from prior steps? (e.g. `node_modules/` must exist before running npm scripts — add `npm ci` before any Claude or test step that needs it)
 4. **Edge cases** — what if the happy path fails? Missing files, empty responses, concurrent runs?
 5. **Actionlint** — for workflow files, run it locally; don't assume it passes
-6. **Local execution of text-manipulation commands** — for any sed/awk/python one-liner, test it with representative sample input before committing. Don't reason about whether it works — run it.
+6. **Local execution of text-manipulation commands** — for any `sed`/`awk`/`python`/`jq` one-liner, and for every `--jq` flag in a `run:` block, test it with **non-empty** representative sample input before committing. Don't reason about whether it works — run it. This rule applies *especially* when the expression looks obviously correct: that is when intuition is most likely to mislead you. Known jq gotchas:
+   - **Operator precedence trap**: `a | b, c` is parsed as `a | (b, c)`, not `(a | b), c`. Always parenthesise sub-expressions: `(.number | tostring)` not `.number | tostring`.
+   - **Null field access**: `select(.field | startswith("x"))` crashes if `.field` is null — guard with `select(.field != null and (.field | startswith("x")))`. Same for `select(.body | contains("x"))` — guard with `select(.body != null) | .body | select(contains("x"))`.
+   - **Test command**: `echo '[{"number":1,"headRefName":"feat/foo","mergeable":"CONFLICTING"}]' | jq '<your filter>'`
 7. **Format round-trip for prompt-generating code** — when code generates a prompt for Claude and then parses Claude's output, trace the full round trip: what format does the prompt specify → what does the parser extract → what does the consuming loop expect. Verify they're consistent and every parser assumption is stated explicitly in the prompt.
 
 **After any change to ci-auto-fix.yml, verify push attribution with a live test.** The symptom of a broken fix is silent: ci-auto-fix pushes a commit, the PR's status checks go empty ("Waiting for status to be reported"), and no new CI run starts. The pass criterion is new check run timestamps appearing on the PR *after* ci-auto-fix's push timestamp. Test procedure:
@@ -223,6 +237,48 @@ Review across these dimensions on every cycle:
 4. Watch: `gh run list --workflow=ci-auto-fix.yml --limit 3`
 5. After ci-auto-fix pushes its fix commit, run `gh pr checks <N>` — if new runs appear with timestamps after the push, attribution is working. If `statusCheckRollup` is empty or timestamps are stale, the push is still attributed to `github-actions[bot]`.
 6. Close and delete the draft PR without merging.
+
+### Composite actions — workflow-specific application of the no-duplication rule
+
+See `CLAUDE.md` for the general no-duplication rule. For workflow files specifically: any `run:` block longer than ~10 lines that appears (or will appear) in more than one workflow file must be extracted to `.github/actions/<name>/action.yml`. Grep other workflow files before writing any substantial `run:` block.
+
+**Existing composite actions — call these instead of re-implementing:**
+
+| Action | What it does |
+|---|---|
+| `open-fix-pr` | Commit staged changes, push branch, create PR with risk-based auto-merge, post issue comment |
+| `check-existing-pr` | Find an open PR for the current issue before running Claude (dedup guard) |
+| `install-claude` | Install Claude Code, set `CLAUDE_MODEL` env var |
+| `mark-in-progress` | Add `status: in progress` label to the issue |
+| `detect-doc-only` | Output `skip=true` when all changed files are docs (used by lint/test/e2e to short-circuit) |
+| `trigger-ci-failure` | Dispatch `ci-failure` repository event on workflow failure |
+| `supabase-start` | Start local Supabase stack for E2E tests |
+| `verify-ac` | Run Playwright acceptance-criteria tests and self-heal on failure |
+
+### `|| true` usage rules
+
+`|| true` suppresses all non-zero exit codes from a command — both expected ones (label not found) and unexpected ones (API error, wrong output). Use it only when the failure mode is genuinely inconsequential. The test: *if this command silently returns nothing/empty, does the workflow still do the right thing?*
+
+**Correct uses:**
+- Label add/remove: `gh issue edit --add-label "X" 2>/dev/null || true` — the label may already exist or not exist; either is fine.
+- `grep pattern file || true` — grep exits 1 on no match, which is not an error here.
+- Cleanup: `supabase stop || true` — may not be running.
+- Non-critical telemetry/logging where failure changes nothing.
+
+**Wrong uses — never `|| true` on:**
+- Commands whose output is used for a decision downstream (`VAR=$(cmd || true)` where an empty `VAR` causes wrong branching or a misleading comment).
+- `gh pr merge --auto` — if auto-merge fails, the PR silently never merges. Capture the exit code and add a label/comment instead:
+  ```bash
+  if GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL"; then
+    MERGE_STATUS="auto-merge enabled: $PR_URL"
+  else
+    GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
+    MERGE_STATUS="manual merge required: $PR_URL"
+  fi
+  ```
+- Safeguard steps whose failure would let a bad state through (e.g. the `.github/` revert — if it fails, Claude's workflow modifications enter the PR unreviewed).
+
+**The audit:** see `docs/shell-audit.md` for the full categorised audit of every `|| true` in the codebase.
 
 ### GitHub Actions YAML pitfalls (learned the hard way)
 

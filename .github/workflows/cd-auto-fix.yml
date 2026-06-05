@@ -186,66 +186,29 @@ jobs:
           git fetch origin main --quiet
           git checkout origin/main -- .github/ 2>/dev/null || true
 
-      - name: Open PR with fix
+      - name: Check for code changes
+        id: changes
         if: steps.build.outputs.reproducible == 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_PAT: ${{ secrets.GH_PAT }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           CHANGED_FILES=$({ git diff --name-only; git ls-files --others --exclude-standard; } || true)
           if [[ -z "$CHANGED_FILES" ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
               --body "Claude analyzed the build failure but made no code changes. Manual investigation required."
-            exit 0
-          fi
-          ISSUE_TITLE=$(cat /tmp/issue_title.txt)
-          RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-          RISK=${RISK:-high}
-          FILES_CHANGED=$({ git diff --name-only; git ls-files --others --exclude-standard; } | wc -l | tr -d ' ')
-          STATS=$(git diff --shortstat)
-          INSERTIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
-          DELETIONS=$(echo "$STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
-          TOTAL_LINES=$(( ${INSERTIONS:-0} + ${DELETIONS:-0} ))
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH="fix/cd-issue-${ISSUE_NUMBER}-$(date +%s)"
-          git checkout -b "$BRANCH"
-          git add -A
-          git commit -m "fix: auto-fix CD failure for issue #${ISSUE_NUMBER}"
-          git push origin "$BRANCH"
-          {
-            echo "Closes #${ISSUE_NUMBER}"
-            echo ""
-            echo "**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"
-            echo ""
-            echo "**Note:** merging this PR triggers a new Vercel production deployment."
-            if [[ -s /tmp/summary.txt ]]; then
-              echo ""
-              cat /tmp/summary.txt
-            fi
-          } > /tmp/pr_body.txt
-          PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
-            --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
-            --body-file /tmp/pr_body.txt \
-            --base main)
-          if [[ "$RISK" == "low" ]]; then
-            GH_TOKEN="${GH_PAT}" gh pr merge "$PR_URL" --auto --squash --delete-branch
-            {
-              if [[ -s /tmp/summary.txt ]]; then
-                cat /tmp/summary.txt
-                echo ""
-              fi
-              echo "A low-risk fix has been proposed and auto-merge is enabled: $PR_URL — it will merge automatically once all CI checks pass."
-            } > /tmp/issue_comment.txt
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
           else
-            GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
-            {
-              if [[ -s /tmp/summary.txt ]]; then
-                cat /tmp/summary.txt
-                echo ""
-              fi
-              echo "A fix has been proposed: $PR_URL — review before merging (merging triggers a new production deployment)."
-            } > /tmp/issue_comment.txt
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
           fi
-          gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+
+      - name: Open fix PR
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: ./.github/actions/open-fix-pr
+        with:
+          issue-number: ${{ steps.issue.outputs.number }}
+          gh-pat: ${{ secrets.GH_PAT }}
+          branch-prefix: 'fix/cd-issue-'
+          commit-message: 'fix: auto-fix CD failure for issue'
+          extra-pr-note: '**Note:** merging this PR triggers a new Vercel production deployment.'
+          merge-flags: '--delete-branch'
