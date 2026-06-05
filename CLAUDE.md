@@ -126,6 +126,17 @@ The three steps in order:
 - Supabase `createClient` mock in `vitest.setup.ts` creates a new object on each call — override with a local `vi.mock(...)` in test files that need to spy on auth methods
 - `parseCsv` uses a character-stream parser (not naive `\n` split) — test with CSV fields that contain quoted newlines to verify
 
+## Code duplication rule
+
+**Before writing a block of code, check whether the same pattern already exists elsewhere.** If a function, shell block, or component will appear in two or more places, extract it first — do not write the second copy. The moment of extraction is before the second copy exists, not after.
+
+The threshold is **2 locations × ~10 lines**: any block that long, appearing in more than one place, warrants extraction. Small variations between copies are handled through parameters/inputs, not through separate copies.
+
+This applies to:
+- React components (extract shared UI to `components/ui/`)
+- Utility functions (extract to `lib/utils.ts`)
+- Workflow `run:` blocks (extract to `.github/actions/<name>/action.yml` — see `.github/CLAUDE.md` for the composite action rule and the list of existing actions)
+
 ## Code conventions
 
 - No comments unless the WHY is non-obvious

@@ -238,6 +238,34 @@ Review across these dimensions on every cycle:
 5. After ci-auto-fix pushes its fix commit, run `gh pr checks <N>` — if new runs appear with timestamps after the push, attribution is working. If `statusCheckRollup` is empty or timestamps are stale, the push is still attributed to `github-actions[bot]`.
 6. Close and delete the draft PR without merging.
 
+### Composite action rule — no copy-paste between workflow files
+
+**Before writing any `run:` block, grep the other workflow files for the same pattern. If an identical or near-identical block already exists in another file, stop and extract — do not write the second copy.**
+
+The threshold for extraction is **2 files × ~10 lines**: if a block will appear in two or more files and is longer than ~10 lines, it must be a composite action in `.github/actions/<name>/action.yml`. Small variations between copies (a suffix string, an extra flag, a draft-vs-regular path) are handled through action inputs, not through separate copies.
+
+**The moment of extraction is before the second copy is written, not after.** "This copy has small differences" is not a reason to skip extraction — it is a reason to add an input parameter.
+
+**Existing composite actions — call these instead of re-implementing:**
+
+| Action | What it does |
+|---|---|
+| `open-fix-pr` | Commit staged changes, push branch, create PR with risk-based auto-merge, post issue comment |
+| `check-existing-pr` | Find an open PR for the current issue before running Claude (dedup guard) |
+| `install-claude` | Install Claude Code, set `CLAUDE_MODEL` env var |
+| `mark-in-progress` | Add `status: in progress` label to the issue |
+| `detect-doc-only` | Output `skip=true` when all changed files are docs (used by lint/test/e2e to short-circuit) |
+| `trigger-ci-failure` | Dispatch `ci-failure` repository event on workflow failure |
+| `supabase-start` | Start local Supabase stack for E2E tests |
+| `verify-ac` | Run Playwright acceptance-criteria tests and self-heal on failure |
+
+**How to extract:**
+1. Write the action in `.github/actions/<name>/action.yml` with inputs covering all variations
+2. Replace the first occurrence in its source workflow with a `uses: ./.github/actions/<name>` call
+3. Use that same call in the new workflow (never write the second `run:` block at all)
+
+**Why this matters:** the `gh pr merge || true` bug survived in 3 of 4 auto-fix workflows because the block was copy-pasted. Fixing it required touching 3 files. A composite action means the fix lands in one place.
+
 ### `|| true` usage rules
 
 `|| true` suppresses all non-zero exit codes from a command — both expected ones (label not found) and unexpected ones (API error, wrong output). Use it only when the failure mode is genuinely inconsequential. The test: *if this command silently returns nothing/empty, does the workflow still do the right thing?*
