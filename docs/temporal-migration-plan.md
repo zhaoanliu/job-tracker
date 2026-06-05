@@ -2,7 +2,9 @@
 
 *Status: planned — not yet implemented*
 *GitHub issue: #505*
-*Related: [GitHub Actions audit](github-actions-audit.md) · [Feature pipeline](feature-pipeline.md)*
+*Related: [GitHub Actions audit](github-actions-audit.md) · [Feature pipeline](feature-pipeline.md) · [Shell audit](shell-audit.md)*
+
+**Deployment approach: self-hosted** (not Temporal Cloud). Rationale: learning Temporal's internals for interview preparation; infrastructure cost of Temporal Cloud (~$200/month minimum) is not justified at this scale. Self-hosted on a single VPS (docker-compose) with PostgreSQL costs $25–50/month and covers everything this project needs.
 
 ---
 
@@ -103,34 +105,61 @@ The workflow ID is `feature-{issueNumber}` — one workflow per issue, dedup is 
 ## Implementation plan
 
 ### Prerequisites
-- [ ] Temporal Cloud account (or self-hosted Temporal server via Docker)
+- [ ] Self-hosted Temporal server via `docker-compose` (server + PostgreSQL + UI — see `temporal/docker-compose.yml`)
 - [ ] `@temporalio/client` and `@temporalio/worker` npm packages
-- [ ] Temporal worker running as a long-lived process (Fly.io, Railway, or a Vercel Edge function for signals only)
+- [ ] Temporal worker deployed as a long-lived process (same VPS as the Temporal server, or Fly.io/Railway)
+- [ ] A small webhook receiver (Express/Hono on Vercel or same VPS) to translate GitHub events → workflow starts/signals
+
+### Migration order — simplest to most complex
+
+Start here to learn the core SDK before tackling advanced concepts:
+
+**1. `rebase-conflicting-prs.yml` → first migration target**
+One workflow, no child workflows, no signals. Teaches: workflow/activity split, retry policies on activities (mergeability polling), typed error handling replacing `|| true`. The jq null-type bugs fixed in `docs/shell-audit.md` become explicit typed `catch` blocks.
+
+**2. `auto-fix.yml` / `bug-fix.yml`**
+Introduces: activity heartbeating (Claude runs for minutes — activities must heartbeat so Temporal doesn't assume they died), compensation (the `.github/` revert as a compensating activity that runs if Claude modifies workflows).
+
+**3. `ci-auto-fix.yml`**
+Introduces the **signals vs polling** design decision: after pushing a fix, how do you wait for CI to pass?
+- **Polling approach**: activity that calls GitHub's check-runs API every 30s until all pass — self-contained, simpler.
+- **Signal approach**: webhook receiver sends a `ci-passed` signal to the waiting workflow when GitHub fires the `check_suite` event — elegant but requires the worker to be reachable from GitHub.
+Being able to articulate this tradeoff is a senior-level Temporal interview question.
+
+**4. `feature-design.yml` → `feature-implement.yml` → `verify-ac`**
+Most complex: child workflows, multi-day human pause points (Signals replacing label polling), and the full saga pattern. Implement last after the SDK is well understood.
 
 ### Phase 1 — Scaffolding
-- [ ] Add `temporal/` directory to repo
+- [ ] Add `temporal/` directory to repo with `docker-compose.yml`, `worker.ts`, and workflow/activity stubs
 - [ ] Define `featureWorkflow` in TypeScript
 - [ ] Define activity stubs (generateDesign, runImplementation, verifyAC, openPR, verifyDeployment)
-- [ ] Set up local Temporal dev server for testing (`temporal server start-dev`)
+- [ ] Spin up local dev server (`temporal server start-dev`) and verify UI at localhost:8080
 - [ ] Write unit tests for workflow logic using Temporal's test framework
 
-### Phase 2 — Activity implementation
-- [ ] `generateDesign` — port `feature-design.yml` Claude invocation to a TypeScript activity
-- [ ] `runImplementation` — port `feature-implement.yml` subtask loop to activities
-- [ ] `verifyAcceptanceCriteria` — port `verify-ac` composite action
-- [ ] `openPullRequest` — wrap `gh pr create` call
-- [ ] `verifyDeployment` — poll Vercel deployment status
+### Phase 2 — Start with rebase workflow (learn core SDK)
+- [ ] Implement `checkMergeability` activity with retry policy (replaces polling loop)
+- [ ] Implement `rebasePR` activity with compensation on failure
+- [ ] Implement `resolveConflictsWithClaude` activity with heartbeating
+- [ ] Wire GitHub push event → workflow start via webhook receiver
+- [ ] Run end-to-end against a test PR; verify in Temporal UI
 
-### Phase 3 — Signal wiring
-- [ ] Build a lightweight GitHub Action (`signal-workflow.yml`) that sends a signal to the running workflow when the owner adds a specific label
-- [ ] Replace `feature-design.yml` trigger with workflow start
-- [ ] Replace `feature-implement.yml` trigger with signal
+### Phase 3 — Port auto-fix workflows
+- [ ] `fetchSentryDetails` activity
+- [ ] `runClaudeFix` activity with heartbeating and typed retry (529 → backoff, other errors → fail)
+- [ ] `revertWorkflowFiles` compensating activity
+- [ ] `openPR` + `enableAutoMerge` activities (replaces `gh pr merge || true` with explicit typed handling)
 
-### Phase 4 — Worker deployment
-- [ ] Deploy Temporal worker to Fly.io (or equivalent)
-- [ ] Connect to Temporal Cloud
-- [ ] Run feature pipeline end-to-end in staging
-- [ ] Deprecate `feature-design.yml` and `feature-implement.yml`
+### Phase 4 — CI auto-fix with signals or polling
+- [ ] Choose and implement: polling activity or signal receiver for CI status
+- [ ] Document the tradeoff decision in this file
+
+### Phase 5 — Feature pipeline (child workflows + signals)
+- [ ] `generateDesign` activity — port `feature-design.yml` Claude invocation
+- [ ] `runImplementation` activity — port `feature-implement.yml` subtask loop
+- [ ] `verifyAcceptanceCriteria` activity — port `verify-ac` composite action
+- [ ] Build `signal-workflow.yml` GitHub Action to send signals on label events
+- [ ] Replace `feature-design.yml` and `feature-implement.yml` triggers
+- [ ] Run feature pipeline end-to-end; deprecate the GitHub Actions workflows
 
 ---
 

@@ -34,7 +34,7 @@ jobs:
 
           # Find open PR for this issue (by branch prefix or closing reference)
           PR_NUMBER=$(gh pr list --state open --json number,headRefName \
-            | jq -r ".[] | select(.headRefName | startswith(\"feat/issue-${ISSUE_NUMBER}-\")) | .number" \
+            | jq -r ".[] | select(.headRefName != null and (.headRefName | startswith(\"feat/issue-${ISSUE_NUMBER}-\"))) | .number" \
             | head -1 || true)
 
           if [[ -z "$PR_NUMBER" ]]; then

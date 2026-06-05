@@ -213,7 +213,10 @@ Review across these dimensions on every cycle:
 3. **Step ordering** — does each step have what it needs from prior steps? (e.g. `node_modules/` must exist before running npm scripts — add `npm ci` before any Claude or test step that needs it)
 4. **Edge cases** — what if the happy path fails? Missing files, empty responses, concurrent runs?
 5. **Actionlint** — for workflow files, run it locally; don't assume it passes
-6. **Local execution of text-manipulation commands** — for any sed/awk/python one-liner, test it with representative sample input before committing. Don't reason about whether it works — run it.
+6. **Local execution of text-manipulation commands** — for any `sed`/`awk`/`python`/`jq` one-liner, and for every `--jq` flag in a `run:` block, test it with **non-empty** representative sample input before committing. Don't reason about whether it works — run it. This rule applies *especially* when the expression looks obviously correct: that is when intuition is most likely to mislead you. Known jq gotchas:
+   - **Operator precedence trap**: `a | b, c` is parsed as `a | (b, c)`, not `(a | b), c`. Always parenthesise sub-expressions: `(.number | tostring)` not `.number | tostring`.
+   - **Null field access**: `select(.field | startswith("x"))` crashes if `.field` is null — guard with `select(.field != null and (.field | startswith("x")))`. Same for `select(.body | contains("x"))` — guard with `select(.body != null) | .body | select(contains("x"))`.
+   - **Test command**: `echo '[{"number":1,"headRefName":"feat/foo","mergeable":"CONFLICTING"}]' | jq '<your filter>'`
 7. **Format round-trip for prompt-generating code** — when code generates a prompt for Claude and then parses Claude's output, trace the full round trip: what format does the prompt specify → what does the parser extract → what does the consuming loop expect. Verify they're consistent and every parser assumption is stated explicitly in the prompt.
 
 **After any change to ci-auto-fix.yml, verify push attribution with a live test.** The symptom of a broken fix is silent: ci-auto-fix pushes a commit, the PR's status checks go empty ("Waiting for status to be reported"), and no new CI run starts. The pass criterion is new check run timestamps appearing on the PR *after* ci-auto-fix's push timestamp. Test procedure:
@@ -223,6 +226,31 @@ Review across these dimensions on every cycle:
 4. Watch: `gh run list --workflow=ci-auto-fix.yml --limit 3`
 5. After ci-auto-fix pushes its fix commit, run `gh pr checks <N>` — if new runs appear with timestamps after the push, attribution is working. If `statusCheckRollup` is empty or timestamps are stale, the push is still attributed to `github-actions[bot]`.
 6. Close and delete the draft PR without merging.
+
+### `|| true` usage rules
+
+`|| true` suppresses all non-zero exit codes from a command — both expected ones (label not found) and unexpected ones (API error, wrong output). Use it only when the failure mode is genuinely inconsequential. The test: *if this command silently returns nothing/empty, does the workflow still do the right thing?*
+
+**Correct uses:**
+- Label add/remove: `gh issue edit --add-label "X" 2>/dev/null || true` — the label may already exist or not exist; either is fine.
+- `grep pattern file || true` — grep exits 1 on no match, which is not an error here.
+- Cleanup: `supabase stop || true` — may not be running.
+- Non-critical telemetry/logging where failure changes nothing.
+
+**Wrong uses — never `|| true` on:**
+- Commands whose output is used for a decision downstream (`VAR=$(cmd || true)` where an empty `VAR` causes wrong branching or a misleading comment).
+- `gh pr merge --auto` — if auto-merge fails, the PR silently never merges. Capture the exit code and add a label/comment instead:
+  ```bash
+  if GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL"; then
+    MERGE_STATUS="auto-merge enabled: $PR_URL"
+  else
+    GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
+    MERGE_STATUS="manual merge required: $PR_URL"
+  fi
+  ```
+- Safeguard steps whose failure would let a bad state through (e.g. the `.github/` revert — if it fails, Claude's workflow modifications enter the PR unreviewed).
+
+**The audit:** see `docs/shell-audit.md` for the full categorised audit of every `|| true` in the codebase.
 
 ### GitHub Actions YAML pitfalls (learned the hard way)
 

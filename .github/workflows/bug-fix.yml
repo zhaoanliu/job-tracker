@@ -164,13 +164,18 @@ jobs:
             --body-file /tmp/pr_body.txt \
             --base main)
           if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
-            GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL" || true
+            if GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL"; then
+              MERGE_STATUS="Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes."
+            else
+              GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
+              MERGE_STATUS="Fix proposed (auto-merge unavailable — manual merge required): $PR_URL"
+            fi
             {
               if [[ -s /tmp/summary.txt ]]; then
                 cat /tmp/summary.txt
                 echo ""
               fi
-              echo "Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes."
+              echo "$MERGE_STATUS"
             } > /tmp/issue_comment.txt
             gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
           else
