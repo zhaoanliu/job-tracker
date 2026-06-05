@@ -13,6 +13,10 @@ import expediaJob from '../fixtures/expedia-job.json'
 import workableGableJob from '../fixtures/workable-gable-job.json'
 import hubspotJob from '../fixtures/hubspot-job.json'
 import googleCareersJob from '../fixtures/google-careers-job.json'
+const googleCareersMetaFallbackHtml = readFileSync(
+  join(__dirname, '../fixtures/google-careers-meta-fallback.html'),
+  'utf-8'
+)
 import ashbyConfluentJob from '../fixtures/ashby-confluent-job.json'
 import gemAugerJob from '../fixtures/gem-auger-job.json'
 import amperityNextdataJob from '../fixtures/amperity-nextdata-job.json'
@@ -1795,6 +1799,78 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).not.toContain('AF_initDataCallback')
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(fetchMock).toHaveBeenCalledWith('https://www.google.com/search?q=jobs', expect.anything())
+    })
+
+    const META_FALLBACK_URL =
+      'https://www.google.com/about/careers/applications/jobs/results/83118315894907590-staff-software-engineer-google-compute-engine'
+
+    it('meta fallback: builds structured result from <title> and meta description when AF_initDataCallback is absent', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(googleCareersMetaFallbackHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: META_FALLBACK_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title stripped of " — Google Careers" suffix
+      expect(data.html).toContain('<h1>Staff Software Engineer, Google Compute Engine</h1>')
+      // Company row hardcoded to Google
+      expect(data.html).toContain('<th>Company</th><td>Google</td>')
+      // Job ID from URL path
+      expect(data.html).toContain('<th>Job ID</th><td>83118315894907590</td>')
+      // Description wrapped in <p>
+      expect(data.html).toContain('<p>The description text.</p>')
+      // Single fetch — no extra API calls
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('meta fallback: uses og:title when <title> tag is absent', async () => {
+      mockUser()
+      const noTitleHtml = `<html><head>
+        <meta property="og:title" content="Senior Engineer, Cloud — Google Careers">
+        <meta name="description" content="Join our team.">
+      </head><body></body></html>`
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(noTitleHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: META_FALLBACK_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Senior Engineer, Cloud</h1>')
+    })
+
+    it('meta fallback: suffix stripping is case-insensitive', async () => {
+      mockUser()
+      const html = `<html><head>
+        <title>Software Engineer — GOOGLE CAREERS</title>
+        <meta name="description" content="Do cool things.">
+      </head><body></body></html>`
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(html))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: META_FALLBACK_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Software Engineer</h1>')
+      expect(data.html).not.toContain('GOOGLE CAREERS')
+    })
+
+    it('meta fallback: falls through to extractJobContent when meta description is absent', async () => {
+      mockUser()
+      const noDescHtml = `<html><head>
+        <title>Engineer — Google Careers</title>
+      </head><body><p>Scraped body</p></body></html>`
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(noDescHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: META_FALLBACK_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped body</p>')
     })
   })
 
