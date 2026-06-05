@@ -891,6 +891,19 @@ export async function POST(req: NextRequest) {
       // API unavailable — fall through to HTML scraping
     }
 
+    // Databricks careers — www.databricks.com/company/careers/{dept}/{slug}-{id} is a
+    // Greenhouse-backed custom Gatsby site (board "databricks"). The page HTML contains no
+    // Greenhouse references so none of the post-fetch handlers match; detect by URL and call
+    // the Greenhouse API directly using the numeric job ID at the end of the path segment.
+    const databricksMatch =
+      parsed.hostname === 'www.databricks.com' &&
+      parsed.pathname.match(/^\/company\/careers\/[^/]+\/[A-Za-z0-9_-]+-(\d+)$/)
+    if (databricksMatch) {
+      const ghHtml = await fetchGreenhouseJob('databricks', databricksMatch[1], controller.signal)
+      if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
     // Ashby ATS — custom career domains (e.g. careers.confluent.io/jobs/job/{uuid}) block
     // server-side fetches with Vercel bot protection. The canonical jobs.ashbyhq.com URL
     // serves identical HTML with JSON-LD and no bot gating. Company slug is the second

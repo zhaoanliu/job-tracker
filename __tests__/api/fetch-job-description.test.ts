@@ -16,6 +16,7 @@ import googleCareersJob from '../fixtures/google-careers-job.json'
 import ashbyConfluentJob from '../fixtures/ashby-confluent-job.json'
 import gemAugerJob from '../fixtures/gem-auger-job.json'
 import amperityNextdataJob from '../fixtures/amperity-nextdata-job.json'
+import greenhouseDatabricksJob from '../fixtures/greenhouse-databricks-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -797,6 +798,99 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       expect(fetchMock).not.toHaveBeenCalledWith(HUBSPOT_GH_API, expect.anything())
+    })
+  })
+
+  describe('Databricks careers (Greenhouse-backed, board "databricks")', () => {
+    const DATABRICKS_URL =
+      'https://www.databricks.com/company/careers/exec-engineering/sr-staff-software-engineer---unity-catalog-data-governance-7993609002'
+    const DATABRICKS_GH_API =
+      'https://boards-api.greenhouse.io/v1/boards/databricks/jobs/7993609002'
+
+    it('uses Greenhouse API with board "databricks" and prepends metadata header — real API fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === DATABRICKS_GH_API) return Promise.resolve(jsonResponse(greenhouseDatabricksJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DATABRICKS_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain(
+        '<h1>Sr. Staff Software Engineer - Unity Catalog Data Governance</h1>'
+      )
+      expect(data.html).toContain('Databricks')
+      expect(data.html).toContain('Bellevue, Washington')
+      expect(data.html).toContain('enabling data teams to solve the world')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(DATABRICKS_GH_API, expect.anything())
+    })
+
+    it('ignores gh_src query param — still routes to Greenhouse API', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === DATABRICKS_GH_API) return Promise.resolve(jsonResponse(greenhouseDatabricksJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: `${DATABRICKS_URL}?gh_src=62a881d62` })
+      )
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain(
+        '<h1>Sr. Staff Software Engineer - Unity Catalog Data Governance</h1>'
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(DATABRICKS_GH_API, expect.anything())
+    })
+
+    it('falls back to HTML scraping when Greenhouse API returns 404', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === DATABRICKS_GH_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DATABRICKS_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Greenhouse API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === DATABRICKS_GH_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DATABRICKS_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not trigger for non-careers Databricks URL', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Databricks home</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.databricks.com/blog' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(DATABRICKS_GH_API, expect.anything())
     })
   })
 
