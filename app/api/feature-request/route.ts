@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedUser } from '@/lib/auth'
+import { getGitHubCreds, createGitHubIssue } from '@/lib/github'
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthenticatedUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -18,11 +16,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Title is required' }, { status: 400 })
   }
 
-  const repo = process.env.GITHUB_REPO
-  const pat = process.env.GH_PAT
-
-  if (!repo || !pat) {
-    console.error('Missing GITHUB_REPO or GH_PAT env vars')
+  const creds = getGitHubCreds()
+  if (!creds) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
   }
 
@@ -36,19 +31,13 @@ export async function POST(req: NextRequest) {
     .filter(Boolean)
     .join('\n')
 
-  const res = await fetch(`https://api.github.com/repos/${repo}/issues`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${pat}`,
-      Accept: 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      title: `[Feature Request] ${title}`,
-      body: issueBody,
-      labels: ['user-requested'],
-    }),
-  })
+  const res = await createGitHubIssue(
+    creds.repo,
+    creds.pat,
+    `[Feature Request] ${title}`,
+    issueBody,
+    ['user-requested']
+  )
 
   if (!res.ok) {
     const text = await res.text()
