@@ -126,16 +126,26 @@ The three steps in order:
 - Supabase `createClient` mock in `vitest.setup.ts` creates a new object on each call — override with a local `vi.mock(...)` in test files that need to spy on auth methods
 - `parseCsv` uses a character-stream parser (not naive `\n` split) — test with CSV fields that contain quoted newlines to verify
 
-## Code duplication rule
+## No duplication
 
-**Before writing a block of code, check whether the same pattern already exists elsewhere.** If a function, shell block, or component will appear in two or more places, extract it first — do not write the second copy. The moment of extraction is before the second copy exists, not after.
+**Before writing any function, component, hook, type, constant, or shell block — search the codebase for an existing implementation first.** If one exists, use or extend it. Never write a second copy.
 
-The threshold is **2 locations × ~10 lines**: any block that long, appearing in more than one place, warrants extraction. Small variations between copies are handled through parameters/inputs, not through separate copies.
+**The moment of extraction is before the second copy is written, not after.** Once two copies exist, both must be maintained and bugs must be fixed twice — as happened with the `gh pr merge || true` bug surviving in 3 of 4 auto-fix workflows simultaneously. The right time to extract is when you realize you need the same thing a second time.
 
-This applies to:
-- React components (extract shared UI to `components/ui/`)
-- Utility functions (extract to `lib/utils.ts`)
-- Workflow `run:` blocks (extract to `.github/actions/<name>/action.yml` — see `.github/CLAUDE.md` for the composite action rule and the list of existing actions)
+**"It's slightly different" is not a reason to copy — it is a reason to add a parameter.** Small variations between copies are handled through function arguments, component props, or action inputs. A parametric abstraction with two callers is always better than two near-identical copies.
+
+Where to extract, by type:
+
+| What | Where |
+|---|---|
+| Shared React UI | `components/ui/` |
+| Data transformation, filtering, formatting | `lib/utils.ts` |
+| Types, enums, status values | `lib/types.ts` |
+| Supabase query helpers | `lib/supabase/` |
+| Custom React hooks | `hooks/` (create if needed) |
+| Repeated workflow `run:` blocks | `.github/actions/<name>/action.yml` |
+
+Before writing any code block longer than ~10 lines: grep for a similar pattern. If you find one, extract before writing the second occurrence. If you don't find one, write it in the right location so it can be found and reused later.
 
 ## Code conventions
 

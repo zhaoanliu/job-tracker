@@ -238,13 +238,9 @@ Review across these dimensions on every cycle:
 5. After ci-auto-fix pushes its fix commit, run `gh pr checks <N>` — if new runs appear with timestamps after the push, attribution is working. If `statusCheckRollup` is empty or timestamps are stale, the push is still attributed to `github-actions[bot]`.
 6. Close and delete the draft PR without merging.
 
-### Composite action rule — no copy-paste between workflow files
+### Composite actions — workflow-specific application of the no-duplication rule
 
-**Before writing any `run:` block, grep the other workflow files for the same pattern. If an identical or near-identical block already exists in another file, stop and extract — do not write the second copy.**
-
-The threshold for extraction is **2 files × ~10 lines**: if a block will appear in two or more files and is longer than ~10 lines, it must be a composite action in `.github/actions/<name>/action.yml`. Small variations between copies (a suffix string, an extra flag, a draft-vs-regular path) are handled through action inputs, not through separate copies.
-
-**The moment of extraction is before the second copy is written, not after.** "This copy has small differences" is not a reason to skip extraction — it is a reason to add an input parameter.
+See `CLAUDE.md` for the general no-duplication rule. For workflow files specifically: any `run:` block longer than ~10 lines that appears (or will appear) in more than one workflow file must be extracted to `.github/actions/<name>/action.yml`. Grep other workflow files before writing any substantial `run:` block.
 
 **Existing composite actions — call these instead of re-implementing:**
 
@@ -258,13 +254,6 @@ The threshold for extraction is **2 files × ~10 lines**: if a block will appear
 | `trigger-ci-failure` | Dispatch `ci-failure` repository event on workflow failure |
 | `supabase-start` | Start local Supabase stack for E2E tests |
 | `verify-ac` | Run Playwright acceptance-criteria tests and self-heal on failure |
-
-**How to extract:**
-1. Write the action in `.github/actions/<name>/action.yml` with inputs covering all variations
-2. Replace the first occurrence in its source workflow with a `uses: ./.github/actions/<name>` call
-3. Use that same call in the new workflow (never write the second `run:` block at all)
-
-**Why this matters:** the `gh pr merge || true` bug survived in 3 of 4 auto-fix workflows because the block was copy-pasted. Fixing it required touching 3 files. A composite action means the fix lands in one place.
 
 ### `|| true` usage rules
 
