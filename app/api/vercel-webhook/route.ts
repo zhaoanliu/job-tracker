@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { getGitHubCreds, dispatchGitHubEvent } from '@/lib/github'
 
 interface VercelMeta {
   githubCommitSha?: string | null
@@ -46,25 +47,15 @@ export async function POST(req: NextRequest) {
 
   const deploymentUrl = body.payload?.url ? `https://${body.payload.url}` : ''
 
-  const repo = process.env.GITHUB_REPO
-  const pat = process.env.GH_PAT
-
-  if (!repo || !pat) {
-    console.error('Missing GITHUB_REPO or GH_PAT env vars')
+  const creds = getGitHubCreds()
+  if (!creds) {
     return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
   }
 
-  const res = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${pat}`,
-      Accept: 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      event_type: 'cd-failure',
-      client_payload: { sha, ref, deployment_url: deploymentUrl },
-    }),
+  const res = await dispatchGitHubEvent(creds.repo, creds.pat, 'cd-failure', {
+    sha,
+    ref,
+    deployment_url: deploymentUrl,
   })
 
   if (!res.ok) {

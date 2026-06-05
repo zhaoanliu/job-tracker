@@ -1,4 +1,4 @@
-function decodeHtmlEntities(s: string): string {
+export function decodeHtmlEntities(s: string): string {
   return s
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')

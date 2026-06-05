@@ -47,6 +47,8 @@ components/
 lib/
   types.ts           # Application, Stage, ApplicationStatus, all enums
   utils.ts           # computeStats, getStageApplications, CSV parsing
+  auth.ts            # getAuthenticatedUser() — shared auth guard for API routes
+  github.ts          # getGitHubCreds(), dispatchGitHubEvent(), createGitHubIssue()
   supabase/          # client.ts (browser) and server.ts (SSR)
 __tests__/           # Vitest unit tests (mirrors src structure)
 e2e/

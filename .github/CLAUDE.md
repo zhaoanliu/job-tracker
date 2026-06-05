@@ -28,6 +28,23 @@ Step-level `env:` takes precedence over `$GITHUB_ENV` for that step only.
 For the full cost analysis, routing plan, and per-run spend tracking, see
 [`docs/workflow-cost-optimization.md`](../docs/workflow-cost-optimization.md).
 
+## Composite actions
+
+Reusable actions live in `.github/actions/`. Use `uses: ./.github/actions/<name>` to call them from a workflow step.
+
+| Action | What it does |
+|---|---|
+| `run-claude` | Run `claude` with exponential-backoff retry on 529/overload; inputs: `anthropic-api-key`, `prompt-file`, `max-turns`, `max-attempts`, `extra-flags`, `output-file` |
+| `install-claude` | Install Claude Code, set `CLAUDE_MODEL` env var |
+| `mark-in-progress` | Add `status: in progress` label to the issue |
+| `check-existing-pr` | Find an open PR for the current issue before running Claude |
+| `detect-doc-only` | Output `skip=true` when all changed files are docs |
+| `trigger-ci-failure` | Dispatch `ci-failure` repository event on workflow failure |
+| `supabase-start` | Start local Supabase stack for E2E tests |
+| `verify-ac` | Run Playwright acceptance-criteria tests and self-heal on failure |
+
+**No duplication in workflows** — before writing a new `run:` block longer than ~10 lines, check this table. If a matching action exists, use it. If a new pattern is needed in more than one workflow, extract it to a new composite action.
+
 ## Auto-fix pipeline
 
 When a Sentry alert fires:

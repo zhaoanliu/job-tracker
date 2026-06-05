@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedUser } from '@/lib/auth'
 import { Resend } from 'resend'
 
 const APP_URL = 'https://applytrackr.app'
@@ -80,13 +81,11 @@ function personalNote_escape(str: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthenticatedUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const supabase = createClient()
 
   const body = await req.json()
   const to = (body.to ?? '').trim().toLowerCase()
