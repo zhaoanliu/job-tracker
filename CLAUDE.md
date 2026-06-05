@@ -117,6 +117,15 @@ The three steps in order:
    **For file reads mid-session:** if a worktree exists for the current task, read files from it — the worktree may have uncommitted changes not yet on main. If no worktree has been created yet in the session, reading from the main working directory is fine. Never create a worktree just to read files.
 3. Open a PR whose title is **`<issue title> (#N)`** — copy the issue title verbatim and append the issue number in parentheses. Example: `[Feature Request] Add dark mode (#88)`. `Closes #N` in the body auto-closes the issue on merge.
 
+## Testing
+
+**Before committing any code change, run `npm run test:coverage`** (not `npm test`). CI (`test.yml`) runs `npm run test:coverage` and enforces thresholds (lines ≥85%, branches ≥80%, functions ≥65%). The bare `npm test` skips coverage reporting and will miss threshold failures, forcing a round-trip through CI + auto-fix.
+
+**Known test gotchas:**
+- `required` HTML attribute on inputs blocks jsdom form submission — use `fireEvent.submit(form)` to bypass it, not a submit button click
+- Supabase `createClient` mock in `vitest.setup.ts` creates a new object on each call — override with a local `vi.mock(...)` in test files that need to spy on auth methods
+- `parseCsv` uses a character-stream parser (not naive `\n` split) — test with CSV fields that contain quoted newlines to verify
+
 ## Code conventions
 
 - No comments unless the WHY is non-obvious
@@ -124,3 +133,6 @@ The three steps in order:
 - All DB writes go through the Supabase client, never raw SQL from the client
 - New enum values (ApplicationStatus, ApplicationType, etc.) must be added to `lib/types.ts` and the corresponding Supabase migration
 - `referrer` is nullable — always guard with `?? null`, never cast to string without a null check
+- Read the actual API/payload schema before writing integration code — never infer field names from template variable names or analogy; they are often completely different schemas (e.g. Supabase HTTP hook payload vs Go email template variables share no field names)
+- Automate before listing manual Dashboard steps — check whether a Management API, CLI, or SDK call exists first. Supabase auth config → `PATCH /v1/projects/{ref}/config/auth`; Vercel env vars → `vercel env add`; GitHub repo settings → `gh api`. Only fall back to manual browser instructions if no API exists.
+- `gh` read commands (`gh run list`, `gh run view`, `gh issue list`, `gh pr list`) do not need user confirmation — run them directly. Only pause for destructive operations (closing issues, merging PRs, force-pushing).

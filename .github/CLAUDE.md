@@ -92,6 +92,8 @@ Sentry alerts fire `repository_dispatch` (primary path). The `on: issues: labele
 - Required secrets: `SUPABASE_ACCESS_TOKEN`, `NEXT_PUBLIC_SUPABASE_URL`, `VERCEL_TOKEN`
 - **Supabase CLI note**: `supabase db push --project-ref` was removed in CLI v2 — `cd.yml` uses `supabase link` first, then `supabase db push`
 - **Supabase CLI baseline pitfall**: when first connecting to an existing project, the CLI may baseline all local migrations without executing the SQL. To force a specific migration to re-run: add `supabase migration repair --status reverted <timestamp>` before `supabase db push` in the deploy job. Remove it after one successful run.
+- **Supabase SQL dollar-quoting**: use `$$` not `$` — `DO $ begin ... end $;` fails with syntax error 42601. Always write `DO $$ begin ... end $$;`.
+- **Idempotent policy creation**: bare `CREATE POLICY` fails if the policy already exists. Wrap in `do $$ begin create policy "..." on public.<table> ...; exception when duplicate_object then null; end $$;`.
 - **Supabase CLI version is pinned** (`version: 2.100.1`) in `cd.yml`, `migrate-validate.yml`, and `e2e-local.yml` — `version: latest` makes a GitHub API call to resolve the latest release and fails with a rate-limit error on busy runners. When upgrading, update the version in all three files. Check the latest stable release at `gh release list --repo supabase/cli --limit 5`.
 
 **Async / non-blocking:**
@@ -163,6 +165,8 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 
 **Full approval flow (/plan-feature)**: owner runs `/plan-feature` → creates roadmap issue #X (`planned` label) only → owner adds `status: approved` to #X → design phase runs, generates #Y with `## Implementation plan` (JSON block + checkboxes) → owner refines design → owner adds `status: auto-implement` → implementation phase runs → AC verification runs → PR closes both #X and #Y.
 
+**`status: auto-implement` skips Phase 1 design** — adding it to #X without `status: approved` first goes straight to implementation with no design spec. The correct sequence is always: `status: approved` first (design phase) → review #Y → `status: auto-implement` (implementation phase). At the end of every `/plan-feature` run, tell the user: "Add `status: approved` to #X to start the design spec phase."
+
 **Manual investigation-based issue pairs** (created outside `/plan-feature`, e.g. during a JD URL investigation): always cross-link using exactly `Technical tracking: #N` in the **body** of the public issue #X. `feature-design.yml` greps the body for that exact string — a comment is invisible to it, and any other wording (e.g. "Internal tracking issue: #N") will not be detected. Omitting this causes a duplicate design issue to be generated when `status: approved` is added.
 
 - **`user-requested` is reserved for the Feedback form** — the `/api/feature-request` route sets it automatically. Never add it manually to owner-initiated issues; it drives the public roadmap filter.
@@ -185,6 +189,13 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - Reuses existing secrets `ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GH_PAT`
 
 **Run tests proactively — do not wait to be asked, and do not ask permission first.** If there is an obvious test to run after a fix or change (e.g. re-dispatching with the same Sentry URL to verify deduplication, smoke-testing a new route's error path), just run it and report the result. Never offer to run a test as a question — just run it. Only pause to ask if the test has side effects that could surprise the user (e.g. sending external messages, modifying shared state irreversibly).
+
+**When investigating a live workflow failure, check actual run logs before static YAML analysis.** Static review misses runtime failures (credit exhaustion, API errors, environment issues, partial execution). First action:
+```bash
+gh run list --workflow=<name>.yml --limit 5
+gh run view <run-id> --log-failed
+```
+Only then cross-reference with the YAML. Never report a workflow as correct based solely on static analysis when a live failure is being discussed.
 
 **Test the workflow directly — do not trigger end-to-end through Sentry.** The `repository_dispatch` event can be fired locally with one command:
 
