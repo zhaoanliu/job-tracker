@@ -775,6 +775,39 @@ function extractGoogleCareersFromPage(html: string): string | null {
   return `${header}<table>${tableRows}</table><hr>${body}`
 }
 
+function buildGoogleCareersMetaFallback(html: string, urlJobId: string): string | null {
+  let title: string | null = null
+
+  const titleTagMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+  if (titleTagMatch) {
+    const stripped = titleTagMatch[1].replace(/\s*—\s*google careers\s*$/i, '').trim()
+    if (stripped) title = stripped
+  }
+
+  if (!title) {
+    const ogMatch =
+      html.match(/<meta\s[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["'][^>]*/i) ||
+      html.match(/<meta\s[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["'][^>]*/i)
+    if (ogMatch) {
+      const stripped = ogMatch[1].replace(/\s*—\s*google careers\s*$/i, '').trim()
+      if (stripped) title = stripped
+    }
+  }
+
+  const descMatch =
+    html.match(/<meta\s[^>]*name=["']description["'][^>]*content=["']([^"']*)["'][^>]*/i) ||
+    html.match(/<meta\s[^>]*content=["']([^"']*)["'][^>]*name=["']description["'][^>]*/i)
+  const description = descMatch ? descMatch[1].trim() : ''
+  if (!description) return null
+
+  const rows: Array<[string, string]> = [['Company', 'Google']]
+  if (urlJobId) rows.push(['Job ID', urlJobId])
+
+  const header = title ? `<h1>${title}</h1>` : ''
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  return `${header}<table>${tableRows}</table><hr><p>${description}</p>`
+}
+
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const {
@@ -997,10 +1030,15 @@ export async function POST(req: NextRequest) {
 
     // Google Careers — data embedded in AF_initDataCallback({key: 'ds:0', ...}) in page HTML.
     // No JSON-LD and no public API; server renders the full job data in this callback block.
+    // When the callback is absent (Google now loads data asynchronously), fall back to meta tags.
     if (isGoogleCareers) {
       const googleHtml = extractGoogleCareersFromPage(raw)
       if (googleHtml !== null) return NextResponse.json({ html: googleHtml })
-      // No usable data block — fall through to extractJobContent
+      const urlJobIdMatch = parsed.pathname.match(/\/results\/(\d+)/)
+      const urlJobId = urlJobIdMatch ? urlJobIdMatch[1] : ''
+      const metaHtml = buildGoogleCareersMetaFallback(raw, urlJobId)
+      if (metaHtml !== null) return NextResponse.json({ html: metaHtml })
+      // No usable data — fall through to extractJobContent
     }
 
     // Greenhouse ATS embedded in third-party pages (e.g. Scale.com) — page HTML
