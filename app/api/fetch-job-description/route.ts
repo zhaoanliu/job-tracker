@@ -775,6 +775,33 @@ function extractGoogleCareersFromPage(html: string): string | null {
   return `${header}<table>${tableRows}</table><hr>${body}`
 }
 
+function extractGoogleCareersFromMeta(html: string, jobId: string): string | null {
+  const ogTitleMatch =
+    html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["'][^>]*\/?>/i) ??
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["'][^>]*\/?>/i)
+  let title = ogTitleMatch?.[1] ?? ''
+  if (!title) {
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+    title = titleMatch?.[1] ?? ''
+  }
+  title = decodeHtmlEntities(title)
+    .replace(/\s*(?:[—–]|&mdash;|&ndash;|-)\s*Google Careers\s*$/i, '')
+    .trim()
+
+  const metaDescMatch =
+    html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["'][^>]*\/?>/i) ??
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["'][^>]*\/?>/i)
+  const description = metaDescMatch?.[1] ? decodeHtmlEntities(metaDescMatch[1]).trim() : ''
+
+  if (!description) return null
+
+  const rows: Array<[string, string]> = [['Company', 'Google']]
+  if (jobId) rows.push(['Job ID', jobId])
+  const tableRows = rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')
+  const header = title ? `<h1>${title}</h1>` : ''
+  return `${header}<table>${tableRows}</table><hr>${description}`
+}
+
 export async function POST(req: NextRequest) {
   const supabase = createClient()
   const {
@@ -1000,6 +1027,9 @@ export async function POST(req: NextRequest) {
     if (isGoogleCareers) {
       const googleHtml = extractGoogleCareersFromPage(raw)
       if (googleHtml !== null) return NextResponse.json({ html: googleHtml })
+      const googleJobId = parsed.pathname.match(/\/results\/(\d+)/)?.[1] ?? ''
+      const metaHtml = extractGoogleCareersFromMeta(raw, googleJobId)
+      if (metaHtml !== null) return NextResponse.json({ html: metaHtml })
       // No usable data block — fall through to extractJobContent
     }
 
