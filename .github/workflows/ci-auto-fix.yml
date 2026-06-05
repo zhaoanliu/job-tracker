@@ -235,7 +235,8 @@ jobs:
           echo "CI_PASS=false" >> "$GITHUB_ENV"
           echo "Local CI still failing after fix attempts — will open draft PR"
 
-      - name: Apply fix or open PR
+      - name: Apply fix to PR branch or flag for main-branch PR
+        id: fix
         if: steps.issue.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -264,9 +265,6 @@ jobs:
             fi
             exit 0
           fi
-          ISSUE_TITLE=$(cat /tmp/issue_title.txt)
-          RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-          RISK=${RISK:-high}
           FILES_CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
           STATS=$(git diff --shortstat)
           INSERTIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
@@ -313,78 +311,16 @@ jobs:
             GH_TOKEN="${GH_PAT}" gh issue edit "${ISSUE_NUMBER}" --remove-label "status: in progress" || true
             GH_TOKEN="${GH_PAT}" gh issue close "${ISSUE_NUMBER}"
           else
-            # CI failed on main — open a PR
-            BRANCH="fix/ci-issue-${ISSUE_NUMBER}-$(date +%s)"
-            git checkout -b "$BRANCH"
-            git add -A
-            git commit -m "fix: auto-fix CI failure for issue #${ISSUE_NUMBER}"
-            git push origin "$BRANCH"
-
-            if [[ "${CI_PASS}" != "true" ]]; then
-              # Bot couldn't fix it — open draft PR as starting point for human
-              {
-                echo "Closes #${ISSUE_NUMBER}"
-                echo ""
-                echo "⚠️ Claude attempted a fix but local CI still fails after multiple attempts. This draft PR is a starting point — human investigation is required to complete the fix."
-                if [[ -s /tmp/summary.txt ]]; then
-                  echo ""
-                  cat /tmp/summary.txt
-                fi
-              } > /tmp/pr_body.txt
-              PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
-                --draft \
-                --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
-                --body-file /tmp/pr_body.txt \
-                --base main)
-              GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual investigation required" || true
-              {
-                if [[ -s /tmp/summary.txt ]]; then
-                  cat /tmp/summary.txt
-                  echo ""
-                fi
-                echo "Claude attempted a fix but could not get CI to pass. A draft PR has been opened as a starting point: $PR_URL — human investigation required."
-              } > /tmp/issue_comment.txt
-              gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
-            else
-              # CI passes — open regular PR with risk-based auto-merge
-              {
-                echo "Closes #${ISSUE_NUMBER}"
-                echo ""
-                echo "**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"
-                if [[ -s /tmp/summary.txt ]]; then
-                  echo ""
-                  cat /tmp/summary.txt
-                fi
-              } > /tmp/pr_body.txt
-              PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
-                --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
-                --body-file /tmp/pr_body.txt \
-                --base main)
-              if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
-                if GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL"; then
-                  MERGE_STATUS="Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes."
-                else
-                  GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
-                  MERGE_STATUS="Fix proposed (auto-merge unavailable — manual merge required): $PR_URL"
-                fi
-                {
-                  if [[ -s /tmp/summary.txt ]]; then
-                    cat /tmp/summary.txt
-                    echo ""
-                  fi
-                  echo "$MERGE_STATUS"
-                } > /tmp/issue_comment.txt
-                gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
-              else
-                GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
-                {
-                  if [[ -s /tmp/summary.txt ]]; then
-                    cat /tmp/summary.txt
-                    echo ""
-                  fi
-                  echo "A fix has been proposed: $PR_URL — please review before merging."
-                } > /tmp/issue_comment.txt
-                gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
-              fi
-            fi
+            # CI failed on main — open a PR (handled by the next step)
+            echo "open_pr=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Open fix PR (main-branch CI failure)
+        if: steps.fix.outputs.open_pr == 'true'
+        uses: ./.github/actions/open-fix-pr
+        with:
+          issue-number: ${{ steps.issue.outputs.number }}
+          gh-pat: ${{ secrets.GH_PAT }}
+          branch-prefix: 'fix/ci-issue-'
+          commit-message: 'fix: auto-fix CI failure for issue'
+          ci-passed: ${{ env.CI_PASS }}

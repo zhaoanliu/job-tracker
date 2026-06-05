@@ -123,69 +123,24 @@ jobs:
           git fetch origin main
           git checkout origin/main -- .github/ 2>/dev/null || true
 
-      - name: Open PR
+      - name: Check for code changes
+        id: changes
         if: steps.pr_check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_PAT: ${{ secrets.GH_PAT }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           if [[ -z $(git diff --name-only) ]]; then
             gh issue comment "${ISSUE_NUMBER}" \
               --body "No code change was identified. To help the bot find the fix, please add more context: reproduction steps, which page or feature is affected, expected vs actual behavior, and any error messages you saw."
-            exit 0
-          fi
-          ISSUE_TITLE=$(cat /tmp/issue_title.txt)
-          RISK=$(cat /tmp/risk.txt 2>/dev/null | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-          RISK=${RISK:-high}
-          FILES_CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
-          STATS=$(git diff --shortstat)
-          INSERTIONS=$(echo "$STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
-          DELETIONS=$(echo "$STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
-          TOTAL_LINES=$(( ${INSERTIONS:-0} + ${DELETIONS:-0} ))
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH="fix/issue-${ISSUE_NUMBER}-$(date +%s)"
-          git checkout -b "$BRANCH"
-          git add -A
-          git commit -m "fix: auto-fix for issue #${ISSUE_NUMBER}"
-          git push origin "$BRANCH"
-          {
-            echo "Closes #${ISSUE_NUMBER}"
-            echo ""
-            echo "**Risk assessment:** \`${RISK}\` (${FILES_CHANGED} file(s), ${TOTAL_LINES} lines changed)"
-            if [[ -s /tmp/summary.txt ]]; then
-              echo ""
-              cat /tmp/summary.txt
-            fi
-          } > /tmp/pr_body.txt
-          PR_URL=$(GH_TOKEN="${GH_PAT}" gh pr create \
-            --title "${ISSUE_TITLE} (#${ISSUE_NUMBER})" \
-            --body-file /tmp/pr_body.txt \
-            --base main)
-          if [[ "$RISK" == "low" && "$FILES_CHANGED" -le 2 && "$TOTAL_LINES" -le 20 ]]; then
-            if GH_TOKEN="${GH_PAT}" gh pr merge --auto --squash "$PR_URL"; then
-              MERGE_STATUS="Fix proposed and auto-merge enabled: $PR_URL — will merge to \`main\` once CI passes."
-            else
-              GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
-              MERGE_STATUS="Fix proposed (auto-merge unavailable — manual merge required): $PR_URL"
-            fi
-            {
-              if [[ -s /tmp/summary.txt ]]; then
-                cat /tmp/summary.txt
-                echo ""
-              fi
-              echo "$MERGE_STATUS"
-            } > /tmp/issue_comment.txt
-            gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
           else
-            GH_TOKEN="${GH_PAT}" gh pr edit "$PR_URL" --add-label "manual merge required" || true
-            {
-              if [[ -s /tmp/summary.txt ]]; then
-                cat /tmp/summary.txt
-                echo ""
-              fi
-              echo "A fix has been proposed: $PR_URL — please review before merging."
-            } > /tmp/issue_comment.txt
-            gh issue comment "${ISSUE_NUMBER}" --body-file /tmp/issue_comment.txt
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Open fix PR
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: ./.github/actions/open-fix-pr
+        with:
+          issue-number: ${{ steps.issue.outputs.number }}
+          gh-pat: ${{ secrets.GH_PAT }}
