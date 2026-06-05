@@ -1746,6 +1746,67 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toBe('<p>Scraped fallback</p>')
     })
 
+    it('falls back to meta tags when AF_initDataCallback is absent and og:title + meta description are present', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse(
+          `<html><head>` +
+            `<meta property="og:title" content="Staff Software Engineer, Google Compute Engine — Google Careers">` +
+            `<meta name="description" content="Build and scale Google Compute Engine infrastructure.">` +
+            `</head><body><p>Body text</p></body></html>`
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GOOGLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Staff Software Engineer, Google Compute Engine</h1>')
+      expect(data.html).toContain('Google')
+      expect(data.html).toContain('92918703267422918')
+      expect(data.html).toContain('Build and scale Google Compute Engine infrastructure.')
+      expect(data.html).not.toContain('Google Careers')
+    })
+
+    it('falls back to meta tags using <title> when og:title is absent', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse(
+          `<html><head>` +
+            `<title>Staff Software Engineer - Google Careers</title>` +
+            `<meta name="description" content="Join the team building Compute Engine.">` +
+            `</head><body></body></html>`
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GOOGLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Staff Software Engineer</h1>')
+      expect(data.html).toContain('Join the team building Compute Engine.')
+    })
+
+    it('falls back to extractJobContent when AF_initDataCallback is absent and meta description is missing', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse(
+          `<html><head><meta property="og:title" content="Some Job — Google Careers"></head>` +
+            `<body><p>Plain body</p></body></html>`
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: GOOGLE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Plain body')
+      expect(data.html).not.toContain('<h1>')
+    })
+
     it('falls back to extractJobContent when AF_initDataCallback data is invalid JSON', async () => {
       mockUser()
       const fetchMock = vi.fn().mockResolvedValue(
