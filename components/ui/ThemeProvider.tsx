@@ -34,13 +34,11 @@ function applyTheme(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('light')
+  const [theme, setThemeState] = useState<Theme>(readStoredTheme)
 
   useEffect(() => {
-    const initial = readStoredTheme()
-    setThemeState(initial)
-    applyTheme(initial)
-  }, [])
+    applyTheme(theme)
+  }, [theme])
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next)

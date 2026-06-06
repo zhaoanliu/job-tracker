@@ -193,13 +193,6 @@ export default function ApplicationModal({
     }
   }
 
-  useEffect(() => {
-    if (importedHtml !== null && section !== 'jd') {
-      setImportedHtml(null)
-      setOriginalDescription(null)
-      setViewMode('imported')
-    }
-  }, [section, importedHtml])
 
   async function handleDelete() {
     if (!onDelete) return
@@ -250,7 +243,14 @@ export default function ApplicationModal({
             <button
               key={id}
               type="button"
-              onClick={() => setSection(id)}
+              onClick={() => {
+                if (id !== 'jd' && importedHtml !== null) {
+                  setImportedHtml(null)
+                  setOriginalDescription(null)
+                  setViewMode('imported')
+                }
+                setSection(id)
+              }}
               className={`py-2.5 px-1 mr-4 text-xs font-medium border-b-2 -mb-px transition-colors ${
                 section === id
                   ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
