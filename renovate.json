@@ -62,7 +62,11 @@
     },
     {
       "groupName": "ESLint ecosystem",
-      "matchPackageNames": ["eslint", "eslint-config-next", "@eslint/**"]
+      "matchPackageNames": ["eslint", "@eslint/**"]
+    },
+    {
+      "groupName": "Next.js ecosystem",
+      "matchPackageNames": ["next", "eslint-config-next"]
     },
     {
       "groupName": "Tailwind ecosystem",
