@@ -29,9 +29,12 @@ test.afterAll(async () => {
 const addToFuture = '[title="Add to Future"]'
 
 test('board — light mode baseline', async ({ page }) => {
-  await page.evaluate(() => localStorage.setItem('applytrackr-theme', 'light'))
+  // Navigate first — localStorage is unavailable on about:blank
   await loginViaUI(page)
-  // Add a representative card so the board isn't empty
+  await page.evaluate(() => localStorage.setItem('applytrackr-theme', 'light'))
+  await page.reload()
+  await page.waitForURL('/dashboard')
+
   await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Visual Test Corp')
   await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
@@ -41,23 +44,27 @@ test('board — light mode baseline', async ({ page }) => {
 })
 
 test('board — dark mode baseline', async ({ page }) => {
-  await page.evaluate(() => localStorage.setItem('applytrackr-theme', 'dark'))
   await loginViaUI(page)
+  await page.evaluate(() => localStorage.setItem('applytrackr-theme', 'dark'))
+  await page.reload()
+  await page.waitForURL('/dashboard')
+
   await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Visual Test Corp')
   await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
   await expect(page.locator('text=Visual Test Corp')).toBeVisible({ timeout: 8_000 })
 
   await expect(page).toHaveScreenshot('board-dark.png', { maxDiffPixelRatio: 0.02 })
-  // Clean up stored preference
   await page.evaluate(() => localStorage.removeItem('applytrackr-theme'))
 })
 
 test('modal — open state with Details tab', async ({ page }) => {
-  await page.evaluate(() => localStorage.setItem('applytrackr-theme', 'light'))
   await loginViaUI(page)
+  await page.evaluate(() => localStorage.setItem('applytrackr-theme', 'light'))
+  await page.reload()
+  await page.waitForURL('/dashboard')
+
   await page.locator(addToFuture).click()
-  // Modal is now open — screenshot before saving
   await expect(page.locator('text=New Application')).toBeVisible()
 
   await expect(page).toHaveScreenshot('modal-open-light.png', { maxDiffPixelRatio: 0.02 })
