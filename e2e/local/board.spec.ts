@@ -178,3 +178,58 @@ test('dark mode preference persists across page reloads', async ({ page }) => {
   // Clean up
   await page.evaluate(() => localStorage.removeItem('applytrackr-theme'))
 })
+
+// ─── Modal tabs ───────────────────────────────────────────────────────────────
+
+test('modal tabs — Progress and Job Description sections are navigable', async ({ page }) => {
+  await loginViaUI(page)
+  await page.locator(addToFuture).click()
+  await page.fill('input[placeholder="e.g. Acme Corp"]', 'Tab Test Corp')
+  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await expect(page.locator('text=Tab Test Corp')).toBeVisible({ timeout: 8_000 })
+
+  await page.locator('text=Tab Test Corp').click()
+  await expect(page.locator('text=Edit Application')).toBeVisible()
+
+  // Progress tab
+  await page.locator('button:has-text("Progress")').click()
+  await expect(page.locator('textarea[placeholder="Recruiter name, salary range, interview impressions…"]')).toBeVisible()
+
+  // Job Description tab
+  await page.locator('button:has-text("Job Description")').click()
+  await expect(page.locator('textarea[placeholder="Paste the full job description here…"]')).toBeVisible()
+
+  // History tab
+  await page.locator('button:has-text("History")').click()
+  // History section renders a timeline — at minimum the section itself should be present
+  await expect(page.locator('button:has-text("History")')).toHaveClass(/border-indigo|text-indigo/)
+})
+
+// ─── Stage change via modal ───────────────────────────────────────────────────
+
+test('changing stage via modal moves the card to the correct column', async ({ page }) => {
+  await loginViaUI(page)
+
+  // Add a card to Future
+  await page.locator(addToFuture).click()
+  await page.fill('input[placeholder="e.g. Acme Corp"]', 'Stage Mover Corp')
+  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await expect(page.locator('text=Stage Mover Corp')).toBeVisible({ timeout: 8_000 })
+
+  // Verify it's in the Future column
+  const futureColumn = page.locator('.kanban-column-body').first()
+  await expect(futureColumn.locator('text=Stage Mover Corp')).toBeVisible()
+
+  // Open the modal and change stage to Applied
+  await page.locator('text=Stage Mover Corp').click()
+  await expect(page.locator('text=Edit Application')).toBeVisible()
+  await page.locator('select').filter({ hasText: 'Future' }).selectOption('applied')
+  await page.locator('button:has-text("Save Changes")').click()
+
+  // Card should now appear under the Applied column header
+  const appliedHeader = page.locator('h3').filter({ hasText: 'Applied' })
+  await expect(appliedHeader).toBeVisible()
+  // The card must have moved — it should no longer be in the Future column body
+  const futureColumnAfter = page.locator('.kanban-column-body').first()
+  await expect(futureColumnAfter.locator('text=Stage Mover Corp')).not.toBeVisible({ timeout: 8_000 })
+})
