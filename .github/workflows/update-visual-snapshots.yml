@@ -1,0 +1,80 @@
+name: Update Visual Snapshots
+
+# Human-triggered only — generates Playwright toHaveScreenshot() baselines on
+# Linux (matching the CI OS) and commits the PNGs back to the target branch.
+#
+# When to use:
+#   - After adding new visual tests (run once to create initial baselines)
+#   - After a deliberate rendering change (Tailwind v4 merge, layout update)
+#
+# Never trigger this from another workflow — snapshot updates must be a
+# conscious human decision reviewed before merging.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to commit the updated snapshots to'
+        required: true
+
+jobs:
+  update-snapshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+          # GH_PAT so the push is attributed to the repo owner, not
+          # github-actions[bot], keeping the commit visible and auditable.
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - uses: supabase/setup-cli@v2.1.1
+        with:
+          version: 2.102.0
+
+      - uses: ./.github/actions/supabase-start
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Generate visual snapshots
+        run: npx playwright test e2e/local/visual.spec.ts --update-snapshots
+        env:
+          CI: true
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+          SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+
+      - name: Commit and push snapshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add 'e2e/local/visual.spec.ts-snapshots/'
+          if git diff --cached --quiet; then
+            echo "No snapshot changes — baselines are already up to date."
+          else
+            git commit -m "test: update visual regression baselines [skip ci]"
+            git push origin "${{ inputs.branch }}"
+          fi
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report-snapshots
+          path: playwright-report/
+          retention-days: 7
