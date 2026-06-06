@@ -128,6 +128,40 @@ The three steps in order:
 - Supabase `createClient` mock in `vitest.setup.ts` creates a new object on each call — override with a local `vi.mock(...)` in test files that need to spy on auth methods
 - `parseCsv` uses a character-stream parser (not naive `\n` split) — test with CSV fields that contain quoted newlines to verify
 
+### E2E tests are required for every user-facing feature
+
+**Every PR that adds or changes user-facing behaviour must include an E2E test in the same commit.** Unit tests verify logic; E2E tests verify that the feature actually works and looks right in a browser. A feature is not done until both exist.
+
+Ask explicitly before finishing any feature: *"What E2E test covers this?"* If the answer is "none", write one before opening the PR.
+
+**What always needs an E2E test:**
+- Any new UI interaction (button, modal, form, tab, toggle)
+- Any workflow that spans multiple steps (add → edit → drag → verify)
+- Any state that must survive a page reload (theme, filter, ordering)
+- Any visual feature (theme, layout change, new component) — use `toHaveScreenshot()` for these
+
+**Visual regression tests use `toHaveScreenshot()`:**
+```ts
+await expect(page).toHaveScreenshot('board-light.png', { maxDiffPixelRatio: 0.02 })
+```
+Baselines are committed to the repo. Always regenerate baselines on Linux (same OS as CI) to avoid platform rendering differences.
+
+**Snapshot updates must be an explicit human decision — never automated.** When a visual test fails, the correct response is to investigate the diff, not to run `--update-snapshots`. Only run `--update-snapshots` after a human has reviewed the diff images and confirmed the change is intentional. Commit snapshot updates in a clearly labelled standalone commit (e.g. `test: update visual snapshots for Tailwind v4 style changes`) so they are visible and reviewable in the PR. Never let a bot, auto-fix pipeline, or unreviewed script regenerate snapshots — that defeats the entire purpose of having them.
+
+**Where E2E tests live:**
+- `e2e/auth.spec.ts` — auth flows that run on every PR (no local Supabase needed)
+- `e2e/local/board.spec.ts` — board interactions requiring `supabase start` (nightly cron)
+- `e2e/local/csv.spec.ts` — CSV import/export (nightly cron)
+- `e2e/local/visual.spec.ts` — visual regression screenshots (nightly cron)
+- New board features go in `e2e/local/`; new auth flows go in `e2e/`
+
+**The dark mode lesson:** The first dark mode implementation only wired up the backend without a UI toggle. There was no E2E test, so the missing button shipped undetected and required a second fix. If an E2E test had been required in the original PR, the missing toggle would have been caught immediately.
+
+**Library upgrades that affect rendering must pass visual regression tests before merging.** Any major version bump of a styling or rendering dependency — Tailwind CSS, PostCSS, Next.js, React — can silently break the UI in ways that unit tests and functional E2E tests cannot catch (default value changes, removed class names, layout shifts). Before merging such a PR:
+1. Run `npx playwright test e2e/local/visual.spec.ts` against the branch
+2. If any snapshot diffs appear, inspect them — expected changes (e.g. intentional v4 style changes) require a baseline update with `--update-snapshots`; unexpected diffs indicate a regression that must be fixed first
+3. Do not skip this step because "CI passed" — CI does not run visual tests on PRs, only on the nightly cron
+
 ## No duplication
 
 **Before writing any function, component, hook, type, constant, or shell block — search the codebase for an existing implementation first.** If one exists, use or extend it. Never write a second copy.
