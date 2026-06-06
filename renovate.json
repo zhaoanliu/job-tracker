@@ -1,9 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
-  "schedule": ["every weekend"],
+  "schedule": ["before 9am on monday"],
   "rebaseWhen": "behind-base-branch",
   "minimumReleaseAge": "7 days",
+  "prConcurrentLimit": 3,
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "minimumReleaseAge": "0 days",
@@ -32,6 +33,17 @@
   ],
   "packageRules": [
     {
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchUpdateTypes": ["patch", "minor"],
+      "matchDepTypes": ["devDependencies"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
       "matchFileNames": [".github/workflows/**"],
       "matchUpdateTypes": ["patch", "minor"],
       "groupName": "workflow tool versions",
@@ -42,8 +54,23 @@
     {
       "matchFileNames": [".github/workflows/**"],
       "matchUpdateTypes": ["major"],
-      "groupName": "workflow tool versions (major)",
-      "automerge": false
+      "groupName": "workflow tool versions (major)"
+    },
+    {
+      "groupName": "React ecosystem",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"]
+    },
+    {
+      "groupName": "ESLint ecosystem",
+      "matchPackageNames": ["eslint", "eslint-config-next", "@eslint/**"]
+    },
+    {
+      "groupName": "Tailwind ecosystem",
+      "matchPackageNames": ["tailwindcss", "@tailwindcss/**", "autoprefixer", "postcss"]
+    },
+    {
+      "groupName": "Sentry",
+      "matchPackageNames": ["@sentry/**"]
     }
   ]
 }
