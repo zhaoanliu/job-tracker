@@ -137,6 +137,7 @@ test('search filters cards by company name', async ({ page }) => {
 
   // Add two applications
   await page.locator(addToFuture).click()
+  await expect(page.locator('text=New Application')).toBeVisible()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Alpha Inc')
   await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
   await expect(page.locator('text=Alpha Inc')).toBeVisible({ timeout: 8_000 })
@@ -218,9 +219,9 @@ test('modal tabs — Progress and Job Description sections are navigable', async
   await page.locator('button:has-text("Progress")').click()
   await expect(page.locator('textarea[placeholder="Recruiter name, salary range, interview impressions…"]')).toBeVisible()
 
-  // Job Description tab
+  // Job Description tab — renders a RichTextEditor (contenteditable div), not a textarea
   await page.locator('button:has-text("Job Description")').click()
-  await expect(page.locator('textarea[placeholder="Paste the full job description here…"]')).toBeVisible()
+  await expect(page.locator('[role="textbox"][aria-label="Job description editor"]')).toBeVisible()
 
   // History tab
   await page.locator('button:has-text("History")').click()
