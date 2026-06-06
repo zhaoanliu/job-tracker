@@ -774,6 +774,18 @@ export async function POST(req: NextRequest) {
       // API unavailable — fall through to HTML scraping
     }
 
+    // Coupang careers (coupang.jobs) — Greenhouse-backed but Cloudflare blocks server-side
+    // HTML fetches (403). Board slug is hardcoded to "coupang"; job ID comes from ?gh_jid=.
+    const coupangGhJid =
+      (parsed.hostname === 'www.coupang.jobs' || parsed.hostname === 'coupang.jobs')
+        ? parsed.searchParams.get('gh_jid')
+        : null
+    if (coupangGhJid) {
+      const ghHtml = await fetchGreenhouseJob('coupang', coupangGhJid, controller.signal)
+      if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
     // Databricks careers — www.databricks.com/company/careers/{dept}/{slug}-{id} is a
     // Greenhouse-backed custom Gatsby site (board "databricks"). The page HTML contains no
     // Greenhouse references so none of the post-fetch handlers match; detect by URL and call
