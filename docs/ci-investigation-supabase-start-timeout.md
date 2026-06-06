@@ -86,10 +86,10 @@ The two `actions/cache` usages in this project cache:
 
 Caching Docker images is technically possible via `docker save` → `actions/cache` → `docker load`, but the Supabase local stack (postgres, gotrue, realtime, storage-api, edge-runtime, studio, kong) is 3–5 GB combined. Saving and restoring a multi-GB tarball typically takes as long as pulling fresh images, making the cache overhead comparable to the cold-pull time.
 
-The normal `supabase start` (avg 100s, p90 106s) is well within the `timeout-minutes: 10` limit. The fix for the timeout is to raise the limit rather than add Docker caching.
+The normal `supabase start` (avg 100s, p90 106s) is well within the `timeout-minutes: 10` limit.
 
 ---
 
-## Fix
+## Decision
 
-Raise `timeout-minutes` in `migrate-validate.yml` from `10` to `15` to give `supabase start` headroom on slow runners without changing caching strategy.
+No code change needed. The root cause is GitHub occasionally assigning a runner with severely throttled network — one occurrence out of 53 runs (~2%). The failure rate doesn't justify raising `timeout-minutes`. When it happens, a manual re-run is the correct response.
