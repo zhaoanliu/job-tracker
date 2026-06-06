@@ -214,6 +214,8 @@ gh run view <run-id> --log-failed
 ```
 Only then cross-reference with the YAML. Never report a workflow as correct based solely on static analysis when a live failure is being discussed.
 
+**When investigating a cancelled or failed run, do not trigger a re-run.** The goal is to explain why it happened, not to fix it. Re-running overwrites the API's latest-attempt data — `gh run view <id>` returns the latest attempt's step timings, not the original's — destroying the evidence needed to diagnose the root cause. Gather all evidence first (annotations, step timings from the correct attempt number, Events API, push history), then report findings. Only re-run if the user explicitly asks to unblock the PR after the investigation is complete.
+
 **Test the workflow directly — do not trigger end-to-end through Sentry.** The `repository_dispatch` event can be fired locally with one command:
 
 ```bash
