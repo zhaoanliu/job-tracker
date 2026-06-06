@@ -1,5 +1,28 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, Page } from '@playwright/test'
 import { createTestUser, clearTestApplications, deleteTestUser, loginViaUI } from '../helpers'
+
+async function dragCard(page: Page, cardText: string, targetColumnLabel: string) {
+  const card = page.locator('.bg-white.rounded-xl.border').filter({ hasText: cardText }).first()
+  const targetHeader = page.locator('h3').filter({ hasText: targetColumnLabel })
+
+  const cardBox = await card.boundingBox()
+  const headerBox = await targetHeader.boundingBox()
+  if (!cardBox || !headerBox) throw new Error(`Could not get bounding box for card "${cardText}" or column "${targetColumnLabel}"`)
+
+  const fromX = cardBox.x + cardBox.width / 2
+  const fromY = cardBox.y + cardBox.height / 2
+  const toX = headerBox.x + headerBox.width / 2
+  const toY = headerBox.y + headerBox.height + 80
+
+  await page.mouse.move(fromX, fromY)
+  await page.mouse.down()
+  await page.waitForTimeout(100)
+  await page.mouse.move((fromX + toX) / 2, (fromY + toY) / 2, { steps: 5 })
+  await page.waitForTimeout(150)
+  await page.mouse.move(toX, toY, { steps: 5 })
+  await page.mouse.up()
+  await page.waitForTimeout(500)
+}
 
 let userId: string
 
@@ -232,4 +255,31 @@ test('changing stage via modal moves the card to the correct column', async ({ p
   // The card must have moved — it should no longer be in the Future column body
   const futureColumnAfter = page.locator('.kanban-column-body').first()
   await expect(futureColumnAfter.locator('text=Stage Mover Corp')).not.toBeVisible({ timeout: 8_000 })
+})
+
+// ─── Drag-and-drop ────────────────────────────────────────────────────────────
+
+test('dragging a card to another column persists the stage change', async ({ page }) => {
+  await loginViaUI(page)
+
+  // Add a card to Future
+  await page.locator(addToFuture).click()
+  await page.fill('input[placeholder="e.g. Acme Corp"]', 'Drag Me Corp')
+  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await expect(page.locator('text=Drag Me Corp')).toBeVisible({ timeout: 8_000 })
+
+  // Drag the card from Future to Applied
+  await dragCard(page, 'Drag Me Corp', 'Applied')
+
+  // Card should be visible after drag
+  await expect(page.locator('text=Drag Me Corp')).toBeVisible({ timeout: 8_000 })
+
+  // Reload to confirm DB write persisted — optimistic update alone would pass without reload
+  await page.reload()
+  await page.waitForURL('/dashboard')
+
+  // After reload the card must still be in Applied (not Future)
+  const futureColumn = page.locator('.kanban-column-body').first()
+  await expect(futureColumn.locator('text=Drag Me Corp')).not.toBeVisible({ timeout: 8_000 })
+  await expect(page.locator('text=Drag Me Corp')).toBeVisible()
 })
