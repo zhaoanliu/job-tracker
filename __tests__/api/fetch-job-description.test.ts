@@ -21,6 +21,7 @@ import ashbyConfluentJob from '../fixtures/ashby-confluent-job.json'
 import gemAugerJob from '../fixtures/gem-auger-job.json'
 import amperityNextdataJob from '../fixtures/amperity-nextdata-job.json'
 import greenhouseDatabricksJob from '../fixtures/greenhouse-databricks-job.json'
+import greenhouseCoupangJob from '../fixtures/greenhouse-coupang-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -802,6 +803,99 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       expect(fetchMock).not.toHaveBeenCalledWith(HUBSPOT_GH_API, expect.anything())
+    })
+  })
+
+  describe('Coupang careers (coupang.jobs, Greenhouse-backed, board "coupang")', () => {
+    const COUPANG_URL =
+      'https://www.coupang.jobs/en/jobs/7822518/l6-2-staff-back-end-engineer-security-infrastructure/?gh_jid=7822518'
+    const COUPANG_GH_API =
+      'https://boards-api.greenhouse.io/v1/boards/coupang/jobs/7822518'
+
+    it('uses Greenhouse API with board "coupang" and prepends metadata header — real API fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === COUPANG_GH_API) return Promise.resolve(jsonResponse(greenhouseCoupangJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: COUPANG_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain(
+        '<h1>[L6-2] Staff Back-end Engineer (Security Infrastructure)</h1>'
+      )
+      expect(data.html).toContain('Coupang')
+      expect(data.html).toContain('Mountain View, USA; Seattle, USA')
+      expect(data.html).toContain('wow our customers')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(COUPANG_GH_API, expect.anything())
+    })
+
+    it('handles bare coupang.jobs hostname (no www.)', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === COUPANG_GH_API) return Promise.resolve(jsonResponse(greenhouseCoupangJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: 'https://coupang.jobs/en/jobs/7822518/some-role/?gh_jid=7822518' })
+      )
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('[L6-2] Staff Back-end Engineer (Security Infrastructure)')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(COUPANG_GH_API, expect.anything())
+    })
+
+    it('falls back to HTML scraping when Greenhouse API returns 404', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === COUPANG_GH_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: COUPANG_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Greenhouse API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === COUPANG_GH_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: COUPANG_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not trigger handler when gh_jid param is absent', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>No JD</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: 'https://www.coupang.jobs/en/jobs/7822518/some-role/' })
+      )
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(COUPANG_GH_API, expect.anything())
     })
   })
 
