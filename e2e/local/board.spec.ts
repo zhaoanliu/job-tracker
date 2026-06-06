@@ -92,6 +92,48 @@ test('filter chips narrow visible cards', async ({ page }) => {
   await expect(page.locator('text=High Priority Corp')).toBeVisible()
 })
 
+// ─── Stats bar ───────────────────────────────────────────────────────────────
+
+test('stats bar total increments after adding an application', async ({ page }) => {
+  await loginViaUI(page)
+  const totalCount = page.getByText('Total Applications', { exact: true }).locator('xpath=preceding-sibling::span[1]')
+  await expect(totalCount).toHaveText('0')
+
+  await page.locator(addToFuture).click()
+  await page.fill('input[placeholder="e.g. Acme Corp"]', 'Stats Corp')
+  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await expect(page.locator('text=Stats Corp')).toBeVisible({ timeout: 8_000 })
+
+  await expect(totalCount).toHaveText('1')
+})
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+
+test('search filters cards by company name', async ({ page }) => {
+  await loginViaUI(page)
+
+  // Add two applications
+  await page.locator(addToFuture).click()
+  await page.fill('input[placeholder="e.g. Acme Corp"]', 'Alpha Inc')
+  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await expect(page.locator('text=Alpha Inc')).toBeVisible({ timeout: 8_000 })
+
+  await page.locator(addToFuture).click()
+  await page.fill('input[placeholder="e.g. Acme Corp"]', 'Beta LLC')
+  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await expect(page.locator('text=Beta LLC')).toBeVisible({ timeout: 8_000 })
+
+  // Search for "Alpha" — Beta LLC should disappear
+  await page.fill('input[placeholder="Search company…"]', 'Alpha')
+  await expect(page.locator('text=Alpha Inc')).toBeVisible()
+  await expect(page.locator('text=Beta LLC')).not.toBeVisible()
+
+  // Clear search — both cards visible again
+  await page.locator('button[aria-label="Clear search"]').click()
+  await expect(page.locator('text=Alpha Inc')).toBeVisible()
+  await expect(page.locator('text=Beta LLC')).toBeVisible()
+})
+
 // ─── Dark mode ────────────────────────────────────────────────────────────────
 
 test('dark mode toggle switches theme on click', async ({ page }) => {
