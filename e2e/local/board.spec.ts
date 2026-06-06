@@ -91,3 +91,48 @@ test('filter chips narrow visible cards', async ({ page }) => {
   await page.locator('button:has-text("High")').first().click()
   await expect(page.locator('text=High Priority Corp')).toBeVisible()
 })
+
+// ─── Dark mode ────────────────────────────────────────────────────────────────
+
+test('dark mode toggle switches theme on click', async ({ page }) => {
+  await loginViaUI(page)
+  // Ensure we start from light mode by clearing stored preference
+  await page.evaluate(() => localStorage.removeItem('applytrackr-theme'))
+  await page.reload()
+  await page.waitForURL('/dashboard')
+
+  const html = page.locator('html')
+  // After reload with no stored preference, system default applies; force light baseline
+  await page.locator('button[aria-label="Switch to dark mode"], button[aria-label="Switch to light mode"]').click()
+  // After one click: if we were in light mode we're now dark, and vice versa
+  // Click once more to ensure we're in a known dark state when starting light
+  const isDarkAfterFirstClick = await html.evaluate(el => el.classList.contains('dark'))
+  if (!isDarkAfterFirstClick) {
+    await page.locator('button[aria-label="Switch to dark mode"]').click()
+  }
+  await expect(html).toHaveClass(/dark/)
+
+  // Toggle back to light
+  await page.locator('button[aria-label="Switch to light mode"]').click()
+  await expect(html).not.toHaveClass(/dark/)
+})
+
+test('dark mode preference persists across page reloads', async ({ page }) => {
+  await loginViaUI(page)
+  // Clear any existing preference and set to light
+  await page.evaluate(() => localStorage.setItem('applytrackr-theme', 'light'))
+  await page.reload()
+  await page.waitForURL('/dashboard')
+
+  // Enable dark mode
+  await page.locator('button[aria-label="Switch to dark mode"]').click()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+
+  // Reload — the inline script in <head> re-applies the stored theme before paint
+  await page.reload()
+  await page.waitForURL('/dashboard')
+  await expect(page.locator('html')).toHaveClass(/dark/)
+
+  // Clean up
+  await page.evaluate(() => localStorage.removeItem('applytrackr-theme'))
+})
