@@ -24,11 +24,7 @@ export type ApplicationType =
 
 export type ApplicationPriority = 'High' | 'Medium' | 'Low'
 
-export type ApplicationLocation =
-  | 'Bellevue WA'
-  | 'Seattle WA'
-  | 'Redmond WA'
-  | 'Remote'
+export type ApplicationLocation = string
 
 export type ApplicationWorkmode = 'On-site' | 'Hybrid' | 'Remote'
 
@@ -183,6 +179,7 @@ export const APPLICATION_PRIORITIES: ApplicationPriority[] = ['High', 'Medium', 
 
 export const APPLICATION_LOCATIONS: ApplicationLocation[] = [
   'Bellevue WA',
+  'Kirkland WA',
   'Seattle WA',
   'Redmond WA',
   'Remote',
