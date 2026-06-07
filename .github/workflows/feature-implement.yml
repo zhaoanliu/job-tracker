@@ -177,6 +177,10 @@ jobs:
             npm run test:coverage
           Do not consider the task complete until all three pass.
 
+          AC TAGGING REQUIRED. The design specification above includes an "## Acceptance criteria" section. Every acceptance criterion must be covered by at least one unit test. Tag each covering test's it() description with [AC-${DESIGN_NUMBER}-N] where N is the 1-based position of that criterion (1 for first item, 2 for second, etc.). CI fails the PR if any AC item has no tagged test.
+          Example: it('saves application to database [AC-${DESIGN_NUMBER}-1]', () => { ... })
+          Tag any suitable existing test if it already covers the criterion; write a new test only if no existing test covers it.
+
           After implementing, write a markdown summary to /tmp/summary.txt with these sections:
           ## Implementation overview
           Two or three sentences: what was built and how it works.

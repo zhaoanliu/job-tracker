@@ -85,7 +85,8 @@ Sentry alerts fire `repository_dispatch` (primary path). The `on: issues: labele
 
 **`test.yml`** — job: `unit-test`
 - `npm run test:coverage` — runs all Vitest unit tests and enforces coverage thresholds (lines ≥85%, branches ≥80%, functions ≥65%)
-- Fails CI if any test fails or any threshold is not met
+- On PR events: also runs `scripts/check-ac-coverage.mjs` — for each design issue (contains `<!-- implementation-plan-json -->`) linked via `Closes #N`, verifies every AC item has a `[AC-{issue}-{N}]` tagged passing test; checks off passing items in the issue; fails CI if any item is untagged or failing
+- Fails CI if any test fails, any threshold is not met, or AC coverage is incomplete
 
 **`e2e.yml`** — job: `e2e-auth`
 - `auth.spec.ts` — password login/logout/redirect, uses hosted Supabase via secrets

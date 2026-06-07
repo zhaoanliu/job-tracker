@@ -123,6 +123,25 @@ The three steps in order:
 
 **Before committing any code change, run `npm run test:coverage`** (not `npm test`). CI (`test.yml`) runs `npm run test:coverage` and enforces thresholds (lines ≥85%, branches ≥80%, functions ≥65%). The bare `npm test` skips coverage reporting and will miss threshold failures, forcing a round-trip through CI + auto-fix.
 
+### AC tagging — unit tests must map to design acceptance criteria
+
+**When implementing a feature from a design issue (one with `<!-- implementation-plan-json -->`), every acceptance criterion must have at least one tagged unit test.** Tag each covering test's `it()` description with `[AC-{issue}-{N}]` where `{issue}` is the design issue number and `{N}` is the 1-based position of that criterion in the "## Acceptance criteria" list.
+
+Example — if design issue #88 has three AC items, tag the covering tests:
+```ts
+it('saves application to database [AC-88-1]', () => { ... })
+it('shows error toast on network failure [AC-88-2]', () => { ... })
+it('filters out archived jobs [AC-88-3]', () => { ... })
+```
+
+CI (`test.yml`) runs `scripts/check-ac-coverage.mjs` on every PR, which:
+- Fails if the AC section is empty or has no checkbox items
+- Fails if any AC item has no tagged test
+- Fails if any tagged test fails
+- Checks off passing AC items in the design issue
+
+Tag an existing test if it already covers the criterion; write a new one only when no existing test covers it. The `feature-implement.yml` bot includes this instruction automatically when a design issue is linked.
+
 **Known test gotchas:**
 - `required` HTML attribute on inputs blocks jsdom form submission — use `fireEvent.submit(form)` to bypass it, not a submit button click
 - Supabase `createClient` mock in `vitest.setup.ts` creates a new object on each call — override with a local `vi.mock(...)` in test files that need to spy on auth methods
