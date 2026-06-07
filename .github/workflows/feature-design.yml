@@ -189,8 +189,8 @@ jobs:
 
           <!-- implementation-plan-json
           [
-            {"id":1,"title":"<one-line title>","scope":"<what to implement — specific enough that no research is needed>","files_to_create":["path/to/new/file.ts"],"files_to_modify":[],"test_file":"__tests__/path/to/test.ts","estimated_turns":10},
-            {"id":2,"title":"<one-line title>","scope":"<what to implement>","files_to_create":[],"files_to_modify":["path/to/existing/file.ts"],"test_file":"__tests__/path/to/test.ts","estimated_turns":15}
+            {"id":1,"title":"<one-line title>","scope":"<what to implement — specific enough that no research is needed>","files_to_create":["path/to/new/file.ts"],"files_to_modify":[],"test_file":"__tests__/path/to/test.ts","estimated_turns":10,"ac_items":[1,2]},
+            {"id":2,"title":"<one-line title>","scope":"<what to implement>","files_to_create":[],"files_to_modify":["path/to/existing/file.ts"],"test_file":"__tests__/path/to/test.ts","estimated_turns":15,"ac_items":[3]}
           ]
           -->
 
@@ -201,6 +201,8 @@ jobs:
           - 10-15 turns: simple API route or isolated UI change (1-2 files)
           - 15-25 turns: component with multiple interactions or data flow (2-3 files)
           Each test_file is a single path under __tests__/; files_to_create and files_to_modify are relative paths from repo root; call out step dependencies (e.g. "Step 2 depends on Step 1") explicitly.
+
+          The "ac_items" field lists the 1-based positions of Acceptance Criteria items whose unit tests this step writes. Assign each AC item to the step that implements the corresponding feature. Leave an AC item UNASSIGNED (omit from all ac_items lists) only if it tests integrated behavior spanning multiple steps — the implement workflow auto-generates a final "Write AC tests" step for any unassigned items. Every AC item must appear in exactly one step's ac_items list, or be left unassigned; never list the same item twice.
 
           Fixture import rule: JSON fixtures are imported with a standard ES import. Non-JSON fixtures (e.g. raw HTML responses from ATS endpoints) must be loaded with readFileSync from node:fs — never with the ?raw Vite import suffix, which is Vite-specific and would break if the build config changes. Example for an HTML fixture: add "import { readFileSync } from 'node:fs'" and "import { join } from 'node:path'" at the top of the test file, then load with "const html = readFileSync(join(__dirname, '../fixtures/name.html'), 'utf-8')".
 

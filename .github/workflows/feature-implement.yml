@@ -199,6 +199,10 @@ jobs:
           printf '%s' "${DESIGN_BODY}" > /tmp/design_body_for_parse.txt
           PLAN_JSON=$(python3 -c "import re; b=open('/tmp/design_body_for_parse.txt').read(); m=re.search(r'<!-- implementation-plan-json\s*(.*?)\s*-->', b, re.DOTALL); print(m.group(1).strip() if m else '')" 2>/dev/null || true)
 
+          # Extract numbered AC items from design body (used for assignment + final AC subtask)
+          python3 -c "import re, json; b=open('/tmp/design_body_for_parse.txt').read(); m=re.search(r'## Acceptance criteria\n(.*?)(?:\n## |\n<!--|\Z)', b, re.DOTALL); items=[l for l in (m.group(1).strip().split('\n') if m else []) if re.match(r'^- \[[ x]\] ', l)]; print(json.dumps([[i+1, re.sub(r'^- \[[ x]\] ', '', l)] for i,l in enumerate(items)]))" 2>/dev/null > /tmp/ac_items.json || echo '[]' > /tmp/ac_items.json
+          AC_COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/ac_items.json'))))" 2>/dev/null || echo 0)
+
           if echo "$PLAN_JSON" | jq -e '. | type == "array" and length > 0' > /dev/null 2>&1; then
             echo "$PLAN_JSON" > /tmp/subtasks.json
             echo "Loaded $(jq length /tmp/subtasks.json) sub-tasks from design issue implementation plan:"
@@ -211,7 +215,7 @@ jobs:
               echo ''
               echo 'Output the JSON ONLY between these exact markers (no other text between them):'
               echo 'SUBTASKS_START'
-              echo '[{"id":1,"title":"...","scope":"...","files_to_create":["..."],"files_to_modify":["..."],"test_file":"__tests__/...","estimated_turns":15}]'
+              echo '[{"id":1,"title":"...","scope":"...","files_to_create":["..."],"files_to_modify":["..."],"test_file":"__tests__/...","estimated_turns":15,"ac_items":[1,2]}]'
               echo 'SUBTASKS_END'
               echo ''
               echo 'Fields:'
@@ -222,6 +226,7 @@ jobs:
               echo '  files_to_modify: array of existing file paths to change ([] if none)'
               echo '  test_file: exactly one __tests__/ path for this sub-task'\''s tests'
               echo '  estimated_turns: integer turns needed (reading + coding + validation). MUST be <= 25. Split if higher.'
+              echo '  ac_items: list of 1-based AC item numbers this sub-task'\''s tests must cover ([] if none assigned here)'
               echo ''
               echo 'Sizing guidelines:'
               echo '  10-15 turns: simple API route or isolated UI state change (1-2 files)'
@@ -233,6 +238,14 @@ jobs:
                 echo ''
                 echo '=== Design specification ==='
                 cat /tmp/design_body_for_parse.txt
+              fi
+              if [[ "$AC_COUNT" -gt 0 && -n "${DESIGN_NUMBER}" ]]; then
+                echo ''
+                echo '=== Acceptance criteria to assign ==='
+                echo "Assign each AC item to the sub-task that implements the corresponding behavior (via ac_items)."
+                echo "Leave an item UNASSIGNED (omit from all ac_items) only if it tests integrated behavior"
+                echo "spanning multiple steps — the workflow auto-generates a final sub-task for those."
+                python3 -c "import json; [print(f'{n}. {t}') for n,t in json.load(open('/tmp/ac_items.json'))]" 2>/dev/null || true
               fi
             } > /tmp/plan_prompt.txt
 
@@ -263,6 +276,35 @@ jobs:
             else
               echo "Sub-task planning failed or returned no tasks — falling back to monolithic implementation"
               echo '[]' > /tmp/subtasks.json
+            fi
+          fi
+
+          # Auto-append a final "Write AC tests" sub-task for any AC items not assigned to a step
+          if [[ "$AC_COUNT" -gt 0 && -n "${DESIGN_NUMBER}" ]]; then
+            jq '[.[] | .ac_items // []] | add // []' /tmp/subtasks.json 2>/dev/null > /tmp/assigned_ac.json || echo '[]' > /tmp/assigned_ac.json
+            python3 -c "import json; assigned=set(json.load(open('/tmp/assigned_ac.json'))); ac=json.load(open('/tmp/ac_items.json')); print(json.dumps([i for i in range(1,len(ac)+1) if i not in assigned]))" 2>/dev/null > /tmp/unassigned_ac.json || echo '[]' > /tmp/unassigned_ac.json
+            UNASSIGNED_AC=$(cat /tmp/unassigned_ac.json)
+            if [[ "$UNASSIGNED_AC" != "[]" ]]; then
+              NEXT_ID=$(( $(jq 'length' /tmp/subtasks.json) + 1 ))
+              TAGS=$(python3 -c "import json; items=json.load(open('/tmp/unassigned_ac.json')); dn='${DESIGN_NUMBER}'; print(', '.join('[AC-'+dn+'-'+str(i)+']' for i in items))" 2>/dev/null || echo "$UNASSIGNED_AC")
+              AC_TASK=$(jq -n \
+                --argjson id "$NEXT_ID" \
+                --argjson ac_items "$UNASSIGNED_AC" \
+                --arg dn "${DESIGN_NUMBER}" \
+                --arg tags "$TAGS" \
+                '{
+                  id: $id,
+                  title: "Write AC-tagged tests for remaining acceptance criteria",
+                  scope: ("Read the already-committed implementation and write unit tests verifying the remaining acceptance criteria. Tag each test: \($tags). Do NOT add new features — only write tests that exercise existing code."),
+                  files_to_create: [],
+                  files_to_modify: [],
+                  test_file: ("__tests__/ac-" + $dn + ".test.ts"),
+                  estimated_turns: 12,
+                  ac_items: $ac_items
+                }')
+              jq --argjson t "$AC_TASK" '. + [$t]' /tmp/subtasks.json > /tmp/subtasks_ac.json
+              mv /tmp/subtasks_ac.json /tmp/subtasks.json
+              echo "Auto-appended AC sub-task (id $NEXT_ID) for unassigned items: $UNASSIGNED_AC"
             fi
           fi
 
@@ -310,6 +352,8 @@ jobs:
               TASK_TITLE=$(echo "$TASK" | jq -r '.title')
               TASK_SCOPE=$(echo "$TASK" | jq -r '.scope')
               TASK_TEST=$(echo "$TASK" | jq -r '.test_file')
+              TASK_AC_TAGS=$(echo "$TASK" | jq -r --arg dn "${DESIGN_NUMBER:-}" \
+                '.ac_items // [] | map("[AC-\($dn)-\(.)]") | join(", ")' 2>/dev/null || true)
               ESTIMATED_TURNS=$(echo "$TASK" | jq -r '.estimated_turns // 20')
               MAX_TURNS=$((ESTIMATED_TURNS + 12))
               FILES_CREATE=$(echo "$TASK" | jq -r '.files_to_create[]?' | head -20)
@@ -337,6 +381,11 @@ jobs:
                   echo ""
                 fi
                 echo "Test file to write: ${TASK_TEST}"
+                if [[ -n "$TASK_AC_TAGS" ]]; then
+                  echo "AC TAGS REQUIRED — tag the it() description of each covering test:"
+                  echo "  ${TASK_AC_TAGS}"
+                  echo "  Example: it('saves entry [AC-${DESIGN_NUMBER:-0}-1]', () => { ... })"
+                fi
                 echo ""
                 if [[ -n "$PREV_LOG" ]]; then
                   echo "=== Previously committed sub-tasks (already done — do not redo) ==="
