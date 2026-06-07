@@ -58,6 +58,6 @@ jobs:
           retention-days: 7
 
       - uses: ./.github/actions/trigger-ci-failure
-        if: failure() && github.actor != 'github-actions[bot]'
+        if: failure() && github.event_name != 'repository_dispatch'
         with:
           gh-pat: ${{ secrets.GH_PAT }}
