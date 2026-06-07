@@ -59,7 +59,7 @@ test('adds a new application and sees it on the board', async ({ page }) => {
   await page.locator(addToFuture).click()
   await expect(page.locator('text=New Application')).toBeVisible()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'E2E Test Corp')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=E2E Test Corp')).toBeVisible({ timeout: 8_000 })
 })
 
@@ -67,7 +67,7 @@ test('edits an existing application', async ({ page }) => {
   await loginViaUI(page)
   await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Edit Me Corp')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=Edit Me Corp')).toBeVisible({ timeout: 8_000 })
 
   await page.locator('text=Edit Me Corp').click()
@@ -84,7 +84,7 @@ test('deletes an application after confirmation', async ({ page }) => {
   await expect(page.locator(addToFuture)).toBeVisible({ timeout: 5_000 })
   await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Delete Me Corp')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=Delete Me Corp')).toBeVisible({ timeout: 8_000 })
 
   await page.locator('text=Delete Me Corp').click()
@@ -108,7 +108,7 @@ test('filter chips narrow visible cards', async ({ page }) => {
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'High Priority Corp')
   const prioritySelect = page.locator('select[name="priority"], select').filter({ hasText: 'High' }).first()
   if (await prioritySelect.count() > 0) await prioritySelect.selectOption('High')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=High Priority Corp')).toBeVisible({ timeout: 8_000 })
 
   await page.locator('button:has-text("High")').first().click()
@@ -124,7 +124,7 @@ test('stats bar total increments after adding an application', async ({ page }) 
 
   await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Stats Corp')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=Stats Corp')).toBeVisible({ timeout: 8_000 })
 
   await expect(totalCount).toHaveText('1')
@@ -139,12 +139,13 @@ test('search filters cards by company name', async ({ page }) => {
   await page.locator(addToFuture).click()
   await expect(page.locator('text=New Application')).toBeVisible()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Alpha Inc')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=Alpha Inc')).toBeVisible({ timeout: 8_000 })
 
   await page.locator(addToFuture).click()
+  await expect(page.locator('text=New Application')).toBeVisible()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Beta LLC')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=Beta LLC')).toBeVisible({ timeout: 8_000 })
 
   // Search for "Alpha" — Beta LLC should disappear
@@ -209,7 +210,7 @@ test('modal tabs — Progress and Job Description sections are navigable', async
   await loginViaUI(page)
   await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Tab Test Corp')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=Tab Test Corp')).toBeVisible({ timeout: 8_000 })
 
   await page.locator('text=Tab Test Corp').click()
@@ -237,7 +238,7 @@ test('changing stage via modal moves the card to the correct column', async ({ p
   // Add a card to Future
   await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Stage Mover Corp')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=Stage Mover Corp')).toBeVisible({ timeout: 8_000 })
 
   // Verify it's in the Future column
@@ -266,7 +267,7 @@ test('dragging a card to another column persists the stage change', async ({ pag
   // Add a card to Future
   await page.locator(addToFuture).click()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Drag Me Corp')
-  await page.locator('button:has-text("Add Application"), button:has-text("Save")').last().click()
+  await page.locator('button[type="submit"]').click()
   await expect(page.locator('text=Drag Me Corp')).toBeVisible({ timeout: 8_000 })
 
   // Drag the card from Future to Applied
