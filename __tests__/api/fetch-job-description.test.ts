@@ -1809,9 +1809,11 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toContain('agentic authorization')
       // Qualifications heading from fixture
       expect(data.html).toContain('Minimum qualifications')
-      // Only one fetch — page HTML, no separate API call
+      // Only one fetch — page HTML, no separate API call.
+      // www.google.com URL is transparently redirected to careers.google.com for the fetch
+      // (www.google.com no longer embeds job data server-side as of ~June 2026).
       expect(fetchMock).toHaveBeenCalledTimes(1)
-      expect(fetchMock).toHaveBeenCalledWith(GOOGLE_URL, expect.anything())
+      expect(fetchMock).toHaveBeenCalledWith(CAREERS_GOOGLE_URL, expect.anything())
     })
 
     it('handles careers.google.com URL variant', async () => {

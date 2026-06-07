@@ -851,7 +851,14 @@ export async function POST(req: NextRequest) {
       // API unavailable — fall through to HTML scraping
     }
 
-    const res = await fetch(parsed.toString(), {
+    // www.google.com/about/careers/applications/ no longer embeds job data server-side
+    // (changed ~June 2026 to async client-side loading). careers.google.com still does.
+    const fetchTarget =
+      isGoogleCareers && parsed.hostname === 'www.google.com'
+        ? `https://careers.google.com/jobs/results/${parsed.pathname.slice('/about/careers/applications/jobs/results/'.length)}`
+        : parsed.toString()
+
+    const res = await fetch(fetchTarget, {
       signal: controller.signal,
       headers: {
         'User-Agent': USER_AGENT,
@@ -861,7 +868,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (!res.ok) {
-      console.warn('fetch-job-description: non-2xx response', res.status, parsed.toString())
+      console.warn('fetch-job-description: non-2xx response', res.status, fetchTarget)
       return NextResponse.json({ error: 'Failed to fetch job description' }, { status: 502 })
     }
 
@@ -891,14 +898,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Google Careers — data embedded in AF_initDataCallback({key: 'ds:0', ...}) in page HTML.
-    // No JSON-LD and no public API; server renders the full job data in this callback block.
-    // When the callback is absent (Google now loads data asynchronously), fall back to meta tags.
+    // No JSON-LD and no public API. careers.google.com embeds the full job data in this callback;
+    // www.google.com/about/careers/ no longer does (redirected to careers.google.com above).
+    // The callback appears near the end of the ~1MB page — use full text, not the truncated raw.
     if (isGoogleCareers) {
-      const googleHtml = extractGoogleCareersFromPage(raw)
+      const googleHtml = extractGoogleCareersFromPage(text)
       if (googleHtml !== null) return NextResponse.json({ html: googleHtml })
       const urlJobIdMatch = parsed.pathname.match(/\/results\/(\d+)/)
       const urlJobId = urlJobIdMatch ? urlJobIdMatch[1] : ''
-      const metaHtml = buildGoogleCareersMetaFallback(raw, urlJobId)
+      const metaHtml = buildGoogleCareersMetaFallback(text, urlJobId)
       if (metaHtml !== null) return NextResponse.json({ html: metaHtml })
       // No usable data — fall through to extractJobContent
     }
