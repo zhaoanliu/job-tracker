@@ -75,6 +75,10 @@ export default function ApplicationModal({
         }
       : { ...EMPTY_FORM, status: defaultStatus, date: todayLocalDate() }
   )
+  const isCustomLocation = application?.location != null && !APPLICATION_LOCATIONS.includes(application.location)
+  const [locationMode, setLocationMode] = useState<'predefined' | 'custom'>(isCustomLocation ? 'custom' : 'predefined')
+  const [customLocation, setCustomLocation] = useState<string>(isCustomLocation ? (application.location ?? '') : '')
+
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -363,15 +367,39 @@ export default function ApplicationModal({
                   <div>
                     <label className={labelClass}>Location</label>
                     <select
-                      value={form.location ?? ''}
-                      onChange={e => set('location', (e.target.value as ApplicationFormData['location']) || null)}
+                      aria-label="Location"
+                      value={locationMode === 'custom' ? '__other__' : (form.location ?? '')}
+                      onChange={e => {
+                        if (e.target.value === '__other__') {
+                          setLocationMode('custom')
+                          set('location', customLocation || null)
+                        } else {
+                          setLocationMode('predefined')
+                          setCustomLocation('')
+                          set('location', (e.target.value as ApplicationFormData['location']) || null)
+                        }
+                      }}
                       className={selectClass}
                     >
                       <option value="">— Select —</option>
                       {APPLICATION_LOCATIONS.map(l => (
                         <option key={l} value={l}>{l}</option>
                       ))}
+                      <option value="__other__">Other...</option>
                     </select>
+                    {locationMode === 'custom' && (
+                      <input
+                        type="text"
+                        value={customLocation}
+                        onChange={e => {
+                          setCustomLocation(e.target.value)
+                          set('location', e.target.value || null)
+                        }}
+                        placeholder="e.g. Renton WA"
+                        className={`${inputClass} mt-2`}
+                        aria-label="Custom location"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className={labelClass}>Work Mode</label>
