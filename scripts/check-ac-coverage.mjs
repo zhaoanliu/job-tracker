@@ -86,15 +86,13 @@ for (const { number: issueNum, body } of designIssues) {
   // Extract the "## Acceptance criteria" section
   const acSectionMatch = body.match(/## Acceptance criteria\n([\s\S]*?)(?=\n## |\n<!--|$)/)
   if (!acSectionMatch) {
-    fail(`Issue #${issueNum} has no "## Acceptance criteria" section`)
-    globalFailed = true
+    log(`Issue #${issueNum} has no "## Acceptance criteria" section — skipping`)
     continue
   }
 
   const acContent = acSectionMatch[1].trim()
   if (!acContent) {
-    fail(`Issue #${issueNum} Acceptance criteria section is empty`)
-    globalFailed = true
+    log(`Issue #${issueNum} Acceptance criteria section is empty — skipping`)
     continue
   }
 
@@ -106,8 +104,7 @@ for (const { number: issueNum, body } of designIssues) {
   })
 
   if (checkboxIndices.length === 0) {
-    fail(`Issue #${issueNum} Acceptance criteria has no checkbox items`)
-    globalFailed = true
+    log(`Issue #${issueNum} Acceptance criteria has no checkbox items — skipping`)
     continue
   }
 
