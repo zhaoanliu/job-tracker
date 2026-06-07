@@ -334,6 +334,7 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
         }}
         onSortChange={setSortBy}
         matchInfo={matchInfo}
+        applications={applications}
       />
 
       {/* Board */}

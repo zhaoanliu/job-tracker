@@ -4,7 +4,7 @@ import {
   ApplicationPriority,
   ApplicationType,
   ApplicationWorkmode,
-  ApplicationLocation,
+  Application,
   APPLICATION_PRIORITIES,
   APPLICATION_TYPES,
   APPLICATION_WORKMODES,
@@ -20,6 +20,7 @@ interface FilterBarProps {
   onFilterChange: (filters: Filters) => void
   onSortChange: (sort: SortField) => void
   matchInfo?: { total: number; byStage: { label: string; count: number }[] }
+  applications?: Application[]
 }
 
 function toggleItem<T>(arr: T[], item: T): T[] {
@@ -55,8 +56,14 @@ function MultiChip<T extends string>({ label, options, selected, onToggle }: Mul
   )
 }
 
-export default function FilterBar({ filters, sortBy, onFilterChange, onSortChange, matchInfo }: FilterBarProps) {
+export default function FilterBar({ filters, sortBy, onFilterChange, onSortChange, matchInfo, applications = [] }: FilterBarProps) {
   const active = hasActiveFilters(filters)
+
+  const customLocations = [...new Set(
+    applications
+      .map(a => a.location)
+      .filter((loc): loc is string => loc !== null && !APPLICATION_LOCATIONS.includes(loc))
+  )]
 
   function clearFilters() {
     onFilterChange({ priority: [], type: [], workmode: [], location: [], search: '' })
@@ -141,9 +148,9 @@ export default function FilterBar({ filters, sortBy, onFilterChange, onSortChang
 
       <MultiChip
         label="Location"
-        options={APPLICATION_LOCATIONS}
+        options={[...APPLICATION_LOCATIONS, ...customLocations]}
         selected={filters.location}
-        onToggle={v => onFilterChange({ ...filters, location: toggleItem(filters.location, v as ApplicationLocation) })}
+        onToggle={v => onFilterChange({ ...filters, location: toggleItem(filters.location, v) })}
       />
 
       <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0" />

@@ -701,3 +701,74 @@ describe('ApplicationModal — JD preview', () => {
     expect(screen.getByText('Nothing to preview.')).toBeInTheDocument()
   })
 })
+
+describe('ApplicationModal — Location hybrid control', () => {
+  it('does not render the custom location text input by default', () => {
+    render(<ApplicationModal {...defaultProps} />)
+    expect(screen.queryByLabelText('Custom location')).not.toBeInTheDocument()
+  })
+
+  it('renders the Other... option in the location dropdown', () => {
+    render(<ApplicationModal {...defaultProps} />)
+    const select = screen.getByRole('combobox', { name: 'Location' })
+    const options = Array.from((select as HTMLSelectElement).options).map(o => o.text)
+    expect(options).toContain('Other...')
+  })
+
+  it('shows the custom text input when Other... is selected', async () => {
+    render(<ApplicationModal {...defaultProps} />)
+    const select = screen.getByRole('combobox', { name: 'Location' })
+    await userEvent.selectOptions(select, '__other__')
+    expect(screen.getByLabelText('Custom location')).toBeInTheDocument()
+  })
+
+  it('hides the custom text input when a predefined location is selected after Other...', async () => {
+    render(<ApplicationModal {...defaultProps} />)
+    const select = screen.getByRole('combobox', { name: 'Location' })
+    await userEvent.selectOptions(select, '__other__')
+    expect(screen.getByLabelText('Custom location')).toBeInTheDocument()
+    await userEvent.selectOptions(select, 'Seattle WA')
+    expect(screen.queryByLabelText('Custom location')).not.toBeInTheDocument()
+  })
+
+  it('saves the typed custom value, not "Other", when Other... is selected', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    render(<ApplicationModal {...defaultProps} onSave={onSave} />)
+    await userEvent.type(screen.getByPlaceholderText('e.g. Acme Corp'), 'New Co')
+    const select = screen.getByRole('combobox', { name: 'Location' })
+    await userEvent.selectOptions(select, '__other__')
+    await userEvent.type(screen.getByLabelText('Custom location'), 'Renton WA')
+    fireEvent.submit(document.querySelector('form')!)
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ location: 'Renton WA' })
+    ))
+  })
+
+  it('pre-fills Other... and the text input when editing an app with a custom location', () => {
+    const appWithCustomLocation: Application = { ...existingApp, location: 'Renton WA' }
+    render(<ApplicationModal {...defaultProps} application={appWithCustomLocation} />)
+    const select = screen.getByRole('combobox', { name: 'Location' }) as HTMLSelectElement
+    expect(select.value).toBe('__other__')
+    const textInput = screen.getByLabelText('Custom location') as HTMLInputElement
+    expect(textInput.value).toBe('Renton WA')
+  })
+
+  it('shows predefined location selected when editing an app with a known location', () => {
+    render(<ApplicationModal {...defaultProps} application={existingApp} />)
+    const select = screen.getByRole('combobox', { name: 'Location' }) as HTMLSelectElement
+    expect(select.value).toBe('Seattle WA')
+    expect(screen.queryByLabelText('Custom location')).not.toBeInTheDocument()
+  })
+
+  it('saves the predefined location value when a standard location is selected', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    render(<ApplicationModal {...defaultProps} onSave={onSave} />)
+    await userEvent.type(screen.getByPlaceholderText('e.g. Acme Corp'), 'New Co')
+    const select = screen.getByRole('combobox', { name: 'Location' })
+    await userEvent.selectOptions(select, 'Kirkland WA')
+    fireEvent.submit(document.querySelector('form')!)
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ location: 'Kirkland WA' })
+    ))
+  })
+})
