@@ -80,7 +80,7 @@ jobs:
           fi
 
       - name: Trigger db-fix on migration failure
-        if: failure() && steps.apply-migrations.outcome == 'failure' && github.actor != 'github-actions[bot]'
+        if: failure() && steps.apply-migrations.outcome == 'failure' && github.event_name != 'repository_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
@@ -91,7 +91,7 @@ jobs:
           | gh api repos/${{ github.repository }}/dispatches --method POST --input -
 
       - name: Trigger cd-auto-fix on non-migration deploy failure
-        if: failure() && steps.apply-migrations.outcome != 'failure' && github.actor != 'github-actions[bot]'
+        if: failure() && steps.apply-migrations.outcome != 'failure' && github.event_name != 'repository_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
