@@ -15,6 +15,9 @@ on:
       - 'supabase/migrations/**'
       - 'e2e/local/**'
       - 'e2e/helpers.ts'
+      - 'app/globals.css'
+      - 'tailwind.config.ts'
+      - 'postcss.config.mjs'
 
 jobs:
   e2e-local:
