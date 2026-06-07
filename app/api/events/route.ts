@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const body = await req.json().catch(() => null) as { event_name?: string; metadata?: unknown } | null
   if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })

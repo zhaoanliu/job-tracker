@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const body = await req.json()
   const to = (body.to ?? '').trim().toLowerCase()
