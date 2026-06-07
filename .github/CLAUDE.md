@@ -117,7 +117,7 @@ Sentry alerts fire `repository_dispatch` (primary path). The `on: issues: labele
 
 **`e2e-local.yml`** — board + CSV E2E tests against a real local Supabase instance:
 - Starts local Supabase via `supabase start`, runs `e2e/local/` test suite
-- Triggers: nightly cron (06:00 UTC), `workflow_dispatch`, and push to main (path-filtered to board/modal/CSV/migration paths)
+- Triggers: nightly cron (06:00 UTC), `workflow_dispatch`, and push to main (path-filtered to board/modal/CSV/migration paths, and styling files: `app/globals.css`, `tailwind.config.ts`, `postcss.config.mjs`)
 - Not a required CI check — async and non-blocking; path filter keeps it from running on every push
 
 **Doc-only changes skip CI.** `lint.yml`, `test.yml`, `e2e.yml`, and `migrate-validate.yml` each start with a `detect-changes` job (using `./.github/actions/detect-doc-only`) that outputs `skip=true` when all changed files match `*.md` or `docs/**`. The main job (`lint`, `unit-test`, etc.) declares `needs: detect-changes` and `if: needs.detect-changes.outputs.skip != 'true'`. When the main job is skipped via a job-level `if:`, GitHub creates a "skipped" check run — which satisfies required status checks, unblocking the PR. **Do not use `paths-ignore` at the workflow level for required checks**: a workflow that never triggers creates no check run at all, leaving required checks as "pending" and blocking the PR. `workflow_call` triggers have no `detect-changes` short-circuit — when `cd.yml` calls all 4 workflows unconditionally on push to main, they always run. When adding a new required CI workflow that should also skip doc-only changes, add the same `detect-changes` job and `needs`/`if` pattern.
