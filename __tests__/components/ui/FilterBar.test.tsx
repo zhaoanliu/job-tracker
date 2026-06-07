@@ -2,9 +2,35 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import FilterBar from '@/components/ui/FilterBar'
-import { Filters } from '@/lib/types'
+import { Filters, Application } from '@/lib/types'
 
 const emptyFilters: Filters = { priority: [], type: [], workmode: [], location: [], search: '' }
+
+function makeApp(overrides: Partial<Application> = {}): Application {
+  return {
+    id: '1',
+    user_id: 'u1',
+    company: 'Acme',
+    role: null,
+    team: null,
+    status: 'applied',
+    type: null,
+    priority: 'Medium',
+    location: null,
+    workmode: 'On-site',
+    date: null,
+    link: null,
+    source: 'LinkedIn',
+    referrer: null,
+    notes: null,
+    next_step: null,
+    jd: null,
+    order: 0,
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01',
+    ...overrides,
+  }
+}
 
 describe('FilterBar', () => {
   it('renders all filter dimension labels', () => {
@@ -259,5 +285,125 @@ describe('FilterBar', () => {
     )
     expect(screen.getByText('3 matches')).toBeInTheDocument()
     expect(screen.getByText('Applied 2 · Interviewing 1')).toBeInTheDocument()
+  })
+
+  it('renders a chip for a custom location not in APPLICATION_LOCATIONS', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        applications={[makeApp({ location: 'Renton WA' })]}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Renton WA' })).toBeInTheDocument()
+  })
+
+  it('does not render a duplicate chip when multiple apps share the same custom location', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        applications={[
+          makeApp({ id: '1', location: 'Austin TX' }),
+          makeApp({ id: '2', location: 'Austin TX' }),
+        ]}
+      />
+    )
+    expect(screen.getAllByRole('button', { name: 'Austin TX' })).toHaveLength(1)
+  })
+
+  it('does not render a custom chip for a location already in APPLICATION_LOCATIONS', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        applications={[makeApp({ location: 'Bellevue WA' })]}
+      />
+    )
+    expect(screen.getAllByRole('button', { name: 'Bellevue WA' })).toHaveLength(1)
+  })
+
+  it('does not render a custom chip when location is null', () => {
+    const { container } = render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        applications={[makeApp({ location: null })]}
+      />
+    )
+    const locationButtons = container.querySelectorAll('button')
+    const labels = Array.from(locationButtons).map(b => b.textContent)
+    expect(labels).not.toContain('null')
+  })
+
+  it('calls onFilterChange with the custom location toggled when its chip is clicked', async () => {
+    const onFilterChange = vi.fn()
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={onFilterChange}
+        onSortChange={vi.fn()}
+        applications={[makeApp({ location: 'Renton WA' })]}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Renton WA' }))
+    expect(onFilterChange).toHaveBeenCalledWith(
+      expect.objectContaining({ location: ['Renton WA'] })
+    )
+  })
+
+  it('removes a custom location from active filters when its chip is clicked again', async () => {
+    const onFilterChange = vi.fn()
+    render(
+      <FilterBar
+        filters={{ ...emptyFilters, location: ['Renton WA'] }}
+        sortBy="order"
+        onFilterChange={onFilterChange}
+        onSortChange={vi.fn()}
+        applications={[makeApp({ location: 'Renton WA' })]}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Renton WA' }))
+    expect(onFilterChange).toHaveBeenCalledWith(
+      expect.objectContaining({ location: [] })
+    )
+  })
+
+  it('renders chips for multiple distinct custom locations', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+        applications={[
+          makeApp({ id: '1', location: 'Renton WA' }),
+          makeApp({ id: '2', location: 'Austin TX' }),
+        ]}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Renton WA' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Austin TX' })).toBeInTheDocument()
+  })
+
+  it('renders no custom location chips when applications prop is omitted', () => {
+    render(
+      <FilterBar
+        filters={emptyFilters}
+        sortBy="order"
+        onFilterChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('button', { name: 'Renton WA' })).not.toBeInTheDocument()
   })
 })
