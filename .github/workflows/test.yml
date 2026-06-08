@@ -24,6 +24,9 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v6
 
@@ -36,6 +39,18 @@ jobs:
 
       - name: Run tests with coverage
         run: npm run test:coverage
+
+      - name: Export test results as JSON
+        if: github.event_name == 'pull_request'
+        run: npx vitest run --reporter=json --outputFile=test-results.json
+
+      - name: Check AC coverage
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/check-ac-coverage.mjs
 
       - uses: ./.github/actions/trigger-ci-failure
         if: failure() && github.event_name != 'repository_dispatch'
