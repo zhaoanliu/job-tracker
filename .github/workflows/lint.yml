@@ -46,7 +46,9 @@ jobs:
         run: node scripts/check-route-exports.js
 
       - name: actionlint
-        uses: rhysd/actionlint@v1.7.12
+        run: |
+          curl -sL https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz | tar xz actionlint
+          ./actionlint -color
 
       - uses: ./.github/actions/trigger-ci-failure
         if: failure() && github.event_name != 'repository_dispatch'
