@@ -4,7 +4,7 @@ import { Application } from '@/lib/types'
 import KanbanBoard from '@/components/board/KanbanBoard'
 
 export default async function DashboardPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },
