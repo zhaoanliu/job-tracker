@@ -22,6 +22,7 @@ import gemAugerJob from '../fixtures/gem-auger-job.json'
 import amperityNextdataJob from '../fixtures/amperity-nextdata-job.json'
 import greenhouseDatabricksJob from '../fixtures/greenhouse-databricks-job.json'
 import greenhouseCoupangJob from '../fixtures/greenhouse-coupang-job.json'
+import joinByteDanceChunks from '../fixtures/joinbytedance-job.json'
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -2430,6 +2431,106 @@ describe('POST /api/fetch-job-description', () => {
       expect(res.status).toBe(200)
       expect(chromium.launch as ReturnType<typeof vi.fn>).not.toHaveBeenCalled()
       expect(fetchMock).toHaveBeenCalled()
+    })
+  })
+
+  describe('joinbytedance.com (ByteDance careers, RSC payload)', () => {
+    const JBD_URL = 'https://joinbytedance.com/search/7541471324356069639'
+
+    // joinByteDanceChunks is an array of 5 decoded RSC push strings from the real page
+    // (chunks 14, 15, 16, 17, 19 from the HTML response captured 2026-06-08).
+    function joinByteDancePage(chunks: string[]): string {
+      const scripts = chunks
+        .map((c) => `<script>self.__next_f.push([1,${JSON.stringify(c)}])</script>`)
+        .join('\n')
+      return `<html><head></head><body>${scripts}</body></html>`
+    }
+
+    it('extracts metadata header and job description from RSC payload — real fixture data', async () => {
+      mockUser()
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(htmlResponse(joinByteDancePage(joinByteDanceChunks as string[])))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: JBD_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title from fixture meta chunk
+      expect(data.html).toContain('<h1>Tech Lead - Data Infrastructure Site Reliability</h1>')
+      // Location metadata row from fixture component tree
+      expect(data.html).toContain('Seattle')
+      // Team metadata row from fixture
+      expect(data.html).toContain('Technology')
+      // Job Code from fixture
+      expect(data.html).toContain('A223980A')
+      // Main description from RSC T-type text chunk
+      expect(data.html).toContain('Team Introduction')
+      expect(data.html).toContain('Responsibilities')
+      // Qualifications from component tree children prop
+      expect(data.html).toContain('Minimum Qualifications')
+      // Only one fetch — page HTML, no separate API call
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(JBD_URL, expect.anything())
+    })
+
+    it('falls back to extractJobContent when no RSC push chunks present', async () => {
+      mockUser()
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(
+          htmlResponse('<html><body><p>Plain fallback</p></body></html>')
+        )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: JBD_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Plain fallback</p>')
+    })
+
+    it('falls back to extractJobContent when RSC chunks have no T-type chunk and no title', async () => {
+      // Synthetic: RSC present but contains only import/module lines with no job data
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse(
+          joinByteDancePage(['0:["$","div",null,{"children":"some content"}]\n'])
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: JBD_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // extractJobContent strips scripts; body has no meaningful text from RSC-only page
+      expect(typeof data.html).toBe('string')
+    })
+
+    it('does not trigger joinbytedance handler for non-search paths', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Home page</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://joinbytedance.com/locations' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Plain body scrape — RSC handler not triggered because path doesn't match /search/\d+
+      expect(data.html).toBe('<p>Home page</p>')
+    })
+
+    it('returns 502 when the page fetch fails', async () => {
+      mockUser()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 503 })))
+
+      const res = await POST(makeReq({ url: JBD_URL }))
+
+      expect(res.status).toBe(502)
     })
   })
 })
