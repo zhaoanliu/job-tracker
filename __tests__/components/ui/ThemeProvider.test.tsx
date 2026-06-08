@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { act, render, renderHook, screen } from '@testing-library/react'
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import {
   THEME_INIT_SCRIPT,
   THEME_STORAGE_KEY,
@@ -145,18 +145,18 @@ describe('route announcer fix', () => {
     const { host, el } = makeAnnouncer()
     document.body.appendChild(host)
     render(<ThemeProvider><span /></ThemeProvider>)
-    expect(el.style.width).toBe('0')
-    expect(el.style.height).toBe('0')
-    expect(el.style.margin).toBe('0')
+    expect(el.style.width).toBe('0px')
+    expect(el.style.height).toBe('0px')
+    expect(el.style.margin).toBe('0px')
     document.body.removeChild(host)
   })
 
   it('applies the fix via MutationObserver when the announcer is added after mount [AC-622-1]', async () => {
     render(<ThemeProvider><span /></ThemeProvider>)
     const { host, el } = makeAnnouncer()
-    await act(async () => { document.body.appendChild(host) })
-    expect(el.style.width).toBe('0')
-    expect(el.style.height).toBe('0')
+    document.body.appendChild(host)
+    await waitFor(() => expect(el.style.width).toBe('0px'))
+    expect(el.style.height).toBe('0px')
     document.body.removeChild(host)
   })
 })
