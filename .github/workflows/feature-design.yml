@@ -218,7 +218,7 @@ jobs:
           Do NOT include anything that depends on live external state. If an item requires a real URL, a real email,
           or a live third-party API response to verify, it belongs in Human verification steps instead.
           At least one item must be a user-visible UI interaction.
-          IMPORTANT: number each item with its 1-based position so developers can match it to its [AC-{issue}-N] test tag at a glance:
+          IMPORTANT: number each item with its 1-based position using **N.** format — the workflow will automatically replace these with the actual [AC-{issue}-N] tags after the issue is created:
           - [ ] **1.** First criterion
           - [ ] **2.** Second criterion
 
@@ -319,6 +319,9 @@ jobs:
             --body-file /tmp/design_body.txt \
             --label "user review required,implementation")
           DESIGN_NUMBER=$(echo "$DESIGN_URL" | grep -oE '[0-9]+$')
+
+          # Replace **N.** placeholders with actual [AC-{DESIGN_NUMBER}-N] tags, only within the AC section
+          python3 -c "import re; dn='${DESIGN_NUMBER}'; n=[0]; body=open('/tmp/design_body.txt').read(); ac_re=re.compile(r'(## Acceptance criteria\n)(.*?)(\n## |\n<!--|$)', re.DOTALL); item_re=re.compile(r'^- (\[[ x]\]) \*\*\d+\.\*\* (.+)$', re.MULTILINE); f=lambda m: '- '+m.group(1)+' [AC-'+dn+'-'+str(n.__setitem__(0,n[0]+1) or n[0])+'] '+m.group(2); rs=lambda m: m.group(1)+item_re.sub(f, m.group(2))+m.group(3); open('/tmp/design_body_tagged.txt','w').write(ac_re.sub(rs, body))" && gh issue edit "$DESIGN_NUMBER" --body-file /tmp/design_body_tagged.txt
 
           {
             echo "Design proposal ready for review: ${DESIGN_URL}"

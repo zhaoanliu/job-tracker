@@ -127,7 +127,7 @@ The three steps in order:
 
 **When implementing a feature from a design issue (one with `<!-- implementation-plan-json -->`), every acceptance criterion must have at least one tagged unit test.** Tag each covering test's `it()` description with `[AC-{issue}-{N}]` where `{issue}` is the design issue number and `{N}` is the 1-based position of that criterion in the "## Acceptance criteria" list.
 
-Design issues number each AC item explicitly (e.g. `- [ ] **1.** Description`) so the mapping is unambiguous. Tag the covering test with the matching number:
+Design issues show the exact tag on each AC item (e.g. `- [ ] [AC-88-1] Description`) — copy it directly into the `it()` description:
 ```ts
 it('saves application to database [AC-88-1]', () => { ... })
 it('shows error toast on network failure [AC-88-2]', () => { ... })
