@@ -2551,7 +2551,7 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toBe('<p>Regular</p>')
     })
 
-    it('returns 502 when page fetch fails for lifeattiktok URL', async () => {
+    it('returns 502 when page fetch fails for lifeattiktok URL [AC-627-6]', async () => {
       mockUser()
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 403 })))
 
