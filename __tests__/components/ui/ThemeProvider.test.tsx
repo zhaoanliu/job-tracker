@@ -128,6 +128,39 @@ describe('useTheme outside provider', () => {
   })
 })
 
+describe('route announcer fix', () => {
+  function makeAnnouncer() {
+    const host = document.createElement('next-route-announcer')
+    const shadow = host.attachShadow({ mode: 'open' })
+    const el = document.createElement('div')
+    el.id = '__next-route-announcer__'
+    el.style.width = '1px'
+    el.style.height = '1px'
+    el.style.margin = '-1px'
+    shadow.appendChild(el)
+    return { host, el }
+  }
+
+  it('sets width/height/margin to 0 on the shadow-DOM announcer when already present [AC-622-1]', () => {
+    const { host, el } = makeAnnouncer()
+    document.body.appendChild(host)
+    render(<ThemeProvider><span /></ThemeProvider>)
+    expect(el.style.width).toBe('0')
+    expect(el.style.height).toBe('0')
+    expect(el.style.margin).toBe('0')
+    document.body.removeChild(host)
+  })
+
+  it('applies the fix via MutationObserver when the announcer is added after mount [AC-622-1]', async () => {
+    render(<ThemeProvider><span /></ThemeProvider>)
+    const { host, el } = makeAnnouncer()
+    await act(async () => { document.body.appendChild(host) })
+    expect(el.style.width).toBe('0')
+    expect(el.style.height).toBe('0')
+    document.body.removeChild(host)
+  })
+})
+
 describe('THEME_INIT_SCRIPT', () => {
   it('includes the storage key', () => {
     expect(THEME_INIT_SCRIPT).toContain(THEME_STORAGE_KEY)
