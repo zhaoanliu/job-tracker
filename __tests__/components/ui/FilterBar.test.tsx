@@ -287,7 +287,12 @@ describe('FilterBar', () => {
     expect(screen.getByText('Applied 2 · Interviewing 1')).toBeInTheDocument()
   })
 
-  it('renders a chip for a custom location not in APPLICATION_LOCATIONS', () => {
+  it('renders a chip for Kirkland WA as a predefined location [AC-604-7]', () => {
+    render(<FilterBar filters={emptyFilters} sortBy="order" onFilterChange={vi.fn()} onSortChange={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Kirkland WA' })).toBeInTheDocument()
+  })
+
+  it('renders a chip for a custom location not in APPLICATION_LOCATIONS [AC-604-8]', () => {
     render(
       <FilterBar
         filters={emptyFilters}
@@ -344,7 +349,7 @@ describe('FilterBar', () => {
     expect(labels).not.toContain('null')
   })
 
-  it('calls onFilterChange with the custom location toggled when its chip is clicked', async () => {
+  it('calls onFilterChange with the custom location toggled when its chip is clicked [AC-604-9]', async () => {
     const onFilterChange = vi.fn()
     render(
       <FilterBar
