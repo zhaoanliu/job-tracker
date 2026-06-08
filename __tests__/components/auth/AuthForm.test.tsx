@@ -7,6 +7,7 @@ const mockAuth = {
   signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
   signUp: vi.fn().mockResolvedValue({ error: null }),
   signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+  signInWithOAuth: vi.fn().mockResolvedValue({ data: {}, error: null }),
   resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
   getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
   signOut: vi.fn().mockResolvedValue({}),
@@ -23,6 +24,7 @@ beforeEach(() => {
   mockAuth.signInWithPassword.mockResolvedValue({ error: null })
   mockAuth.signUp.mockResolvedValue({ error: null })
   mockAuth.signInWithOtp.mockResolvedValue({ error: null })
+  mockAuth.signInWithOAuth.mockResolvedValue({ data: {}, error: null })
 })
 
 describe('AuthForm — rendering', () => {
@@ -228,5 +230,41 @@ describe('AuthForm — forgot password', () => {
     await userEvent.click(screen.getByRole('button', { name: '← Back to sign in' }))
     expect(screen.getByRole('button', { name: 'Forgot password?' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '← Back to sign in' })).not.toBeInTheDocument()
+  })
+})
+
+describe('AuthForm — Google OAuth', () => {
+  it('shows Continue with Google button in default sign-in mode [AC-629-1]', () => {
+    render(<AuthForm />)
+    expect(screen.getByRole('button', { name: /Continue with Google/i })).toBeInTheDocument()
+  })
+
+  it('shows Continue with Google button after switching to Sign Up tab [AC-629-2]', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Sign Up' }))
+    expect(screen.getByRole('button', { name: /Continue with Google/i })).toBeInTheDocument()
+  })
+
+  it('shows Continue with Google button after switching to Magic Link tab [AC-629-3]', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Magic Link' }))
+    expect(screen.getByRole('button', { name: /Continue with Google/i })).toBeInTheDocument()
+  })
+
+  it('hides Continue with Google button in reset mode [AC-629-4]', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    expect(screen.queryByRole('button', { name: /Continue with Google/i })).not.toBeInTheDocument()
+  })
+
+  it('calls signInWithOAuth with google provider and /auth/callback redirectTo [AC-629-5]', async () => {
+    render(<AuthForm />)
+    await userEvent.click(screen.getByRole('button', { name: /Continue with Google/i }))
+    await waitFor(() =>
+      expect(mockAuth.signInWithOAuth).toHaveBeenCalledWith({
+        provider: 'google',
+        options: { redirectTo: expect.stringContaining('/auth/callback') },
+      })
+    )
   })
 })

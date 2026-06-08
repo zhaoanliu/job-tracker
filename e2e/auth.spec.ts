@@ -55,3 +55,8 @@ test('shows the user email in the nav after login', async ({ page }) => {
   await loginViaUI(page)
   await expect(page.locator('nav').getByText(TEST_EMAIL)).toBeVisible()
 })
+
+test('shows Continue with Google button on the login page', async ({ page }) => {
+  await page.goto('/login')
+  await expect(page.getByRole('button', { name: /Continue with Google/i })).toBeVisible()
+})
