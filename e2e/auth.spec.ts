@@ -28,7 +28,7 @@ test('shows an error for invalid credentials', async ({ page }) => {
   await page.fill('input[type="email"]', 'nobody@example.com')
   await page.fill('input[type="password"]', 'wrongpassword')
   await page.click('button[type="submit"]')
-  await expect(page.locator('text=Invalid login credentials').or(page.locator('[role="alert"]'))).toBeVisible({ timeout: 8_000 })
+  await expect(page.getByText('Invalid login credentials')).toBeVisible({ timeout: 8_000 })
 })
 
 test('logs in and reaches dashboard', async ({ page }) => {
