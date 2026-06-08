@@ -1,7 +1,9 @@
 import { withSentryConfig } from '@sentry/nextjs'
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {}
+const nextConfig = {
+  serverExternalPackages: ['@sparticuz/chromium'],
+}
 
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,

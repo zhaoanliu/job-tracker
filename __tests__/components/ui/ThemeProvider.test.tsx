@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { act, render, renderHook, screen } from '@testing-library/react'
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import {
   THEME_INIT_SCRIPT,
   THEME_STORAGE_KEY,
@@ -125,6 +125,39 @@ describe('useTheme outside provider', () => {
     expect(result.current.theme).toBe('light')
     expect(() => result.current.setTheme('dark')).not.toThrow()
     expect(() => result.current.toggleTheme()).not.toThrow()
+  })
+})
+
+describe('route announcer fix', () => {
+  function makeAnnouncer() {
+    const host = document.createElement('next-route-announcer')
+    const shadow = host.attachShadow({ mode: 'open' })
+    const el = document.createElement('div')
+    el.id = '__next-route-announcer__'
+    el.style.width = '1px'
+    el.style.height = '1px'
+    el.style.margin = '-1px'
+    shadow.appendChild(el)
+    return { host, el }
+  }
+
+  it('sets width/height/margin to 0 on the shadow-DOM announcer when already present [AC-622-1]', () => {
+    const { host, el } = makeAnnouncer()
+    document.body.appendChild(host)
+    render(<ThemeProvider><span /></ThemeProvider>)
+    expect(el.style.width).toBe('0px')
+    expect(el.style.height).toBe('0px')
+    expect(el.style.margin).toBe('0px')
+    document.body.removeChild(host)
+  })
+
+  it('applies the fix via MutationObserver when the announcer is added after mount [AC-622-1]', async () => {
+    render(<ThemeProvider><span /></ThemeProvider>)
+    const { host, el } = makeAnnouncer()
+    document.body.appendChild(host)
+    await waitFor(() => expect(el.style.width).toBe('0px'))
+    expect(el.style.height).toBe('0px')
+    document.body.removeChild(host)
   })
 })
 

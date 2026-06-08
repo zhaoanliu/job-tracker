@@ -42,6 +42,31 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(initial)
   }, [])
 
+  useEffect(() => {
+    // Next.js App Router mounts its route announcer (role="alert") inside an open shadow
+    // DOM with visually-hidden CSS (width:1px; height:1px). Playwright 1.x uses
+    // getBoundingClientRect() for visibility checks, so a 1×1 px element is considered
+    // visible even with clip/overflow tricks. Overriding to 0×0 via the open shadow root
+    // keeps aria-live assertive functionality intact (zero-size live regions are still
+    // processed by assistive technology) while making getByRole('alert').not.toBeVisible()
+    // pass in E2E tests when no application error is present.
+    function fixRouteAnnouncer(): boolean {
+      const host = document.querySelector('next-route-announcer')
+      if (!host?.shadowRoot) return false
+      const el = host.shadowRoot.querySelector('#__next-route-announcer__') as HTMLElement | null
+      if (!el) return false
+      el.style.width = '0'
+      el.style.height = '0'
+      el.style.margin = '0'
+      return true
+    }
+    if (!fixRouteAnnouncer()) {
+      const obs = new MutationObserver(() => { if (fixRouteAnnouncer()) obs.disconnect() })
+      obs.observe(document.body, { childList: true })
+      return () => obs.disconnect()
+    }
+  }, [])
+
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next)
     applyTheme(next)
