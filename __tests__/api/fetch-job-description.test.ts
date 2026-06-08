@@ -31,9 +31,21 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
 
+vi.mock('playwright-core', () => ({
+  chromium: { launch: vi.fn() },
+}))
+
+vi.mock('@sparticuz/chromium', () => ({
+  default: {
+    executablePath: vi.fn().mockResolvedValue('/fake/chromium-binary'),
+    args: ['--no-sandbox'],
+  },
+}))
+
 import { POST } from '@/app/api/fetch-job-description/route'
 import { extractJobContent } from '@/lib/extract-job-content'
 import { createClient } from '@/lib/supabase/server'
+import { chromium } from 'playwright-core'
 
 function makeReq(body: unknown) {
   return {
@@ -2351,6 +2363,73 @@ describe('POST /api/fetch-job-description', () => {
       expect(fetchMock).toHaveBeenCalledWith(SOFI_GH_API, expect.anything())
       expect(data.html).toContain('Principal Engineer, Digital Identity')
       expect(data.html).not.toContain('Lead Software Development Engineer - Infrastructure')
+    })
+  })
+
+  describe('TikTok USDS (careers.tiktokusds.com)', () => {
+    const TIKTOK_URL =
+      'https://careers.tiktokusds.com/usds/position/7629863744949815557/detail'
+
+    beforeEach(() => {
+      ;(chromium.launch as ReturnType<typeof vi.fn>).mockReset()
+    })
+
+    it('returns 200 with extracted content from headless browser [AC-622-1] [AC-622-2]', async () => {
+      mockUser()
+      const fakeContent =
+        'Engineering Tech Lead, Data Platform – USDS\nSeattle\nResponsibilities:\nBuild and operate large-scale data systems.'
+      const fakePage = {
+        goto: vi.fn().mockResolvedValue(null),
+        evaluate: vi.fn().mockResolvedValue(fakeContent),
+      }
+      const fakeBrowser = {
+        newPage: vi.fn().mockResolvedValue(fakePage),
+        close: vi.fn().mockResolvedValue(null),
+      }
+      ;(chromium.launch as ReturnType<typeof vi.fn>).mockResolvedValue(fakeBrowser)
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: TIKTOK_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe(fakeContent)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('falls through to plain-fetch pipeline when launch fails', async () => {
+      mockUser()
+      ;(chromium.launch as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Chromium launch failed')
+      )
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Fallback content</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: TIKTOK_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Fallback content</p>')
+      expect(fetchMock).toHaveBeenCalledWith(TIKTOK_URL, expect.anything())
+    })
+
+    it('does not trigger headless path for non-USDS URL [AC-622-3]', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Greenhouse content</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: 'https://boards.greenhouse.io/acme/jobs/123' })
+      )
+
+      expect(res.status).toBe(200)
+      expect(chromium.launch as ReturnType<typeof vi.fn>).not.toHaveBeenCalled()
+      expect(fetchMock).toHaveBeenCalled()
     })
   })
 })

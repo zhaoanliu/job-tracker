@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractJobContent, decodeHtmlEntities } from '@/lib/extract-job-content'
 import { getAuthenticatedUser } from '@/lib/auth'
+import chromiumBin from '@sparticuz/chromium'
+import { chromium } from 'playwright-core'
 
 const MAX_BYTES = 500_000
 const TIMEOUT_MS = 10_000
@@ -698,6 +700,36 @@ export async function POST(req: NextRequest) {
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
   try {
+    // TikTok USDS careers site — JS-rendered SPA gated by ByteDance Stargate API.
+    // Plain server-side fetches return only ~11 bytes of visible text; Stargate requires
+    // a client-side CSRF token that cannot be replicated server-side. Headless Chromium
+    // executes the SPA JavaScript naturally, allowing Stargate API calls to complete.
+    if (parsed.hostname === 'careers.tiktokusds.com') {
+      try {
+        const executablePath = await chromiumBin.executablePath()
+        const browser = await chromium.launch({
+          args: chromiumBin.args,
+          executablePath,
+          headless: true,
+        })
+        try {
+          const page = await browser.newPage()
+          await page.goto(rawUrl, { waitUntil: 'networkidle' })
+          const content: string = await page.evaluate(() => {
+            const el = document.querySelector('main') ?? document.body
+            return el?.innerText ?? ''
+          })
+          if (content.trim()) {
+            return NextResponse.json({ html: content.trim() })
+          }
+        } finally {
+          await browser.close().catch(() => {})
+        }
+      } catch {
+        // launch or navigation failure — fall through to existing pipeline
+      }
+    }
+
     // Eightfold.ai ATS (Microsoft, Nvidia, Uber, etc.) — /careers/job/{id} URLs expose a
     // JSON API that returns the formatted job_description HTML directly, avoiding JS rendering.
     const eightfoldMatch = parsed.pathname.match(/\/careers\/job\/(\d+)$/)
