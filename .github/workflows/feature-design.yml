@@ -218,6 +218,9 @@ jobs:
           Do NOT include anything that depends on live external state. If an item requires a real URL, a real email,
           or a live third-party API response to verify, it belongs in Human verification steps instead.
           At least one item must be a user-visible UI interaction.
+          IMPORTANT: number each item with its 1-based position so developers can match it to its [AC-{issue}-N] test tag at a glance:
+          - [ ] **1.** First criterion
+          - [ ] **2.** Second criterion
 
           ## Human verification steps
           Checklist for the PR reviewer to verify manually before merging.
