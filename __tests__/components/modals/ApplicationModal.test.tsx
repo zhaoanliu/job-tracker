@@ -708,21 +708,21 @@ describe('ApplicationModal — Location hybrid control', () => {
     expect(screen.queryByLabelText('Custom location')).not.toBeInTheDocument()
   })
 
-  it('renders the Other... option in the location dropdown', () => {
+  it('renders the Other... option in the location dropdown [AC-604-2]', () => {
     render(<ApplicationModal {...defaultProps} />)
     const select = screen.getByRole('combobox', { name: 'Location' })
     const options = Array.from((select as HTMLSelectElement).options).map(o => o.text)
     expect(options).toContain('Other...')
   })
 
-  it('shows the custom text input when Other... is selected', async () => {
+  it('shows the custom text input when Other... is selected [AC-604-3]', async () => {
     render(<ApplicationModal {...defaultProps} />)
     const select = screen.getByRole('combobox', { name: 'Location' })
     await userEvent.selectOptions(select, '__other__')
     expect(screen.getByLabelText('Custom location')).toBeInTheDocument()
   })
 
-  it('hides the custom text input when a predefined location is selected after Other...', async () => {
+  it('hides the custom text input when a predefined location is selected after Other... [AC-604-6]', async () => {
     render(<ApplicationModal {...defaultProps} />)
     const select = screen.getByRole('combobox', { name: 'Location' })
     await userEvent.selectOptions(select, '__other__')
@@ -731,7 +731,7 @@ describe('ApplicationModal — Location hybrid control', () => {
     expect(screen.queryByLabelText('Custom location')).not.toBeInTheDocument()
   })
 
-  it('saves the typed custom value, not "Other", when Other... is selected', async () => {
+  it('saves the typed custom value, not "Other", when Other... is selected [AC-604-4]', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     render(<ApplicationModal {...defaultProps} onSave={onSave} />)
     await userEvent.type(screen.getByPlaceholderText('e.g. Acme Corp'), 'New Co')
@@ -744,7 +744,7 @@ describe('ApplicationModal — Location hybrid control', () => {
     ))
   })
 
-  it('pre-fills Other... and the text input when editing an app with a custom location', () => {
+  it('pre-fills Other... and the text input when editing an app with a custom location [AC-604-5]', () => {
     const appWithCustomLocation: Application = { ...existingApp, location: 'Renton WA' }
     render(<ApplicationModal {...defaultProps} application={appWithCustomLocation} />)
     const select = screen.getByRole('combobox', { name: 'Location' }) as HTMLSelectElement
@@ -760,7 +760,7 @@ describe('ApplicationModal — Location hybrid control', () => {
     expect(screen.queryByLabelText('Custom location')).not.toBeInTheDocument()
   })
 
-  it('saves the predefined location value when a standard location is selected', async () => {
+  it('saves the predefined location value when a standard location is selected [AC-604-1]', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined)
     render(<ApplicationModal {...defaultProps} onSave={onSave} />)
     await userEvent.type(screen.getByPlaceholderText('e.g. Acme Corp'), 'New Co')

@@ -85,6 +85,10 @@ describe('enum constant arrays', () => {
     expect(APPLICATION_LOCATIONS).toContain('Kirkland WA')
   })
 
+  it('APPLICATION_LOCATIONS includes Redmond WA (regression) [AC-604-10]', () => {
+    expect(APPLICATION_LOCATIONS).toContain('Redmond WA')
+  })
+
   it('APPLICATION_WORKMODES covers on-site, hybrid, and remote', () => {
     expect(APPLICATION_WORKMODES).toEqual(['On-site', 'Hybrid', 'Remote'])
   })
