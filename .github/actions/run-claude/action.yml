@@ -45,8 +45,10 @@ runs:
             read -ra EXTRA <<< "$EXTRA_FLAGS"
             CLAUDE_ARGS+=("${EXTRA[@]}")
           fi
+          set +e +o pipefail
           claude "${CLAUDE_ARGS[@]}" 2>&1 | tee "$OUTPUT_FILE"
           CLAUDE_EXIT=${PIPESTATUS[0]}
+          set -e -o pipefail
           if [[ $CLAUDE_EXIT -eq 0 ]]; then break; fi
           if grep -q "529\|Overloaded\|at capacity" "$OUTPUT_FILE" && [[ $attempt -lt $MAX_ATTEMPTS ]]; then
             echo "API overloaded (attempt $attempt/$MAX_ATTEMPTS), retrying in ${DELAY}s..."

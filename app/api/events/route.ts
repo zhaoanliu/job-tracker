@@ -9,7 +9,8 @@ export async function POST(req: NextRequest) {
   }
   const supabase = createClient()
 
-  const body = await req.json()
+  const body = await req.json().catch(() => null) as { event_name?: string; metadata?: unknown } | null
+  if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   const eventName = (body.event_name ?? '').trim().slice(0, 100)
   if (!eventName) {
     return NextResponse.json({ error: 'event_name is required' }, { status: 400 })

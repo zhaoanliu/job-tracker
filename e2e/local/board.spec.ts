@@ -135,18 +135,30 @@ test('stats bar total increments after adding an application', async ({ page }) 
 test('search filters cards by company name', async ({ page }) => {
   await loginViaUI(page)
 
-  // Add two applications
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321'
+  const isInsert = (resp: import('@playwright/test').Response) =>
+    resp.url().includes(`${supabaseUrl}/rest/v1/applications`) &&
+    resp.request().method() === 'POST'
+
+  // Add two applications — wait for the Supabase REST response to avoid timing out
+  // if the local DB is slow after several sequential tests
   await page.locator(addToFuture).click()
   await expect(page.locator('text=New Application')).toBeVisible()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Alpha Inc')
-  await page.locator('button[type="submit"]').click()
-  await expect(page.locator('text=Alpha Inc')).toBeVisible({ timeout: 8_000 })
+  await Promise.all([
+    page.waitForResponse(isInsert, { timeout: 15_000 }),
+    page.locator('button[type="submit"]').click(),
+  ])
+  await expect(page.locator('text=Alpha Inc')).toBeVisible()
 
   await page.locator(addToFuture).click()
   await expect(page.locator('text=New Application')).toBeVisible()
   await page.fill('input[placeholder="e.g. Acme Corp"]', 'Beta LLC')
-  await page.locator('button[type="submit"]').click()
-  await expect(page.locator('text=Beta LLC')).toBeVisible({ timeout: 8_000 })
+  await Promise.all([
+    page.waitForResponse(isInsert, { timeout: 15_000 }),
+    page.locator('button[type="submit"]').click(),
+  ])
+  await expect(page.locator('text=Beta LLC')).toBeVisible()
 
   // Search for "Alpha" — Beta LLC should disappear
   await page.fill('input[placeholder="Search company…"]', 'Alpha')
