@@ -665,6 +665,62 @@ function buildGoogleCareersMetaFallback(html: string, urlJobId: string): string 
   return `${header}<table>${tableRows}</table><hr><p>${description}</p>`
 }
 
+// joinbytedance.com — ByteDance global careers site. Next.js App Router SSR page.
+// Job data is embedded in RSC payload via self.__next_f.push([1, "..."]) script tags.
+// No JSON-LD, no __NEXT_DATA__, no public API. The RSC text contains:
+//   - Title in meta chunk: ["$","title","N",{"children":"..."}]
+//   - Metadata rows (Location, Team, Employment Type, Job Code) in component tree
+//   - Main description in a T{hex_len}, RSC text chunk (plain text)
+//   - Qualifications in "children":"Minimum Qualifications\n..." component prop
+function extractJoinByteDanceFromPage(html: string): string | null {
+  const rscPushRegex = /self\.__next_f\.push\(\[1,([\s\S]*?)\]\)<\/script>/g
+  let m: RegExpExecArray | null
+  const parts: string[] = []
+  while ((m = rscPushRegex.exec(html)) !== null) {
+    try {
+      const v: unknown = JSON.parse(m[1])
+      if (typeof v === 'string') parts.push(v)
+    } catch {}
+  }
+  const rsc = parts.join('')
+  if (!rsc) return null
+
+  const titleMatch = rsc.match(/\["\$","title","[^"]*",\{"children":"([^"]+)"\}\]/)
+  const title = titleMatch ? titleMatch[1] : ''
+
+  const rows: Array<[string, string]> = []
+  for (const label of ['Location', 'Team', 'Employment Type', 'Job Code']) {
+    const escLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re = new RegExp(`"children":\\["${escLabel}",":\\"].*?"children":"([^"]+)"`)
+    const match = rsc.match(re)
+    if (match) rows.push([label, match[1]])
+  }
+
+  // RSC T-type text chunk: \n{id}:T{hex_len},{content}
+  // The hex_len byte count may include the next chunk's header bytes at the end;
+  // strip trailing {id}:T if present (streaming artefact from Next.js RSC serialisation).
+  let mainDesc = ''
+  const tChunkMatch = rsc.match(/\n\w+:T([0-9a-f]+),/)
+  if (tChunkMatch) {
+    const hexLen = parseInt(tChunkMatch[1], 16)
+    const contentStart = (tChunkMatch.index ?? 0) + tChunkMatch[0].length
+    let content = rsc.slice(contentStart, contentStart + hexLen)
+    content = content.replace(/[0-9a-f]+:T$/, '').trim()
+    mainDesc = content
+  }
+
+  // Qualifications section (Minimum + Preferred) stored as a component tree children string
+  let qualText = ''
+  const qualMatch = rsc.match(/"children":"(Minimum Qualifications[^"]+)"/)
+  if (qualMatch) qualText = qualMatch[1]
+
+  if (!title && !mainDesc) return null
+
+  const header = buildMetaTable(title, rows)
+  const descParts = [mainDesc, qualText].filter(Boolean).join('\n\n')
+  return header + descParts
+}
+
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser()
   if (!user) {
@@ -695,6 +751,9 @@ export async function POST(req: NextRequest) {
     (parsed.hostname === 'www.google.com' &&
       /^\/about\/careers\/applications\/jobs\/results\/\d+/.test(parsed.pathname)) ||
     (parsed.hostname === 'careers.google.com' && /^\/jobs\/results\/\d+/.test(parsed.pathname))
+
+  const isJoinByteDance =
+    parsed.hostname === 'joinbytedance.com' && /^\/search\/\d+$/.test(parsed.pathname)
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -941,6 +1000,14 @@ export async function POST(req: NextRequest) {
       const metaHtml = buildGoogleCareersMetaFallback(text, urlJobId)
       if (metaHtml !== null) return NextResponse.json({ html: metaHtml })
       // No usable data — fall through to extractJobContent
+    }
+
+    // joinbytedance.com — Next.js App Router SSR site. Job data is in RSC payload
+    // (self.__next_f.push script tags), not JSON-LD or __NEXT_DATA__.
+    if (isJoinByteDance) {
+      const jbdHtml = extractJoinByteDanceFromPage(raw)
+      if (jbdHtml !== null) return NextResponse.json({ html: jbdHtml })
+      // No usable RSC content — fall through to extractJobContent
     }
 
     // Greenhouse ATS embedded in third-party pages (e.g. Scale.com) — page HTML
