@@ -41,6 +41,13 @@ describe('POST /api/events — auth', () => {
 })
 
 describe('POST /api/events — validation', () => {
+  it('returns 400 when body is not valid JSON', async () => {
+    mockUser()
+    const req = { json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected end of JSON input')) } as any
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+  })
+
   it('returns 400 when event_name is missing', async () => {
     mockUser()
     const res = await POST(makeReq({}))
