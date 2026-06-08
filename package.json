@@ -41,7 +41,7 @@
     "@vitest/coverage-v8": "^4.0.0",
     "@tailwindcss/postcss": "^4.0.0",
     "eslint": "^8",
-    "eslint-config-next": "15.5.16",
+    "eslint-config-next": "15.5.18",
     "jsdom": "^29.0.0",
     "postcss": "^8",
     "supabase": "^2.98.2",
