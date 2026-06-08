@@ -297,3 +297,41 @@ test('dragging a card to another column persists the stage change', async ({ pag
   await expect(futureColumn.locator('text=Drag Me Corp')).not.toBeVisible({ timeout: 8_000 })
   await expect(page.locator('text=Drag Me Corp')).toBeVisible()
 })
+
+// ─── URL import (lifeattiktok.com / joinbytedance.com) ────────────────────────
+
+test('URL import fills Job Description with title and description from lifeattiktok-style response [AC-627-6]', async ({ page }) => {
+  await page.route('**/api/fetch-job-description', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        html: '<h1>TikTok Backend Engineer</h1><table><tr><th>Location</th><td>Seattle</td></tr></table><hr><div class="editor-content"><p>Build great things at TikTok.</p></div>',
+      }),
+    })
+  })
+
+  await loginViaUI(page)
+  await page.locator(addToFuture).click()
+  await expect(page.locator('text=New Application')).toBeVisible()
+
+  // Fill required company field
+  await page.fill('input[placeholder="e.g. Acme Corp"]', 'TikTok Import Test')
+
+  // Enter job posting URL — the import button appears once a URL is present
+  await page.fill('input[placeholder="https://..."]', 'https://lifeattiktok.com/search/7602378131098831157')
+
+  // Click the import button
+  await page.locator('[aria-label="Import job description from URL"]').click()
+
+  // Modal auto-switches to Job Description tab after a successful import
+  await expect(page.locator('[role="textbox"][aria-label="Job description editor"]')).toBeVisible({ timeout: 8_000 })
+
+  // Switch to Preview mode to see the rendered HTML
+  await page.locator('button:has-text("Preview")').click()
+
+  // Job title (from <h1>) and description (from body) must both appear in the preview
+  const preview = page.locator('.jd-preview').first()
+  await expect(preview).toContainText('TikTok Backend Engineer')
+  await expect(preview).toContainText('Build great things at TikTok.')
+})
