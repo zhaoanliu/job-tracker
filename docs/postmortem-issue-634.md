@@ -32,13 +32,35 @@ A static `import * as Sentry from '@sentry/nextjs'` in `app/global-error.tsx` ha
 
 ## Root Cause
 
-### Why the import was broken
+### Why the import was broken — cross-chunk module reference
 
-Next.js compiles `global-error.tsx` into its own **isolated webpack chunk**, separate from the main app bundle. This isolation is intentional — the crash handler must work even when the rest of the app is broken. Inside an isolated chunk, webpack can only include modules that are explicitly bundled into that chunk. `@sentry/nextjs` has many transitive dependencies that webpack could not resolve within the isolation boundary, so `modules[20873]` (the Sentry module ID) was registered as `undefined`.
+Next.js compiles `global-error.tsx` into its own webpack chunk. The broken import caused that chunk to require Sentry's `captureException` as **module `21123`**, loaded from shared chunks `[850, 441, 826, 358]`. Sentry is NOT bundled inline into the global-error chunk — it references a module ID in the shared app bundle.
 
-### Why it only started crashing after the upgrade
+Static analysis of the production build confirms:
 
-The broken import had been in the code since 2026-05-17 (the original Sentry integration). Older Next.js compiled or loaded `global-error.tsx` in a way that didn't trigger the module resolution failure — either the isolation boundary was less strict, or the chunk loading order was different. The v15.5.18 upgrade changed this behaviour, making the failure immediate.
+| State | Requires modules from shared chunks |
+|---|---|
+| Broken (`import * as Sentry`) | `95155` (React), `21123` **(Sentry)**, `12115` (useEffect) |
+| Fixed (`console.error`) | `95155` (React), `12115` (useEffect) |
+
+### Why it only crashed for users mid-session after the upgrade
+
+This is a **stale cache / deployment mismatch** problem, not a webpack compilation failure. The build succeeds and the code runs fine in a fresh page load. The crash only occurs when:
+
+1. A user has the old app loaded in their browser (old chunk hashes cached)
+2. A new deployment goes out (new chunk hashes, new module IDs in shared chunks)
+3. The user navigates — Next.js detects the new deployment and fetches the **new** global-error chunk
+4. The new global-error chunk references module `21123` which it expects in the shared chunks
+5. But the shared chunks in the browser cache are the **old** versions with different module ID mappings
+6. `modules[21123]` → `undefined` → `TypeError: Cannot read properties of undefined (reading 'call')`
+
+This is why the 12-hour session was relevant: the user loaded the dashboard before the upgrade (old chunks cached), the v15.5.18 deployment happened during their session, and the mismatch appeared only when they navigated away.
+
+A fresh page load after the deployment would work fine — all chunks are loaded consistently from the new version. Only mid-session navigations after a deployment are affected.
+
+### Why this cannot be reproduced in local or CI tests
+
+Any test environment starts clean — all chunks are from the same build, so module IDs are consistent. Reproducing the crash requires loading old cached shared chunks alongside a new global-error chunk, which only occurs in production for users who were mid-session during a deployment. No `npm run build` or `vercel build` test can create that state.
 
 ### Why it looked like a network error
 
