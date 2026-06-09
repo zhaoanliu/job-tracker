@@ -28,8 +28,12 @@ export async function middleware(request: NextRequest) {
   // server and validates the JWT, preventing token-smuggling attacks.
   let user = null
   try {
-    const { data } = await supabase.auth.getUser()
-    user = data.user
+    const { data, error } = await supabase.auth.getUser()
+    if (error) {
+      await supabase.auth.signOut({ scope: 'local' })
+    } else {
+      user = data.user
+    }
   } catch {
     user = null
   }
@@ -40,7 +44,11 @@ export async function middleware(request: NextRequest) {
   if (!user && pathname.startsWith('/dashboard')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    const redirectResponse = NextResponse.redirect(url)
+    supabaseResponse.cookies.getAll().forEach(cookie =>
+      redirectResponse.cookies.set(cookie.name, cookie.value, cookie)
+    )
+    return redirectResponse
   }
 
   // Redirect authenticated users away from the login page
