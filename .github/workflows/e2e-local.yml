@@ -67,7 +67,7 @@ jobs:
           retention-days: 7
 
       - name: Trigger CI auto-fix on failure
-        if: failure() && github.event_name != 'repository_dispatch'
+        if: failure() && github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
