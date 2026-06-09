@@ -877,6 +877,18 @@ export async function POST(req: NextRequest) {
       // API unavailable — fall through to HTML scraping
     }
 
+    // Pinterest careers (pinterestcareers.com) — Greenhouse-backed but Cloudflare blocks
+    // server-side HTML fetches (403). Board slug is hardcoded to "pinterest"; job ID from ?gh_jid=.
+    const pinterestGhJid =
+      (parsed.hostname === 'www.pinterestcareers.com' || parsed.hostname === 'pinterestcareers.com')
+        ? parsed.searchParams.get('gh_jid')
+        : null
+    if (pinterestGhJid) {
+      const ghHtml = await fetchGreenhouseJob('pinterest', pinterestGhJid, controller.signal)
+      if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
     // Databricks careers — www.databricks.com/company/careers/{dept}/{slug}-{id} is a
     // Greenhouse-backed custom Gatsby site (board "databricks"). The page HTML contains no
     // Greenhouse references so none of the post-fetch handlers match; detect by URL and call

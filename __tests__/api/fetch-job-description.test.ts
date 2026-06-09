@@ -22,6 +22,7 @@ import gemAugerJob from '../fixtures/gem-auger-job.json'
 import amperityNextdataJob from '../fixtures/amperity-nextdata-job.json'
 import greenhouseDatabricksJob from '../fixtures/greenhouse-databricks-job.json'
 import greenhouseCoupangJob from '../fixtures/greenhouse-coupang-job.json'
+import greenhousePinterestJob from '../fixtures/greenhouse-pinterest-job.json'
 import joinByteDanceChunks from '../fixtures/joinbytedance-job.json'
 
 vi.mock('next/headers', () => ({
@@ -909,6 +910,97 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       expect(fetchMock).not.toHaveBeenCalledWith(COUPANG_GH_API, expect.anything())
+    })
+  })
+
+  describe('Pinterest careers (pinterestcareers.com, Greenhouse-backed, board "pinterest")', () => {
+    const PINTEREST_URL =
+      'https://www.pinterestcareers.com/jobs/7923195/staff-software-engineer-growth-ai/?gh_jid=7923195'
+    const PINTEREST_GH_API =
+      'https://boards-api.greenhouse.io/v1/boards/pinterest/jobs/7923195'
+
+    it('uses Greenhouse API with board "pinterest" and prepends metadata header — real API fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === PINTEREST_GH_API) return Promise.resolve(jsonResponse(greenhousePinterestJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: PINTEREST_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Staff Software Engineer, Growth AI</h1>')
+      expect(data.html).toContain('Pinterest')
+      expect(data.html).toContain('San Francisco')
+      expect(data.html).toContain('About Pinterest')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(PINTEREST_GH_API, expect.anything())
+    })
+
+    it('handles bare pinterestcareers.com hostname (no www.)', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === PINTEREST_GH_API) return Promise.resolve(jsonResponse(greenhousePinterestJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: 'https://pinterestcareers.com/jobs/7923195/some-role/?gh_jid=7923195' })
+      )
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Staff Software Engineer, Growth AI')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(PINTEREST_GH_API, expect.anything())
+    })
+
+    it('falls back to HTML scraping when Greenhouse API returns 404', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === PINTEREST_GH_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: PINTEREST_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Greenhouse API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === PINTEREST_GH_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: PINTEREST_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not trigger handler when gh_jid param is absent', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>No JD</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: 'https://www.pinterestcareers.com/jobs/7923195/some-role/' })
+      )
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(PINTEREST_GH_API, expect.anything())
     })
   })
 
