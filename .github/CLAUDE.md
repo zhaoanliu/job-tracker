@@ -191,6 +191,12 @@ Skip it for purely infra/ops workflows (deploy-only, release tagging, dependency
 - `status: planned` is informational only — it does not trigger either phase.
 - No extra secrets needed — uses `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`
 
+**`cd-monitor.yml`** — catch-all for CD failures that produce no GitHub issue on their own; triggers on `workflow_run` completion for the CD workflow (fires even for `startup_failure` before any steps run):
+- **`startup_failure`**: immediately opens (or hit-comments) a `"CD failure: workflow startup failure"` issue — caused by YAML syntax errors, invalid action versions, or `permissions` mismatches between caller and callee workflows
+- **`failure`**: sleeps 30 s then checks whether a `cd-auto-fix.yml` run appeared after the CD completed; if yes, skips (auto-fix already handled it); if no, opens a `"CD failure: dispatch to auto-fix failed"` issue — caused by expired `GH_PAT`, `jq` errors, or GitHub API failures in the dispatch step
+- Both issue titles start with `"CD failure:"` so the existing auto-close logic in `cd.yml` closes them on the next successful deploy
+- No new secrets needed — uses `GH_PAT`
+
 **`cd-auto-fix.yml`** — auto-healing for Vercel production deployment failures; triggers on `repository_dispatch` with `event_type: cd-failure` (fired by `cd.yml` when `vercel deploy` fails):
 - Checks out the failing commit, runs `npm run build` + `npx tsc --noEmit` locally to reproduce the error
 - **Not locally reproducible** (build succeeds locally — platform/infra error): uses a **category-based issue title** for deduplication instead of a per-SHA title:
