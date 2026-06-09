@@ -1,3 +1,21 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": "next/core-web-vitals",
+  "overrides": [
+    {
+      "files": ["app/global-error.tsx", "app/not-found.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@sentry/*", "@datadog/*", "@newrelic/*", "next/navigation", "next/headers"],
+                "message": "global-error.tsx and not-found.tsx are compiled into isolated webpack chunks. Third-party packages with transitive dependencies cannot be bundled into these chunks and will cause a TypeError at runtime on Vercel. Use console.error() instead of SDK calls, or dynamic import() if you must. See docs/postmortem-issue-634.md."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }
