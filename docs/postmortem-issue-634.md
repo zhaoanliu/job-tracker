@@ -3,6 +3,7 @@
 **Sentry issue:** JAVASCRIPT-NEXTJS-K  
 **GitHub issue:** #634  
 **Fix PR:** #635  
+**Prevention PR:** #647  
 **Upgrade PR:** #621  
 **Date of incident:** 2026-06-08  
 
@@ -80,6 +81,26 @@ Webpack bundling behaviour — especially around isolated chunks like `global-er
 ### 3. "Failed to fetch RSC payload" does not mean a network failure
 
 This Next.js message is emitted for any error during RSC navigation processing, including JavaScript crashes. Always check the attached error and stack trace before assuming a network problem.
+
+---
+
+## Prevention
+
+Two layers were added in PR #647 to catch this class of bug before it reaches production.
+
+### ESLint rule — catches the bad import at author time
+
+`.eslintrc.json` now bans static third-party imports in `global-error.tsx` and `not-found.tsx`. This fires on every PR, before Vercel ever sees the code. It won't catch a future library that isn't yet in the deny-list, but it prevents the exact pattern that caused this incident from reappearing.
+
+### Production-build e2e test — catches runtime failures the ESLint rule cannot
+
+`e2e-local.yml` now runs against a production build (`npm run build && npm start`) via `playwright.config.local.ts`, instead of the dev server. The dev server loads each module individually and never creates isolated webpack chunks — the broken Sentry import would have been invisible in dev.
+
+A logout test in `e2e/local/auth.spec.ts` installs a `page.on('console')` listener and asserts that no `"Failed to fetch RSC payload"` errors appear during navigation. With the broken import, Next.js logs exactly that message as a side-effect of the `TypeError`. With `console.error(error)`, the test passes.
+
+This catches any "works in dev, breaks in prod" isolated-chunk failure that the ESLint rule misses — for example, a new file compiled into its own chunk, or a gap in the deny-list.
+
+**What neither layer catches:** a user already mid-session when a new deployment changes shared chunk hashes. Old chunks stay cached; the new isolated chunk loads; module IDs mismatch → `TypeError`. That scenario is un-testable in CI.
 
 ---
 
