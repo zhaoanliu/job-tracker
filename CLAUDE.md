@@ -181,6 +181,8 @@ Baselines are committed to the repo. Always regenerate baselines on Linux (same 
 2. If any snapshot diffs appear, inspect them — expected changes (e.g. intentional v4 style changes) require a baseline update with `--update-snapshots`; unexpected diffs indicate a regression that must be fixed first
 3. Do not skip this step because "CI passed" — CI does not run visual tests on PRs, only on the nightly cron
 
+**Next.js upgrades can silently expose broken isolated-chunk imports.** `global-error.tsx` and `not-found.tsx` are compiled into their own webpack chunks, isolated from the main app bundle. Third-party imports (e.g. `@sentry/nextjs`) that work fine in the main bundle may be unresolvable in an isolated chunk — webpack registers the module as `undefined` and throws a `TypeError` at runtime. This failure is masked by older Next.js versions and can appear suddenly after an upgrade. Before merging any Next.js version bump, verify that `global-error.tsx` and `not-found.tsx` contain no static third-party imports. See `docs/postmortem-issue-634.md` for the full incident writeup (issue #634, triggered by the v15.5.18 upgrade in PR #621).
+
 ## No duplication
 
 **Before writing any function, component, hook, type, constant, or shell block — search the codebase for an existing implementation first.** If one exists, use or extend it. Never write a second copy.
