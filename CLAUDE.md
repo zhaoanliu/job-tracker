@@ -169,10 +169,25 @@ Baselines are committed to the repo. Always regenerate baselines on Linux (same 
 
 **Where E2E tests live:**
 - `e2e/auth.spec.ts` — auth flows that run on every PR (no local Supabase needed)
+- `e2e/local/auth.spec.ts` — auth flows + logout regression (production build required)
 - `e2e/local/board.spec.ts` — board interactions requiring `supabase start` (nightly cron)
 - `e2e/local/csv.spec.ts` — CSV import/export (nightly cron)
 - `e2e/local/visual.spec.ts` — visual regression screenshots (nightly cron)
 - New board features go in `e2e/local/`; new auth flows go in `e2e/`
+
+**e2e-local runs against a production build (`npm run build && npm start`), not `npm run dev`.** The dev server loads all modules individually, never tree-shakes, never creates isolated chunks, and skips SSR/hydration in ways that hide entire classes of bugs. A production build is required to catch: webpack chunk isolation failures, tree-shaking removing a module a chunk relied on as a side-effect, SSR/hydration mismatches, route prerendering errors, and PostCSS purge removing a class that was actually needed. Use `playwright.config.local.ts` when running local tests manually: `npx playwright test --config playwright.config.local.ts e2e/local/`.
+
+**Prevention layer split for isolated-chunk bugs (e.g. issue #634):**
+
+| Layer | What it catches | What it misses |
+|---|---|---|
+| ESLint `no-restricted-imports` | The bad import pattern — fires on every PR, before Vercel sees the code | Nothing about runtime behavior |
+| Production-build e2e | "Works in dev, breaks in prod" bugs that are deterministic (always crash) | Stale-cache / deployment-mismatch crashes |
+| Neither | — | A user mid-session when a new deployment changes shared chunk hashes — old chunks cached, new isolated chunk loaded, module ID mismatch → `TypeError` |
+
+The stale-cache scenario is un-testable in CI. The ESLint rule is the correct prevention layer for the #634 class of bug.
+
+**Next.js upgrades can silently expose broken isolated-chunk imports.** `global-error.tsx` and `not-found.tsx` are compiled into their own webpack chunks, isolated from the main app bundle. Third-party imports (e.g. `@sentry/nextjs`) that work fine in the main bundle may be unresolvable in an isolated chunk — webpack registers the module as `undefined` and throws a `TypeError` at runtime. This failure is masked by older Next.js versions and can appear suddenly after an upgrade. Before merging any Next.js version bump, verify that `global-error.tsx` and `not-found.tsx` contain no static third-party imports. See `docs/postmortem-issue-634.md` for the full incident writeup (issue #634, triggered by the v15.5.18 upgrade in PR #621).
 
 **The dark mode lesson:** The first dark mode implementation only wired up the backend without a UI toggle. There was no E2E test, so the missing button shipped undetected and required a second fix. If an E2E test had been required in the original PR, the missing toggle would have been caught immediately.
 
