@@ -74,6 +74,26 @@ test('password login reaches dashboard', async ({ page }) => {
   await expect(page).toHaveURL('/dashboard')
 })
 
+// ── Logout navigation (regression: broken global-error.tsx chunk) ─────────────
+
+test('logout navigates to /login without RSC payload errors', async ({ page }) => {
+  await createTestUser()
+  await loginViaUI(page)
+  await expect(page).toHaveURL('/dashboard')
+
+  const rscErrors: string[] = []
+  page.on('console', msg => {
+    if (msg.type() === 'error' && msg.text().includes('RSC payload')) {
+      rscErrors.push(msg.text())
+    }
+  })
+
+  await page.locator('button:has-text("Sign out"), button:has-text("Log out")').click()
+  await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
+
+  expect(rscErrors, 'RSC payload error during logout — likely a broken static import in global-error.tsx').toHaveLength(0)
+})
+
 // ── Magic link ────────────────────────────────────────────────────────────────
 
 test('magic link email arrives and signs in', async ({ page }) => {

@@ -11,10 +11,13 @@ on:
       - 'components/modals/**'
       - 'components/ui/**'
       - 'app/dashboard/**'
+      - 'app/global-error.tsx'
+      - 'app/not-found.tsx'
       - 'lib/utils.ts'
       - 'supabase/migrations/**'
       - 'e2e/local/**'
       - 'e2e/helpers.ts'
+      - 'playwright.config.local.ts'
       - 'app/globals.css'
       - 'tailwind.config.ts'
       - 'postcss.config.mjs'
@@ -45,7 +48,7 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Run local E2E tests
-        run: npx playwright test 'e2e/local/'
+        run: npx playwright test --config playwright.config.local.ts 'e2e/local/'
         env:
           CI: true
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321

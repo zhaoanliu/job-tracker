@@ -169,10 +169,13 @@ Baselines are committed to the repo. Always regenerate baselines on Linux (same 
 
 **Where E2E tests live:**
 - `e2e/auth.spec.ts` — auth flows that run on every PR (no local Supabase needed)
+- `e2e/local/auth.spec.ts` — auth flows + logout regression (production build required)
 - `e2e/local/board.spec.ts` — board interactions requiring `supabase start` (nightly cron)
 - `e2e/local/csv.spec.ts` — CSV import/export (nightly cron)
 - `e2e/local/visual.spec.ts` — visual regression screenshots (nightly cron)
 - New board features go in `e2e/local/`; new auth flows go in `e2e/`
+
+**e2e-local runs against a production build (`npm run build && npm start`), not `npm run dev`.** This is intentional — webpack chunk isolation bugs (e.g. broken static imports in `global-error.tsx`) only surface in production builds. The dev server loads modules individually and never triggers isolated-chunk failures. Use `playwright.config.local.ts` when running local tests manually: `npx playwright test --config playwright.config.local.ts e2e/local/`.
 
 **The dark mode lesson:** The first dark mode implementation only wired up the backend without a UI toggle. There was no E2E test, so the missing button shipped undetected and required a second fix. If an E2E test had been required in the original PR, the missing toggle would have been caught immediately.
 
