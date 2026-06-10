@@ -2625,4 +2625,102 @@ describe('POST /api/fetch-job-description', () => {
       expect(res.status).toBe(502)
     })
   })
+
+  describe('Amazon careers (amazon.jobs URLs)', () => {
+    const amazonJobHtml = readFileSync(
+      join(__dirname, '../fixtures/amazon-job.html'),
+      'utf-8'
+    )
+    const AMAZON_URL =
+      'https://amazon.jobs/en/jobs/3200392/principal-engineer-amazon-multiple-locations-usa-global-specialty-recruiting-team'
+
+    it('extracts metadata header and all content sections — real fixture data', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(amazonJobHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: AMAZON_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title from og:title
+      expect(data.html).toContain(
+        '<h1>Principal Engineer, Amazon | Multiple Locations, USA, Global Specialty Recruiting Team</h1>'
+      )
+      // Locations from sidebar
+      expect(data.html).toContain('USA, MA, Boston')
+      expect(data.html).toContain('USA, WA, Seattle')
+      // Category from sidebar
+      expect(data.html).toContain('Software Development')
+      // Meta table present
+      expect(data.html).toContain('<table>')
+      // Description section content
+      expect(data.html).toContain('Principal Engineers are both visionary leaders')
+      // Basic Qualifications section
+      expect(data.html).toContain('12+ years')
+      // Preferred Qualifications section
+      expect(data.html).toContain('Deep hands-on technical expertise')
+      // Section headings
+      expect(data.html).toContain('<h2>Description</h2>')
+      expect(data.html).toContain('<h2>Basic Qualifications</h2>')
+      expect(data.html).toContain('<h2>Preferred Qualifications</h2>')
+      // Only one fetch — main page HTML, no separate API call
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(AMAZON_URL, expect.anything())
+    })
+
+    it('handles www.amazon.jobs URL variant', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(amazonJobHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({
+          url: 'https://www.amazon.jobs/en/jobs/3200392/principal-engineer-amazon',
+        })
+      )
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Principal Engineers are both visionary leaders')
+    })
+
+    it('falls back to extractJobContent when page has no job-detail-body', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>SENTINEL-FALLBACK</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: AMAZON_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>SENTINEL-FALLBACK</p>')
+    })
+
+    it('does not trigger Amazon handler for non-job paths', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Home</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://amazon.jobs/en' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Plain body scrape — path /en doesn't match /[a-z-]+/jobs/\d+
+      expect(data.html).toBe('<p>Home</p>')
+    })
+
+    it('returns 502 when the page fetch fails', async () => {
+      mockUser()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 503 })))
+
+      const res = await POST(makeReq({ url: AMAZON_URL }))
+
+      expect(res.status).toBe(502)
+    })
+  })
 })
