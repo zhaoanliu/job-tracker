@@ -719,6 +719,51 @@ function extractJoinByteDanceFromPage(html: string): string | null {
   return header + descParts
 }
 
+// Amazon careers — amazon.jobs custom CXT career site. Full job content is server-side
+// rendered in <div class="section"> blocks with no JSON-LD and no public JSON API.
+// og:title provides the job title; locations and category come from sidebar association lists.
+function extractAmazonJobFromPage(html: string): string | null {
+  if (!html.includes('id="job-detail-body"')) return null
+
+  const ogTitleMatch = html.match(/property="og:title" content="([^"]+)"/)
+  const title = ogTitleMatch ? ogTitleMatch[1].trim() : ''
+
+  const locSectionMatch = html.match(
+    /class="association location-icon[^"]*"[^>]*>[\s\S]*?<ul class="association-content">([\s\S]*?)<\/ul>/
+  )
+  const locations: string[] = []
+  if (locSectionMatch) {
+    const liRegex = /<li>([\s\S]*?)<\/li>/g
+    let liMatch: RegExpExecArray | null
+    while ((liMatch = liRegex.exec(locSectionMatch[1])) !== null) {
+      const loc = liMatch[1].trim()
+      if (loc) locations.push(loc)
+    }
+  }
+
+  const categoryMatch = html.match(/aria-label="Job category ([^"]+)"/)
+  const category = categoryMatch ? categoryMatch[1].trim() : ''
+
+  const sectionRegex = /<div class="section"><h2>([\s\S]*?)<\/h2>([\s\S]*?)<\/div>/g
+  const sections: Array<{ heading: string; content: string }> = []
+  let sectionMatch: RegExpExecArray | null
+  while ((sectionMatch = sectionRegex.exec(html)) !== null) {
+    const heading = sectionMatch[1].trim()
+    const content = sectionMatch[2].trim()
+    if (heading && content) sections.push({ heading, content })
+  }
+
+  if (!title && sections.length === 0) return null
+
+  const rows: Array<[string, string]> = []
+  if (locations.length > 0) rows.push(['Location', locations.join(' | ')])
+  if (category) rows.push(['Category', category])
+
+  const meta = buildMetaTable(title, rows)
+  const body = sections.map(({ heading, content }) => `<h2>${heading}</h2>${content}`).join('')
+  return meta + body
+}
+
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser()
   if (!user) {
@@ -752,6 +797,10 @@ export async function POST(req: NextRequest) {
 
   const isJoinByteDance =
     parsed.hostname === 'joinbytedance.com' && /^\/search\/\d+$/.test(parsed.pathname)
+
+  const isAmazonJob =
+    (parsed.hostname === 'amazon.jobs' || parsed.hostname === 'www.amazon.jobs') &&
+    /^\/[a-z-]+\/jobs\/\d+/.test(parsed.pathname)
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -1020,6 +1069,14 @@ export async function POST(req: NextRequest) {
       const jbdHtml = extractJoinByteDanceFromPage(raw)
       if (jbdHtml !== null) return NextResponse.json({ html: jbdHtml })
       // No usable RSC content — fall through to extractJobContent
+    }
+
+    // Amazon careers — amazon.jobs custom CXT career site. Content is server-side rendered
+    // in <div class="section"> blocks. No JSON-LD, no public JSON API.
+    if (isAmazonJob) {
+      const amazonHtml = extractAmazonJobFromPage(raw)
+      if (amazonHtml !== null) return NextResponse.json({ html: amazonHtml })
+      // No usable content — fall through to extractJobContent
     }
 
     // Greenhouse ATS embedded in third-party pages (e.g. Scale.com) — page HTML
