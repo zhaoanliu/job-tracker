@@ -23,6 +23,15 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  const { pathname } = request.nextUrl
+
+  // Skip session handling for the OAuth callback route so the PKCE code
+  // verifier cookie isn't cleared by signOut before the route handler can
+  // exchange the authorization code.
+  if (pathname === '/auth/callback') {
+    return NextResponse.next()
+  }
+
   // Refresh the session — keeps the user logged in across tab reloads.
   // IMPORTANT: do not use getSession() here; getUser() hits the Supabase auth
   // server and validates the JWT, preventing token-smuggling attacks.
@@ -37,8 +46,6 @@ export async function middleware(request: NextRequest) {
   } catch {
     user = null
   }
-
-  const { pathname } = request.nextUrl
 
   // Redirect unauthenticated users away from protected routes
   if (!user && pathname.startsWith('/dashboard')) {
@@ -64,6 +71,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Exclude auth/callback so the PKCE code verifier cookie isn't cleared by
+    // middleware's signOut before the route handler can exchange the code.
+    '/((?!_next/static|_next/image|favicon\\.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

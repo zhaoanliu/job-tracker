@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { config } from '../middleware'
 
 vi.mock('@supabase/ssr', () => ({
   createServerClient: vi.fn(),
@@ -45,6 +46,25 @@ function setupSupabase(opts: {
 }
 
 beforeEach(() => vi.clearAllMocks())
+
+describe('middleware — /auth/callback passthrough', () => {
+  it('does not call signOut for /auth/callback so PKCE verifier cookie is preserved', async () => {
+    const { signOut } = setupSupabase({
+      error: { message: 'Invalid Refresh Token', status: 400 },
+    })
+    const res = await middleware(makeRequest('/auth/callback'))
+    expect(signOut).not.toHaveBeenCalled()
+    expect(res.status).toBe(200)
+  })
+
+  it('excludes /auth/callback from the matcher config', () => {
+    // Next.js anchors the matcher at the start of the pathname; ^ replicates that.
+    const re = new RegExp('^' + config.matcher[0])
+    expect(re.test('/auth/callback')).toBe(false)
+    // Verify a normal route is still matched so the exclusion isn't too broad
+    expect(re.test('/dashboard')).toBe(true)
+  })
+})
 
 describe('middleware — stale refresh token', () => {
   it('calls signOut with scope local when getUser returns an auth error', async () => {
