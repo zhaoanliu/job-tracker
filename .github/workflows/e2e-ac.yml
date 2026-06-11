@@ -33,10 +33,10 @@ jobs:
 
   run-e2e:
     needs: detect
+    if: needs.detect.outputs.needs_e2e == 'true'
     uses: ./.github/workflows/e2e-local.yml
     with:
       skip_visual: true
-      needs_e2e: ${{ needs.detect.outputs.needs_e2e == 'true' }}
 
   # Always reports a status so branch protection is always satisfied.
   # Passes when detect succeeded and run-e2e was either skipped (no E2E criteria) or passed.
