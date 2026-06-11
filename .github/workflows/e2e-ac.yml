@@ -1,0 +1,59 @@
+name: E2E AC Gate
+
+on:
+  pull_request:
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      needs_e2e: ${{ steps.ac_check.outputs.needs_e2e }}
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx vitest run --reporter=json --outputFile=test-results.json
+
+      - name: Check AC coverage
+        id: ac_check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/check-ac-coverage.mjs
+
+  run-e2e:
+    needs: detect
+    if: needs.detect.outputs.needs_e2e == 'true'
+    uses: ./.github/workflows/e2e-local.yml
+    with:
+      skip_visual: true
+
+  # Always reports a status so branch protection is always satisfied.
+  # Passes when detect succeeded and run-e2e was either skipped (no E2E criteria) or passed.
+  e2e-ac:
+    needs: [detect, run-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          detect="${{ needs.detect.result }}"
+          e2e="${{ needs.run-e2e.result }}"
+          if [[ "$detect" != "success" ]]; then
+            echo "AC coverage check failed (detect: $detect)"
+            exit 1
+          fi
+          if [[ "$e2e" == "failure" || "$e2e" == "cancelled" ]]; then
+            echo "E2E run failed (run-e2e: $e2e)"
+            exit 1
+          fi
+          echo "e2e-ac passed (detect: $detect, run-e2e: $e2e)"

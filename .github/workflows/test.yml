@@ -27,8 +27,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-    outputs:
-      needs_e2e: ${{ steps.ac_check.outputs.needs_e2e }}
     steps:
       - uses: actions/checkout@v6
 
@@ -59,12 +57,3 @@ jobs:
         if: failure() && github.event_name != 'repository_dispatch'
         with:
           gh-pat: ${{ secrets.GH_PAT }}
-
-  # Runs the non-visual local E2E suite when any AC criteria are covered only by E2E tests.
-  # Skipped on all other events and PRs with no E2E-only AC criteria (satisfies branch protection).
-  e2e-ac:
-    needs: [detect-changes, unit-test]
-    if: needs.detect-changes.outputs.skip != 'true' && needs.unit-test.outputs.needs_e2e == 'true' && github.event_name == 'pull_request'
-    uses: ./.github/workflows/e2e-local.yml
-    with:
-      skip_visual: true
