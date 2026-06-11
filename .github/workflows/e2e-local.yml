@@ -4,6 +4,16 @@ on:
   schedule:
     - cron: '0 6 * * *'  # 06:00 UTC daily
   workflow_dispatch:      # allow manual runs
+    inputs:
+      skip_visual:
+        type: boolean
+        default: false
+        description: 'Skip visual regression tests (board/csv/auth still run)'
+  workflow_call:
+    inputs:
+      skip_visual:
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -48,7 +58,13 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Run local E2E tests
-        run: npx playwright test --config playwright.config.local.ts 'e2e/local/'
+        run: |
+          if [[ "${{ inputs.skip_visual }}" == "true" ]]; then
+            npx playwright test --config playwright.config.local.ts \
+              'e2e/local/auth.spec.ts' 'e2e/local/board.spec.ts' 'e2e/local/csv.spec.ts'
+          else
+            npx playwright test --config playwright.config.local.ts 'e2e/local/'
+          fi
         env:
           CI: true
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
@@ -67,7 +83,7 @@ jobs:
           retention-days: 7
 
       - name: Trigger CI auto-fix on failure
-        if: failure() && github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch'
+        if: failure() && github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch' && github.event_name != 'workflow_call'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
