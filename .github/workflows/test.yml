@@ -66,4 +66,3 @@ jobs:
     uses: ./.github/workflows/e2e-local.yml
     with:
       skip_visual: true
-    secrets: inherit
