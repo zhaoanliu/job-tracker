@@ -719,6 +719,52 @@ function extractJoinByteDanceFromPage(html: string): string | null {
   return header + descParts
 }
 
+// lifeattiktok.com — TikTok global careers site. Same Next.js App Router SSR as joinbytedance.com
+// but with a different RSC component structure: metadata rows use {"children":"Label"} (plain
+// string) rather than {"children":["Label",":"]} (array with colon). Title comes from the HTML
+// <title> tag, not from an RSC title chunk. Falls through (returns null) if no editor-content
+// div is found in the T-payload, so USDS-style jobs without the editor-content block fall back
+// to extractJobContent.
+function extractLifeAtTikTokFromPage(html: string): string | null {
+  const titleMatch = html.match(/<title>([^<]*)<\/title>/)
+  const title = titleMatch ? titleMatch[1].trim() : ''
+
+  const rscPushRegex = /self\.__next_f\.push\(\[1,([\s\S]*?)\]\)<\/script>/g
+  let m: RegExpExecArray | null
+  const parts: string[] = []
+  while ((m = rscPushRegex.exec(html)) !== null) {
+    try {
+      const v: unknown = JSON.parse(m[1])
+      if (typeof v === 'string') parts.push(v)
+    } catch {}
+  }
+  const rsc = parts.join('')
+
+  const rows: Array<[string, string]> = []
+  for (const label of ['Location', 'Team', 'Employment Type', 'Job Code']) {
+    const escLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re = new RegExp(
+      `\\["\\$","div","${escLabel}",\\{"children":\\[[\\s\\S]*?"children":"${escLabel}"[\\s\\S]*?"children":"([^"]+)"`
+    )
+    const match = rsc.match(re)
+    if (match) rows.push([label, match[1]])
+  }
+
+  let mainDesc = ''
+  const tChunkMatch = rsc.match(/\w+:T([0-9a-f]+),/)
+  if (tChunkMatch) {
+    const hexLen = parseInt(tChunkMatch[1], 16)
+    const contentStart = (tChunkMatch.index ?? 0) + tChunkMatch[0].length
+    const content = rsc.slice(contentStart, contentStart + hexLen).trim()
+    if (content.includes('editor-content')) {
+      mainDesc = content
+    }
+  }
+
+  if (!mainDesc) return null
+  return buildMetaTable(title, rows) + mainDesc
+}
+
 // Amazon careers — amazon.jobs custom CXT career site. Full job content is server-side
 // rendered in <div class="section"> blocks with no JSON-LD and no public JSON API.
 // og:title provides the job title; locations and category come from sidebar association lists.
@@ -797,6 +843,9 @@ export async function POST(req: NextRequest) {
 
   const isJoinByteDance =
     parsed.hostname === 'joinbytedance.com' && /^\/search\/\d+$/.test(parsed.pathname)
+
+  const isLifeAtTikTok =
+    parsed.hostname === 'lifeattiktok.com' && /^\/search\/\d+$/.test(parsed.pathname)
 
   const isAmazonJob =
     (parsed.hostname === 'amazon.jobs' || parsed.hostname === 'www.amazon.jobs') &&
@@ -1069,6 +1118,14 @@ export async function POST(req: NextRequest) {
       const jbdHtml = extractJoinByteDanceFromPage(raw)
       if (jbdHtml !== null) return NextResponse.json({ html: jbdHtml })
       // No usable RSC content — fall through to extractJobContent
+    }
+
+    // lifeattiktok.com — TikTok global careers site. Same RSC wire-format as joinbytedance.com
+    // but different component structure; title from HTML <title>, falls through if no editor-content.
+    if (isLifeAtTikTok) {
+      const latHtml = extractLifeAtTikTokFromPage(raw)
+      if (latHtml !== null) return NextResponse.json({ html: latHtml })
+      // No editor-content T-payload (e.g. USDS jobs) — fall through to extractJobContent
     }
 
     // Amazon careers — amazon.jobs custom CXT career site. Content is server-side rendered
