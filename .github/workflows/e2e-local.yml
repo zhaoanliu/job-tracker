@@ -14,6 +14,9 @@ on:
       skip_visual:
         type: boolean
         default: false
+      needs_e2e:
+        type: boolean
+        default: true
   push:
     branches: [main]
     paths:
@@ -34,6 +37,9 @@ on:
 
 jobs:
   e2e-local:
+    # Skip when called with needs_e2e=false (e2e-ac.yml passes this when no AC criteria need E2E).
+    # Always runs for cron, push, and workflow_dispatch triggers.
+    if: github.event_name != 'workflow_call' || inputs.needs_e2e
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
