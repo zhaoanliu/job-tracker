@@ -764,6 +764,63 @@ function extractAmazonJobFromPage(html: string): string | null {
   return meta + body
 }
 
+function extractRscPayloads(html: string): string {
+  const regex = /self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g
+  let result = ''
+  let m: RegExpExecArray | null
+  while ((m = regex.exec(html)) !== null) {
+    try {
+      result += JSON.parse('"' + m[1] + '"')
+    } catch {
+      // skip malformed chunk
+    }
+  }
+  return result
+}
+
+function extractRscLabelValue(rsc: string, label: string): string | null {
+  const esc = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(
+    '"\\$","div","' + esc + '",\\{"children":\\[\\["\\$","p",null,\\{"children":"[^"]*"\\}\\],\\["\\$","p",null,\\{"children":"([^"]+)"\\}\\]\\]'
+  )
+  const m = regex.exec(rsc)
+  return m ? m[1] : null
+}
+
+function extractEditorContentFromRsc(rsc: string): string | null {
+  const tRegex = /\d+:T([0-9a-f]+),/g
+  let m: RegExpExecArray | null
+  while ((m = tRegex.exec(rsc)) !== null) {
+    const hexLen = parseInt(m[1], 16)
+    const contentStart = m.index + m[0].length
+    const content = rsc.slice(contentStart, contentStart + hexLen)
+    if (content.startsWith('<div') && content.includes('editor-content')) {
+      return content
+    }
+  }
+  return null
+}
+
+function extractLifeAtTikTokFromPage(html: string): string | null {
+  const rsc = extractRscPayloads(html)
+  const description = extractEditorContentFromRsc(rsc)
+  if (!description) return null
+
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+  const title = titleMatch ? titleMatch[1].trim() : ''
+
+  const rows: Array<[string, string]> = []
+  const location = extractRscLabelValue(rsc, 'Location')
+  const employmentType = extractRscLabelValue(rsc, 'Employment Type')
+  const jobCode = extractRscLabelValue(rsc, 'Job Code')
+
+  if (location) rows.push(['Location', location])
+  if (employmentType) rows.push(['Employment Type', employmentType])
+  if (jobCode) rows.push(['Job Code', jobCode])
+
+  return buildMetaTable(title, rows) + decodeHtmlEntities(description)
+}
+
 export async function POST(req: NextRequest) {
   const user = await getAuthenticatedUser()
   if (!user) {
@@ -801,6 +858,10 @@ export async function POST(req: NextRequest) {
   const isAmazonJob =
     (parsed.hostname === 'amazon.jobs' || parsed.hostname === 'www.amazon.jobs') &&
     /^\/[a-z-]+\/jobs\/\d+/.test(parsed.pathname)
+
+  const isLifeAtTikTok =
+    (parsed.hostname === 'lifeattiktok.com' || parsed.hostname === 'joinbytedance.com') &&
+    /^\/search\/\d+/.test(parsed.pathname)
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -1077,6 +1138,14 @@ export async function POST(req: NextRequest) {
       const amazonHtml = extractAmazonJobFromPage(raw)
       if (amazonHtml !== null) return NextResponse.json({ html: amazonHtml })
       // No usable content — fall through to extractJobContent
+    }
+
+    // lifeattiktok.com and joinbytedance.com — Next.js App Router with RSC streaming.
+    // Job content is fully present in self.__next_f.push([1,"..."]) script calls.
+    if (isLifeAtTikTok) {
+      const lifeAtTikTokHtml = extractLifeAtTikTokFromPage(raw)
+      if (lifeAtTikTokHtml !== null) return NextResponse.json({ html: lifeAtTikTokHtml })
+      // editor-content absent (e.g. USDS job) — fall through to extractJobContent
     }
 
     // Greenhouse ATS embedded in third-party pages (e.g. Scale.com) — page HTML

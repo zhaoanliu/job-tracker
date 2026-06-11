@@ -2459,6 +2459,121 @@ describe('POST /api/fetch-job-description', () => {
     })
   })
 
+  describe('lifeattiktok.com / joinbytedance.com', () => {
+    const LIFEATTIKTOK_URL = 'https://lifeattiktok.com/search/7602378131098831157'
+    const JOINBYTEDANCE_URL = 'https://joinbytedance.com/search/7256932480371837240'
+    const lifeAtTikTokHtml = readFileSync(
+      join(__dirname, '../fixtures/lifeattiktok-job.html'),
+      'utf-8'
+    )
+    const joinByteDanceHtml = readFileSync(
+      join(__dirname, '../fixtures/joinbytedance-job.html'),
+      'utf-8'
+    )
+
+    it('returns title, Location, Employment Type, Job Code, and description for lifeattiktok.com URL [AC-627-1]', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(lifeAtTikTokHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LIFEATTIKTOK_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>(General Hire) Backend Software Engineer - Trust and Safety</h1>')
+      expect(data.html).toContain('<th>Location</th><td>Seattle</td>')
+      expect(data.html).toContain('<th>Employment Type</th><td>Regular</td>')
+      expect(data.html).toContain('<th>Job Code</th><td>A250153</td>')
+      expect(data.html).toContain('Backend engineer role.')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(LIFEATTIKTOK_URL, expect.anything())
+    })
+
+    it('returns title, Location, and description for joinbytedance.com URL [AC-627-2]', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(joinByteDanceHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: JOINBYTEDANCE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Senior Research Scientist, Intelligent Editing (Multimodality)</h1>')
+      expect(data.html).toContain('<th>Location</th><td>Seattle</td>')
+      expect(data.html).toContain('<th>Job Code</th><td>A257435</td>')
+      expect(data.html).toContain('Research scientist role.')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(JOINBYTEDANCE_URL, expect.anything())
+    })
+
+    it('falls through to extractJobContent when RSC has no editor-content T-payload (USDS fallback case) [AC-627-3]', async () => {
+      // Synthetic: USDS jobs on lifeattiktok.com have RSC metadata rows but no editor-content div
+      mockUser()
+      const noEditorContentHtml = `<html><head><title>USDS Software Engineer</title></head><body>
+<script>self.__next_f.push([1,"metadata rsc without editor content div"])</script>
+<p>USDS job description here</p>
+</body></html>`
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(noEditorContentHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: LIFEATTIKTOK_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('USDS job description here')
+      expect(data.html).not.toContain('<h1>USDS Software Engineer</h1>')
+    })
+
+    it('falls through to extractJobContent when page has no self.__next_f.push calls at all [AC-627-4]', async () => {
+      mockUser()
+      const noRscHtml = `<html><body><p>No RSC pushes here</p></body></html>`
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(noRscHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: JOINBYTEDANCE_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('No RSC pushes here')
+    })
+
+    it('non-lifeattiktok URL triggers exactly one fetch with no lifeattiktok parsing [AC-627-5]', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Regular</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://example.com/jobs/123' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/jobs/123', expect.anything())
+      const data = await res.json()
+      expect(data.html).toBe('<p>Regular</p>')
+    })
+
+    it('returns 502 when page fetch fails for lifeattiktok URL [AC-627-6]', async () => {
+      mockUser()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 403 })))
+
+      const res = await POST(makeReq({ url: LIFEATTIKTOK_URL }))
+
+      expect(res.status).toBe(502)
+    })
+
+    it('does not trigger handler for lifeattiktok.com URL not matching /search/{id} path', async () => {
+      // Synthetic: handler only activates for /search/{id} pattern
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse('<html><body><p>Home</p></body></html>'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://lifeattiktok.com/home' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Home</p>')
+    })
+  })
+
   describe('TikTok USDS (careers.tiktokusds.com)', () => {
     const TIKTOK_URL =
       'https://careers.tiktokusds.com/usds/position/7629863744949815557/detail'
