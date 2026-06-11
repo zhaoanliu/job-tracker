@@ -45,6 +45,7 @@ jobs:
         run: npx vitest run --reporter=json --outputFile=test-results.json
 
       - name: Check AC coverage
+        id: ac_check
         if: github.event_name == 'pull_request'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -4,9 +4,12 @@
  *
  * For each design issue (contains <!-- implementation-plan-json -->) linked to the PR:
  *   - Fail if "## Acceptance criteria" section is missing or has no checkbox items
- *   - Fail if any AC item N has no test tagged [AC-{issue}-{N}] in its it() description
- *   - Fail if any tagged test failed
- *   - Check off passing AC items in the issue body
+ *   - Fail if any AC item N has no test tagged [AC-{issue}-{N}] in its it()/test() description
+ *     (unit tests under __tests__/ AND E2E tests under e2e/ are both scanned)
+ *   - Fail if any tagged unit test failed
+ *   - Check off passing AC items in the design issue
+ *   - Write needs_e2e=true to GITHUB_OUTPUT when any AC items are covered only by E2E tests,
+ *     so test.yml can gate CI on the e2e-local run
  *
  * Env vars required in CI:
  *   PR_NUMBER         — pull request number
@@ -18,7 +21,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -32,6 +35,33 @@ function gh(...args) {
 
 function log(msg) { process.stdout.write(msg + '\n') }
 function fail(msg) { process.stderr.write('FAIL: ' + msg + '\n') }
+
+function writeOutput(key, value) {
+  const outputFile = process.env.GITHUB_OUTPUT
+  if (outputFile) {
+    writeFileSync(outputFile, `${key}=${value}\n`, { flag: 'a' })
+  }
+}
+
+// Collect all [AC-N-N] tags from spec files under a directory, returning a Set.
+function scanE2EFiles(dir) {
+  const tags = new Set()
+  let files = []
+  try {
+    files = readdirSync(dir, { recursive: true })
+      .filter(f => typeof f === 'string' && (f.endsWith('.spec.ts') || f.endsWith('.spec.js')))
+  } catch {
+    return tags
+  }
+  const tagRe = /\[AC-\d+-\d+\]/g
+  for (const file of files) {
+    const content = readFileSync(join(dir, file), 'utf8')
+    for (const match of content.matchAll(tagRe)) {
+      tags.add(match[0])
+    }
+  }
+  return tags
+}
 
 if (!PR_NUMBER) {
   log('No PR_NUMBER — skipping AC coverage check')
@@ -71,14 +101,21 @@ try {
   process.exit(1)
 }
 
-// Flatten all test results: [{ fullName, status }]
-const allTests = (vitestJson.testResults ?? []).flatMap(suite =>
+// Flatten all unit test results: [{ fullName, status }]
+const allUnitTests = (vitestJson.testResults ?? []).flatMap(suite =>
   (suite.assertionResults ?? []).map(t => ({ fullName: t.fullName, status: t.status }))
 )
 
-log(`Loaded ${allTests.length} test results from ${RESULTS_FILE}`)
+log(`Loaded ${allUnitTests.length} unit test results from ${RESULTS_FILE}`)
+
+// Scan E2E test files for AC tags
+const e2eTags = scanE2EFiles('e2e')
+if (e2eTags.size > 0) {
+  log(`Found ${e2eTags.size} AC tag(s) in E2E test files: ${[...e2eTags].join(', ')}`)
+}
 
 let globalFailed = false
+let needsE2E = false
 
 for (const { number: issueNum, body } of designIssues) {
   log(`\n=== AC coverage check: issue #${issueNum} ===`)
@@ -115,23 +152,31 @@ for (const { number: issueNum, body } of designIssues) {
 
   for (let n = 1; n <= checkboxIndices.length; n++) {
     const tag = `[AC-${issueNum}-${n}]`
-    const matching = allTests.filter(t => t.fullName.includes(tag))
+    const unitMatches = allUnitTests.filter(t => t.fullName.includes(tag))
+    const coveredByE2E = e2eTags.has(tag)
 
-    if (matching.length === 0) {
-      fail(`AC item ${n} — no test tagged "${tag}". Tag an it() description with this string.`)
+    if (unitMatches.length === 0 && !coveredByE2E) {
+      fail(`AC item ${n} — no test tagged "${tag}". Tag an it() or test() description with this string.`)
       issueFailed = true
       globalFailed = true
       continue
     }
 
-    const failing = matching.filter(t => t.status !== 'passed')
+    if (unitMatches.length === 0 && coveredByE2E) {
+      log(`  ✓ [AC-${issueNum}-${n}] — covered by E2E test (e2e-local will be required)`)
+      needsE2E = true
+      passedAcIndices.push(n - 1)
+      continue
+    }
+
+    const failing = unitMatches.filter(t => t.status !== 'passed')
     if (failing.length > 0) {
       fail(`AC item ${n} — ${failing.length} tagged test(s) failing:`)
       failing.forEach(t => process.stderr.write(`  ✗ ${t.fullName}\n`))
       issueFailed = true
       globalFailed = true
     } else {
-      log(`  ✓ [AC-${issueNum}-${n}] — ${matching.length} passing`)
+      log(`  ✓ [AC-${issueNum}-${n}] — ${unitMatches.length} unit test(s) passing${coveredByE2E ? ' (also in E2E)' : ''}`)
       passedAcIndices.push(n - 1) // 0-based index into checkboxIndices
     }
   }
@@ -169,6 +214,11 @@ for (const { number: issueNum, body } of designIssues) {
   } catch (e) {
     log(`Warning: could not update issue #${issueNum}: ${e.message}`)
   }
+}
+
+writeOutput('needs_e2e', needsE2E ? 'true' : 'false')
+if (needsE2E) {
+  log('\nℹ️  Some AC criteria are covered only by E2E tests — e2e-local will run as a required CI gate')
 }
 
 if (globalFailed) {

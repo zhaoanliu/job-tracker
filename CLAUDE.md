@@ -136,11 +136,16 @@ it('filters out archived jobs [AC-88-3]', () => { ... })
 
 CI (`test.yml`) runs `scripts/check-ac-coverage.mjs` on every PR, which:
 - Fails if the AC section is empty or has no checkbox items
-- Fails if any AC item has no tagged test
-- Fails if any tagged test fails
+- Fails if any AC item has no tagged test (unit tests under `__tests__/` **and** E2E tests under `e2e/` are both scanned)
+- Fails if any tagged unit test fails
 - Checks off passing AC items in the design issue
+- Sets `needs_e2e=true` when any AC items are covered only by E2E tests — this triggers the `e2e-ac` job in `test.yml`, which runs `e2e-local` (board/csv/auth, not visual) as a blocking CI gate
 
 Tag an existing test if it already covers the criterion; write a new one only when no existing test covers it. The `feature-implement.yml` bot includes this instruction automatically when a design issue is linked.
+
+**Never add an `[AC-N-N]` tag to a test that does not actually verify that criterion — even to make the coverage check pass.** A misassigned tag hides missing coverage and creates false confidence. The correct remedies when a criterion has no tagged test are:
+- Write a new unit test that genuinely verifies the criterion, OR
+- If the criterion is inherently E2E (UI flow, multi-step interaction, visual), add a `test('[AC-N-N] …')` to the appropriate `e2e/local/` spec — `check-ac-coverage.mjs` scans E2E files and will recognise it
 
 **Known test gotchas:**
 - `required` HTML attribute on inputs blocks jsdom form submission — use `fireEvent.submit(form)` to bypass it, not a submit button click
