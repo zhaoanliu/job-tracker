@@ -3,6 +3,7 @@ name: Rebase conflicting PRs
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: rebase-conflicting-prs
