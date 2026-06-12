@@ -18,6 +18,7 @@ const googleCareersMetaFallbackHtml = readFileSync(
   'utf-8'
 )
 import ashbyConfluentJob from '../fixtures/ashby-confluent-job.json'
+import ashbyDockerJob from '../fixtures/ashby-docker-job.json'
 import gemAugerJob from '../fixtures/gem-auger-job.json'
 import amperityNextdataJob from '../fixtures/amperity-nextdata-job.json'
 import greenhouseDatabricksJob from '../fixtures/greenhouse-databricks-job.json'
@@ -2203,6 +2204,92 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('jobs.ashbyhq.com'), expect.anything())
+    })
+  })
+
+  describe('Ashby embed board (?ashby_jid= + embed script)', () => {
+    // ashbyDockerJob is the schema.org/JobPosting JSON-LD block from the real
+    // jobs.ashbyhq.com/docker/9bbe3ad7-f4be-4efa-8889-b93e9d62c1ed page (2026-06-11).
+    // docker.com/career-openings/?ashby_jid={uuid} embeds the job board via JS;
+    // the board slug comes from jobs.ashbyhq.com/docker/embed in the page HTML.
+    const DOCKER_URL =
+      'https://www.docker.com/career-openings/?ashby_jid=9bbe3ad7-f4be-4efa-8889-b93e9d62c1ed'
+    const CANONICAL_URL =
+      'https://jobs.ashbyhq.com/docker/9bbe3ad7-f4be-4efa-8889-b93e9d62c1ed'
+    const embedPageHtml =
+      '<html><body><script src="https://jobs.ashbyhq.com/docker/embed"></script></body></html>'
+
+    function ashbyPage(ld: object): string {
+      return `<html><head><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body></body></html>`
+    }
+
+    it('detects embed board via ?ashby_jid= param + embed script and fetches canonical URL — real fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === CANONICAL_URL) return Promise.resolve(htmlResponse(ashbyPage(ashbyDockerJob)))
+        return Promise.resolve(htmlResponse(embedPageHtml))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DOCKER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      // Title from fixture
+      expect(data.html).toContain('<h1>Staff Software Engineer, Infrastructure</h1>')
+      // Company from hiringOrganization.name
+      expect(data.html).toContain('Docker')
+      // Date posted from fixture
+      expect(data.html).toContain('2026-06-08')
+      // Location from jobLocation.address.addressCountry (fallback since no city/region)
+      expect(data.html).toContain('Canada')
+      // Description content from fixture
+      expect(data.html).toContain('Docker has been one of the most loved brands')
+      // Docker career page was fetched first, then canonical Ashby URL
+      expect(fetchMock).toHaveBeenCalledWith(DOCKER_URL, expect.anything())
+      expect(fetchMock).toHaveBeenCalledWith(CANONICAL_URL, expect.anything())
+    })
+
+    it('falls back to HTML scraping when canonical Ashby URL returns non-2xx', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === CANONICAL_URL) return Promise.resolve(htmlResponse('', { status: 404 }))
+        return Promise.resolve(htmlResponse('<html><body>' + embedPageHtml + '<p>SENTINEL-FALLBACK</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DOCKER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('SENTINEL-FALLBACK')
+    })
+
+    it('falls back to HTML scraping when no embed script in page HTML', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === CANONICAL_URL) return Promise.resolve(htmlResponse(ashbyPage(ashbyDockerJob)))
+        // Page has ?ashby_jid= but no embed script
+        return Promise.resolve(htmlResponse('<html><body><p>No embed script</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DOCKER_URL }))
+
+      expect(res.status).toBe(200)
+      // Canonical Ashby URL should NOT have been called
+      expect(fetchMock).not.toHaveBeenCalledWith(CANONICAL_URL, expect.anything())
+    })
+
+    it('does not trigger for URL without ?ashby_jid= param', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(embedPageHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://www.docker.com/career-openings/' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(CANONICAL_URL, expect.anything())
     })
   })
 
