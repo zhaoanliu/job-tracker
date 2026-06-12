@@ -1173,6 +1173,19 @@ export async function POST(req: NextRequest) {
       if (nextDataHtml !== null) return NextResponse.json({ html: nextDataHtml })
     }
 
+    // Ashby embed board — career pages with ?ashby_jid= param (e.g. docker.com/career-openings/?ashby_jid={uuid}).
+    // Job content is JS-rendered via the Ashby embed widget; the board name comes from
+    // the embed script src (jobs.ashbyhq.com/{company}/embed) present in the page HTML.
+    const ashbyJid = parsed.searchParams.get('ashby_jid')
+    if (ashbyJid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ashbyJid)) {
+      const ashbyEmbedMatch = raw.match(/\bjobs\.ashbyhq\.com\/([A-Za-z0-9_-]+)\/embed\b/)
+      if (ashbyEmbedMatch) {
+        const ashbyHtml = await fetchAshbyJobFromCanonical(ashbyEmbedMatch[1], ashbyJid, controller.signal)
+        if (ashbyHtml !== null) return NextResponse.json({ html: ashbyHtml })
+        // API unavailable — fall through to extractJobContent
+      }
+    }
+
     // Generic schema.org/JobPosting JSON-LD handler — covers career sites like Expedia
     // that embed standard markup but don't use a recognised ATS with a dedicated handler.
     const genericJobHtml = extractGenericJobPostingFromPage(raw)
