@@ -764,6 +764,88 @@ function extractAmazonJobFromPage(html: string): string | null {
   return meta + body
 }
 
+// Shopify careers — www.shopify.com/careers/{slug}_{uuid}. React Router v7 SSR page.
+// Job data is in a de-duplication reference array passed to
+// window.__reactRouterContext.streamController.enqueue("...") as a JSON-encoded string.
+// The array stores labels and values at separate indices, with dicts using {"_N": M} to
+// say "key is data[N], value is data[M]". The jobPosting object contains descriptionHtml,
+// title, team, location, workplaceType, employmentType, and publishedDate.
+function extractShopifyJobFromPage(html: string): string | null {
+  const enqueueMatch = html.match(/streamController\.enqueue\(("[\s\S]*?")\)/)
+  if (!enqueueMatch) return null
+
+  let data: unknown[]
+  try {
+    const outerStr = JSON.parse(enqueueMatch[1]) as string
+    data = JSON.parse(outerStr) as unknown[]
+  } catch {
+    return null
+  }
+  if (!Array.isArray(data)) return null
+
+  const labelToIdx = new Map<string, number>()
+  for (let i = 0; i < data.length; i++) {
+    if (typeof data[i] === 'string') labelToIdx.set(data[i] as string, i)
+  }
+
+  const jpLabelIdx = labelToIdx.get('jobPosting')
+  if (jpLabelIdx === undefined) return null
+
+  const jpKey = `_${jpLabelIdx}`
+  let jpValueIdx: number | undefined
+  for (const item of data) {
+    if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+      const obj = item as Record<string, unknown>
+      if (jpKey in obj && typeof obj[jpKey] === 'number' && (obj[jpKey] as number) >= 0) {
+        jpValueIdx = obj[jpKey] as number
+        break
+      }
+    }
+  }
+  if (jpValueIdx === undefined || jpValueIdx >= data.length) return null
+
+  const jpData = data[jpValueIdx]
+  if (jpData === null || typeof jpData !== 'object' || Array.isArray(jpData)) return null
+  const jp = jpData as Record<string, unknown>
+
+  const getField = (label: string): unknown => {
+    const idx = labelToIdx.get(label)
+    if (idx === undefined) return undefined
+    const key = `_${idx}`
+    if (!(key in jp)) return undefined
+    const valIdx = jp[key]
+    if (typeof valIdx === 'number' && valIdx >= 0 && valIdx < data.length) return data[valIdx]
+    return valIdx
+  }
+
+  const title = str(getField('title'))
+  const descriptionHtml = str(getField('descriptionHtml'))
+  if (!descriptionHtml.trim()) return null
+
+  const teamName = str(getField('teamName'))
+  const locationName = str(getField('locationName'))
+  const workplaceType = str(getField('workplaceType'))
+  const publishedDate = str(getField('publishedDate'))
+  const employmentTypeRaw = str(getField('employmentType'))
+  const employmentTypeMap: Record<string, string> = {
+    FullTime: 'Full-time',
+    PartTime: 'Part-time',
+    Contract: 'Contract',
+    Internship: 'Internship',
+    Temporary: 'Temporary',
+  }
+  const employmentType = employmentTypeMap[employmentTypeRaw] ?? ''
+
+  const rows: Array<[string, string]> = []
+  if (teamName) rows.push(['Team', teamName])
+  if (locationName) rows.push(['Location', locationName])
+  if (workplaceType) rows.push(['Work type', workplaceType])
+  if (employmentType) rows.push(['Employment type', employmentType])
+  if (publishedDate) rows.push(['Date posted', publishedDate])
+
+  return buildMetaTable(title, rows) + descriptionHtml
+}
+
 function extractRscPayloads(html: string): string {
   const regex = /self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g
   let result = ''
@@ -862,6 +944,12 @@ export async function POST(req: NextRequest) {
   const isLifeAtTikTok =
     (parsed.hostname === 'lifeattiktok.com' || parsed.hostname === 'joinbytedance.com') &&
     /^\/search\/\d+/.test(parsed.pathname)
+
+  const isShopifyJob =
+    parsed.hostname === 'www.shopify.com' &&
+    /^\/careers\/[A-Za-z0-9_-]+_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      parsed.pathname
+    )
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -1138,6 +1226,14 @@ export async function POST(req: NextRequest) {
       const amazonHtml = extractAmazonJobFromPage(raw)
       if (amazonHtml !== null) return NextResponse.json({ html: amazonHtml })
       // No usable content — fall through to extractJobContent
+    }
+
+    // Shopify careers — www.shopify.com/careers/{slug}_{uuid}. React Router v7 SSR page.
+    // Job data is embedded in a de-dup reference array in streamController.enqueue().
+    if (isShopifyJob) {
+      const shopifyHtml = extractShopifyJobFromPage(raw)
+      if (shopifyHtml !== null) return NextResponse.json({ html: shopifyHtml })
+      // No usable data — fall through to extractJobContent
     }
 
     // lifeattiktok.com and joinbytedance.com — Next.js App Router with RSC streaming.
