@@ -25,6 +25,10 @@ import greenhouseDatabricksJob from '../fixtures/greenhouse-databricks-job.json'
 import greenhouseCoupangJob from '../fixtures/greenhouse-coupang-job.json'
 import greenhousePinterestJob from '../fixtures/greenhouse-pinterest-job.json'
 import joinByteDanceChunks from '../fixtures/joinbytedance-job.json'
+const shopifyJobHtml = readFileSync(
+  join(__dirname, '../fixtures/shopify-job.html'),
+  'utf-8'
+)
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => ({ getAll: vi.fn(() => []) })),
@@ -2921,6 +2925,86 @@ describe('POST /api/fetch-job-description', () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 503 })))
 
       const res = await POST(makeReq({ url: AMAZON_URL }))
+
+      expect(res.status).toBe(502)
+    })
+  })
+
+  describe('Shopify careers (www.shopify.com/careers/{slug}_{uuid})', () => {
+    const SHOPIFY_URL =
+      'https://www.shopify.com/careers/senior-staff-engineer-privacy-engineering_cad17f83-4d2f-45a9-8728-f149b3a50ddf'
+
+    it('returns title, team, location, work type, employment type, date, and description from fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(htmlResponse(shopifyJobHtml))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: SHOPIFY_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Senior Staff Engineer - Privacy Engineering')
+      expect(data.html).toContain('Engineering')       // teamName
+      expect(data.html).toContain('Americas')          // locationName
+      expect(data.html).toContain('Remote')            // workplaceType
+      expect(data.html).toContain('Full-time')         // employmentType (FullTime → Full-time)
+      expect(data.html).toContain('2026-05-06')        // publishedDate
+      expect(data.html).toContain('As Senior Staff Engineer on the Privacy Engineering team')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('falls back to HTML scraping when page has no streamController.enqueue', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Privacy job description here.</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: SHOPIFY_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Privacy job description here.</p>')
+    })
+
+    it('falls back to HTML scraping when descriptionHtml is empty', async () => {
+      mockUser()
+      // Synthetic: a valid enqueue structure where descriptionHtml is empty
+      const arr = [
+        'title', 'Senior Staff Engineer',
+        'descriptionHtml', '',
+        'jobPosting', { _0: 1, _2: 3 }, { _4: 5 },
+      ]
+      const html = `<html><body><script>window.__reactRouterContext.streamController.enqueue(${JSON.stringify(JSON.stringify(arr))})</script><p>Fallback</p></body></html>`
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse(html)))
+
+      const res = await POST(makeReq({ url: SHOPIFY_URL }))
+
+      const data = await res.json()
+      expect(data.html).toBe('<p>Fallback</p>')
+    })
+
+    it('does not trigger Shopify handler for non-Shopify careers URL', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Other job</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://example.com/careers/job_cad17f83-4d2f-45a9-8728-f149b3a50ddf' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Other job</p>')
+      // Single fetch for the page itself — no second Shopify-specific fetch
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns 502 when page fetch fails for Shopify URL', async () => {
+      mockUser()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse('', { status: 503 })))
+
+      const res = await POST(makeReq({ url: SHOPIFY_URL }))
 
       expect(res.status).toBe(502)
     })
