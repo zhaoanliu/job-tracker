@@ -66,9 +66,9 @@ Capture the issue number from the URL printed to stdout.
 
 3. **Add tests** in `__tests__/api/fetch-job-description.test.ts` following the existing fixture pattern. Add a fixture file under `__tests__/fixtures/` if needed (name it `<ats>-<company>-job.json` or `<hostname>-job.html` to match existing conventions).
 
-4. **Run coverage from inside the worktree** — use the Bash tool with the worktree as the working directory (do not use `cd /path && npm`; set the tool's cwd to the worktree path):
+4. **Run coverage from inside the worktree** — use a subshell so the npm command runs from the worktree directory:
    ```
-   npm run test:coverage
+   (cd /abs/path/to/job-tracker-<N> && npm run test:coverage)
    ```
    Fix any failures before committing.
 
