@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 # Pull latest main
 git pull --ff-only
 
