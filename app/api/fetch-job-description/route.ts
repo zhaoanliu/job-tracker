@@ -1087,6 +1087,21 @@ export async function POST(req: NextRequest) {
       // API unavailable — fall through to HTML scraping
     }
 
+    // DigitalOcean careers — www.digitalocean.com/careers/position/apply?gh_jid={id} is a
+    // Greenhouse-backed Next.js App Router SPA. The Greenhouse embed loads client-side with no
+    // embed script tag in the server HTML, so the post-fetch ?gh_jid handler cannot detect the
+    // board. Board slug is hardcoded to "digitalocean98" (not "digitalocean", which returns 404);
+    // slug found in the compiled page bundle: /_next/static/chunks/app/careers/position/apply/.
+    const digitaloceanGhJid =
+      parsed.hostname === 'www.digitalocean.com'
+        ? parsed.searchParams.get('gh_jid')
+        : null
+    if (digitaloceanGhJid) {
+      const ghHtml = await fetchGreenhouseJob('digitalocean98', digitaloceanGhJid, controller.signal)
+      if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
     // Databricks careers — www.databricks.com/company/careers/{dept}/{slug}-{id} is a
     // Greenhouse-backed custom Gatsby site (board "databricks"). The page HTML contains no
     // Greenhouse references so none of the post-fetch handlers match; detect by URL and call

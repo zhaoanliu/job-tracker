@@ -24,6 +24,7 @@ import amperityNextdataJob from '../fixtures/amperity-nextdata-job.json'
 import greenhouseDatabricksJob from '../fixtures/greenhouse-databricks-job.json'
 import greenhouseCoupangJob from '../fixtures/greenhouse-coupang-job.json'
 import greenhousePinterestJob from '../fixtures/greenhouse-pinterest-job.json'
+import greenhouseDigitalOceanJob from '../fixtures/greenhouse-digitalocean-job.json'
 import joinByteDanceChunks from '../fixtures/joinbytedance-job.json'
 const shopifyJobHtml = readFileSync(
   join(__dirname, '../fixtures/shopify-job.html'),
@@ -1006,6 +1007,78 @@ describe('POST /api/fetch-job-description', () => {
 
       expect(res.status).toBe(200)
       expect(fetchMock).not.toHaveBeenCalledWith(PINTEREST_GH_API, expect.anything())
+    })
+  })
+
+  describe('DigitalOcean careers (www.digitalocean.com, Greenhouse-backed, board "digitalocean98")', () => {
+    const DO_URL =
+      'https://www.digitalocean.com/careers/position/apply?gh_jid=7975125&gh_src=312a08e31us'
+    const DO_GH_API =
+      'https://boards-api.greenhouse.io/v1/boards/digitalocean98/jobs/7975125'
+
+    it('uses Greenhouse API with board "digitalocean98" and prepends metadata header — real API fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === DO_GH_API) return Promise.resolve(jsonResponse(greenhouseDigitalOceanJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DO_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('<h1>Principal Software Engineer</h1>')
+      expect(data.html).toContain('DigitalOcean')
+      expect(data.html).toContain('Seattle')
+      expect(data.html).toContain('Dive in and do the best work')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(DO_GH_API, expect.anything())
+    })
+
+    it('falls back to HTML scraping when Greenhouse API returns 404', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === DO_GH_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DO_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('falls back to HTML scraping when Greenhouse API throws', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === DO_GH_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: DO_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Scraped JD</p>')
+    })
+
+    it('does not trigger handler when gh_jid param is absent', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>No JD</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(
+        makeReq({ url: 'https://www.digitalocean.com/careers/position/apply' })
+      )
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(DO_GH_API, expect.anything())
     })
   })
 
