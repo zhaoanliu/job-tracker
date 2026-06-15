@@ -6,6 +6,23 @@
 
 ---
 
+## Project summary
+
+**ApplyTrackr** ([applytrackr.app](https://applytrackr.app)) is a production kanban board for tracking job applications — built with Next.js 14 App Router, Supabase (Postgres + auth), and deployed on Vercel. The app itself is straightforward; the engineering story is in the automation layer built around it.
+
+The project has a **fully autonomous AI-powered SDLC pipeline**:
+
+- **Auto-fix pipeline:** Sentry captures a production error → HMAC-validated webhook fires → GitHub `repository_dispatch` event triggers → Claude Code analyzes the stack trace and edits the codebase → local CI runs (lint + tsc + tests) → PR opened with risk-based routing: low-risk fixes auto-merge; high-risk changes wait for human review → merged PR closes the GitHub issue and resolves the Sentry alert. End-to-end with no human touch.
+- **Feature pipeline:** User submits a feature request → owner adds `status: approved` → Claude generates a design spec (reads the codebase, fetches external URLs, writes structured implementation plan with machine-readable JSON + human checkboxes) → owner refines the spec → `status: auto-implement` triggers → Claude implements step by step, ticking checkboxes as it goes, runs Playwright AC verification, self-heals failures → PR opened closing both the feature issue and design issue.
+- **CI/CD self-healing:** Any CI failure fires a `ci-failure` dispatch → `ci-auto-fix.yml` fetches the failed logs, runs Claude to fix the root cause, pushes back to the PR branch so CI re-runs automatically.
+- **Governance layer:** Risk scoring built into Claude's output, safeguard reverts to prevent the model from modifying its own orchestration, hydration error skip (unfixable browser-extension issues auto-closed), AC coverage enforcement as a CI gate.
+
+The full pipeline is event-driven — webhooks and GitHub dispatch events are the message bus — making it directly analogous to a Kafka-based producer/consumer architecture at enterprise scale.
+
+**Stack:** Next.js 14, Supabase, Tailwind CSS, Sentry, Vercel, GitHub Actions, Claude Code (Anthropic API), Playwright, Vitest, Temporal (migration in progress — issue #505).
+
+---
+
 ## The core narrative
 
 You've built a **production agentic AI pipeline** on a real deployed app: Sentry error → webhook → GitHub dispatch → Claude Code → automated PR (with risk-based routing for auto-merge vs human review). That's not a demo or a prototype — it's a live system handling production bugs autonomously. This maps directly to what Confluent wants.
