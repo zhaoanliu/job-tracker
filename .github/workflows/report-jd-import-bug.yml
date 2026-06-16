@@ -8,6 +8,13 @@ on:
         required: true
         type: string
 
+# Workflow-level permissions are required so reusable workflow calls (design, implement)
+# inherit contents: write, pull-requests: write from the caller token.
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
   # ── Phase 0: investigate — fetch URL, identify root cause, create seed issue ──
   investigate:
@@ -15,9 +22,6 @@ jobs:
     concurrency:
       group: report-jd-import-bug
       cancel-in-progress: false
-    permissions:
-      contents: read
-      issues: write
     outputs:
       issue_number: ${{ steps.read_issue.outputs.number }}
 
