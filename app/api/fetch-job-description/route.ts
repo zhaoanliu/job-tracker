@@ -1087,6 +1087,19 @@ export async function POST(req: NextRequest) {
       // API unavailable — fall through to HTML scraping
     }
 
+    // DigitalOcean careers (www.digitalocean.com) — Greenhouse-backed Next.js SPA. The board
+    // slug is not in the server-rendered HTML; it was found in the webpack JS bundle
+    // (/_next/static/chunks/app/careers/position/apply/page-*.js: `let a="digitalocean98"`).
+    const digitalOceanGhJid =
+      parsed.hostname === 'www.digitalocean.com'
+        ? parsed.searchParams.get('gh_jid')
+        : null
+    if (digitalOceanGhJid) {
+      const ghHtml = await fetchGreenhouseJob('digitalocean98', digitalOceanGhJid, controller.signal)
+      if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
+      // API unavailable — fall through to HTML scraping
+    }
+
     // Databricks careers — www.databricks.com/company/careers/{dept}/{slug}-{id} is a
     // Greenhouse-backed custom Gatsby site (board "databricks"). The page HTML contains no
     // Greenhouse references so none of the post-fetch handlers match; detect by URL and call
