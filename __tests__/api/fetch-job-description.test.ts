@@ -1016,7 +1016,7 @@ describe('POST /api/fetch-job-description', () => {
     const DO_GH_API =
       'https://boards-api.greenhouse.io/v1/boards/digitalocean98/jobs/7975125'
 
-    it('uses Greenhouse API with board "digitalocean98" and prepends metadata header — real API fixture', async () => {
+    it('uses Greenhouse API with board "digitalocean98" and prepends metadata header — real API fixture [AC-699-1]', async () => {
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
         if (url === DO_GH_API) return Promise.resolve(jsonResponse(greenhouseDigitalOceanJob))
@@ -1036,7 +1036,7 @@ describe('POST /api/fetch-job-description', () => {
       expect(fetchMock).toHaveBeenCalledWith(DO_GH_API, expect.anything())
     })
 
-    it('falls back to HTML scraping when Greenhouse API returns 404', async () => {
+    it('falls back to HTML scraping when Greenhouse API returns 404 [AC-699-2]', async () => {
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
         if (url === DO_GH_API) return Promise.resolve(jsonResponse({}, 404))
@@ -1051,7 +1051,7 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toBe('<p>Scraped JD</p>')
     })
 
-    it('falls back to HTML scraping when Greenhouse API throws', async () => {
+    it('falls back to HTML scraping when Greenhouse API throws [AC-699-3]', async () => {
       mockUser()
       const fetchMock = vi.fn().mockImplementation((url: string) => {
         if (url === DO_GH_API) return Promise.reject(new Error('network error'))
@@ -1066,7 +1066,7 @@ describe('POST /api/fetch-job-description', () => {
       expect(data.html).toBe('<p>Scraped JD</p>')
     })
 
-    it('does not trigger handler when gh_jid param is absent', async () => {
+    it('does not trigger handler when gh_jid param is absent [AC-699-4]', async () => {
       mockUser()
       const fetchMock = vi.fn().mockResolvedValue(
         htmlResponse('<html><body><p>No JD</p></body></html>')
