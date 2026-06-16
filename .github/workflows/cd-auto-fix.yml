@@ -27,6 +27,9 @@ jobs:
           cache: 'npm'
 
       - uses: ./.github/actions/install-claude
+        with:
+          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Install dependencies
         run: npm ci

@@ -24,6 +24,9 @@ jobs:
           token: ${{ secrets.GH_PAT }}
 
       - uses: ./.github/actions/install-claude
+        with:
+          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Get failure logs
         env:

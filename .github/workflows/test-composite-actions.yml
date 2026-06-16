@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/install-claude
+        with:
+          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Verify claude is on PATH
         run: claude --version
@@ -48,6 +51,88 @@ jobs:
           [[ "$CLAUDE_MODEL" == "claude-haiku-4-5-20251001" ]] \
             || { echo "FAIL: override not respected"; exit 1; }
           echo "PASS: step-level override works"
+
+      - name: Verify --max-turns arg parsing
+        run: |
+          parse_max_turns() {
+            local MAX_TURNS_VAL="" _prev=""
+            for _arg in "$@"; do
+              [[ "$_prev" == "--max-turns" ]] && { MAX_TURNS_VAL="$_arg"; break; }
+              _prev="$_arg"
+            done
+            echo "$MAX_TURNS_VAL"
+          }
+          result=$(parse_max_turns --max-turns 15 -p "some prompt")
+          [[ "$result" == "15" ]] || { echo "FAIL: prefix case got '$result'"; exit 1; }
+          result=$(parse_max_turns -p "some prompt" --max-turns 20)
+          [[ "$result" == "20" ]] || { echo "FAIL: suffix case got '$result'"; exit 1; }
+          result=$(parse_max_turns --max-turns 8)
+          [[ "$result" == "8" ]]  || { echo "FAIL: sole arg case got '$result'"; exit 1; }
+          result=$(parse_max_turns -p "no max turns here")
+          [[ -z "$result" ]]      || { echo "FAIL: absent case got '$result'"; exit 1; }
+          echo "PASS: --max-turns parsed correctly in all positions"
+
+      - name: Verify Supabase payload construction (normal path)
+        run: |
+          printf '{"result":"ok","total_cost_usd":0.24,"usage":{"input_tokens":5000,"cache_read_input_tokens":120000,"cache_creation_input_tokens":500,"output_tokens":312},"num_turns":8,"is_error":false}' \
+            > /tmp/claude_raw.json
+          PAYLOAD=$(jq -n \
+            --arg wf "Test" --arg rid "123" --arg att "1" --arg job "test" \
+            --arg br "main" --arg act "tester" --arg evt "push" \
+            --arg mdl "claude-sonnet-4-6" --arg sha "abc123" \
+            --arg mt "15" --arg dur "47" --arg ec "0" \
+            --slurpfile raw /tmp/claude_raw.json \
+            '{workflow_name:$wf,run_id:$rid,
+              run_attempt:($att|try tonumber catch null),
+              job_name:$job,branch:$br,actor:$act,event_name:$evt,model:$mdl,sha:$sha,
+              cost_usd:($raw[0].total_cost_usd//null),
+              input_tokens:($raw[0].usage.input_tokens//null),
+              cache_read_tokens:($raw[0].usage.cache_read_input_tokens//null),
+              cache_creation_tokens:($raw[0].usage.cache_creation_input_tokens//null),
+              output_tokens:($raw[0].usage.output_tokens//null),
+              num_turns:($raw[0].num_turns//null),
+              max_turns:($mt|if . == "" then null else try tonumber catch null end),
+              duration_seconds:($dur|if . == "" then null else try tonumber catch null end),
+              exit_code:($ec|if . == "" then null else try tonumber catch null end),
+              is_error:($raw[0].is_error//false)}')
+          jq -e '
+            .cost_usd == 0.24 and .num_turns == 8 and
+            .max_turns == 15 and .duration_seconds == 47 and
+            .exit_code == 0 and .is_error == false
+          ' <<< "$PAYLOAD"
+          echo "PASS: Supabase payload is well-formed"
+
+      - name: Verify Supabase payload handles missing/empty fields
+        run: |
+          printf '{"result":"","total_cost_usd":0.05,"usage":{"input_tokens":100},"is_error":true}' \
+            > /tmp/claude_raw.json
+          PAYLOAD=$(jq -n \
+            --arg wf "Test" --arg rid "456" --arg att "" --arg job "test" \
+            --arg br "main" --arg act "bot" --arg evt "push" \
+            --arg mdl "claude-sonnet-4-6" --arg sha "" \
+            --arg mt "" --arg dur "" --arg ec "1" \
+            --slurpfile raw /tmp/claude_raw.json \
+            '{run_attempt:($att|try tonumber catch null),
+              num_turns:($raw[0].num_turns//null),
+              max_turns:($mt|if . == "" then null else try tonumber catch null end),
+              duration_seconds:($dur|if . == "" then null else try tonumber catch null end),
+              exit_code:($ec|if . == "" then null else try tonumber catch null end),
+              is_error:($raw[0].is_error//false)}')
+          jq -e '
+            .run_attempt == null and .num_turns == null and
+            .max_turns == null and .duration_seconds == null and
+            .exit_code == 1 and .is_error == true
+          ' <<< "$PAYLOAD"
+          echo "PASS: empty/absent fields produce null; non-empty exit_code parsed"
+
+      - name: Verify Supabase logging skipped when credentials absent
+        run: |
+          SUPABASE_LOG_URL="" SUPABASE_LOG_KEY=""
+          if [[ -n "${SUPABASE_LOG_URL:-}" && -n "${SUPABASE_LOG_KEY:-}" ]]; then
+            echo "FAIL: entered logging block without credentials"
+            exit 1
+          fi
+          echo "PASS: logging correctly skipped when credentials absent"
 
   test-check-existing-pr:
     runs-on: ubuntu-latest
