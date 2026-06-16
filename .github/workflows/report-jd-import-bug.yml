@@ -1,0 +1,140 @@
+name: "JD import: investigate and fix"
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Job listing URL that failed to import'
+        required: true
+        type: string
+
+jobs:
+  # ── Phase 0: investigate — fetch URL, identify root cause, create seed issue ──
+  investigate:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: report-jd-import-bug
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      issue_number: ${{ steps.read_issue.outputs.number }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/install-claude
+
+      - name: Write investigation prompt
+        env:
+          FAILING_URL: ${{ github.event.inputs.url }}
+        run: |
+          printf '%s' "${FAILING_URL}" > /tmp/failing_url.txt
+          cat > /tmp/investigate_prompt.txt << EOF
+          You are investigating a failing job description import.
+
+          Failing URL: $(cat /tmp/failing_url.txt)
+
+          ## Investigation (run all three in parallel)
+
+          1. Fetch the URL with a realistic User-Agent:
+             curl -s -L --max-time 10 -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "$(cat /tmp/failing_url.txt)"
+             Inspect for:
+             - ATS markers in HTML or query params: gh_jid, ashby_jid, greenhouse.io embed script, lever.co, myworkdayjobs.com, jobs.ashbyhq.com/{slug}/embed, Workable widget
+             - Server-rendered job content vs JS-rendered shell (no visible job text in the HTML)
+             - window.__ globals with embedded job data (__NEXT_DATA__, __reactRouterContext, AF_initDataCallback)
+             - HTTP 403 / Cloudflare block (look for "Cloudflare" or "Access denied" in response)
+             - If Cloudflare-blocked or JS-rendered and gh_jid param is present: find the Greenhouse board slug in the page JS bundle (grep for greenhouse.io in bundle URLs, fetch the bundle, grep for the board slug near 'greenhouse') and test the API: curl "https://boards-api.greenhouse.io/v1/boards/<slug>/jobs/<id>"
+
+          2. Read app/api/fetch-job-description/route.ts in full.
+             Identify exactly why no existing handler fires for this URL (wrong hostname, missing query param, different path shape, post-fetch handler blocked by Cloudflare, board slug unknown).
+             Identify the closest existing handler to use as a template.
+
+          3. Read app/api/fetch-job-description/CLAUDE.md for the list of already-supported sites and known gotchas.
+
+          ## After investigation
+
+          Determine:
+          - The exact root cause (which handler would need to fire, why it doesn't)
+          - The fix approach (pre-fetch handler with known board slug, post-fetch handler, new extractor)
+          - The hostname and any distinctive URL pattern (e.g. "?gh_jid=", "/career-openings/")
+
+          Build the issue title:
+          - Default: "fix: JD import fails for <hostname>"
+          - With distinctive param or path: "fix: JD import fails for <hostname> (<pattern>)"
+
+          Create the seed issue (root cause and fix only — no AC tags yet, we need the number first):
+          gh issue create \
+            --title "<title>" \
+            --label "bug" \
+            --label "status: in progress" \
+            --body "<root cause section and fix approach section>"
+
+          Parse N from the URL printed to stdout (last path segment, digits only).
+
+          Then edit the issue to add the full body including acceptance criteria with real [AC-N-M] tags:
+          gh issue edit N --body "<full body>"
+
+          The full body must include all of:
+          - The failing URL (first line)
+          - Why no existing handler fires (exact reason)
+          - Fix approach (which handler pattern, which API endpoint)
+          - If you verified an ATS API, include: the endpoint URL and confirmation it returned 200
+
+          ## Acceptance criteria
+          - [ ] [AC-N-1] Importing <url-pattern> returns the job title, company, location, and description
+          - [ ] [AC-N-2] Falls back to HTML scraping when the ATS API returns non-2xx
+          - [ ] [AC-N-3] Falls back to HTML scraping when the ATS API throws a network error
+          - [ ] [AC-N-4] Handler does not fire when the distinguishing param/path is absent
+          (Adapt wording to the specific ATS and URL pattern.)
+
+          ## Test plan
+          - [ ] 4 new unit tests covering all ACs — tagged [AC-N-1] through [AC-N-4]
+          - [ ] Coverage: all thresholds met (verified before committing)
+          - [ ] Fixture: __tests__/fixtures/<ats>-<company>-job.json — real API response
+          - [ ] Manual: import $(cat /tmp/failing_url.txt)
+
+          Finally, write N to /tmp/issue_number.txt:
+          echo N > /tmp/issue_number.txt
+          EOF
+
+      - name: Investigate and create seed issue
+        uses: ./.github/actions/run-claude
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt-file: '/tmp/investigate_prompt.txt'
+          max-turns: '20'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read issue number
+        id: read_issue
+        run: |
+          if [[ ! -f /tmp/issue_number.txt ]]; then
+            echo "Claude did not write /tmp/issue_number.txt — investigation failed"
+            exit 1
+          fi
+          NUMBER=$(tr -d '[:space:]' < /tmp/issue_number.txt)
+          if [[ -z "$NUMBER" || ! "$NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "Invalid issue number: '${NUMBER}'"
+            exit 1
+          fi
+          echo "number=${NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "Seed issue #${NUMBER} created — proceeding to design phase"
+
+  # ── Phase 1: generate design proposal (reuses feature-design.yml) ─────────
+  design:
+    needs: investigate
+    uses: ./.github/workflows/feature-design.yml
+    with:
+      issue_number: ${{ needs.investigate.outputs.issue_number }}
+    secrets: inherit
+
+  # ── Phase 2: implement from design (reuses feature-implement.yml) ─────────
+  implement:
+    needs: [investigate, design]
+    uses: ./.github/workflows/feature-implement.yml
+    with:
+      issue_number: ${{ needs.investigate.outputs.issue_number }}
+    secrets: inherit

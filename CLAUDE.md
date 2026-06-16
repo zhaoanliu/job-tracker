@@ -123,11 +123,11 @@ The three steps in order:
 
 **Before committing any code change, run `npm run test:coverage`** (not `npm test`). CI (`test.yml`) runs `npm run test:coverage` and enforces thresholds (lines ≥85%, branches ≥80%, functions ≥65%). The bare `npm test` skips coverage reporting and will miss threshold failures, forcing a round-trip through CI + auto-fix.
 
-### AC tagging — unit tests must map to design acceptance criteria
+### AC tagging — unit tests must map to acceptance criteria
 
-**When implementing a feature from a design issue (one with `<!-- implementation-plan-json -->`), every acceptance criterion must have at least one tagged unit test.** Tag each covering test's `it()` description with `[AC-{issue}-{N}]` where `{issue}` is the design issue number and `{N}` is the 1-based position of that criterion in the "## Acceptance criteria" list.
+**Any issue with an `## Acceptance criteria` section — whether a feature design issue or a bug fix — requires at least one tagged unit test per AC item.** Tag each covering test's `it()` description with `[AC-{issue}-{N}]` where `{issue}` is the issue number and `{N}` is the 1-based position of that criterion in the "## Acceptance criteria" list.
 
-Design issues show the exact tag on each AC item (e.g. `- [ ] [AC-88-1] Description`) — copy it directly into the `it()` description:
+Issues show the exact tag on each AC item (e.g. `- [ ] [AC-88-1] Description`) — copy it directly into the `it()` description:
 ```ts
 it('saves application to database [AC-88-1]', () => { ... })
 it('shows error toast on network failure [AC-88-2]', () => { ... })
@@ -138,10 +138,10 @@ CI (`test.yml`) runs `scripts/check-ac-coverage.mjs` on every PR, which:
 - Fails if the AC section is empty or has no checkbox items
 - Fails if any AC item has no tagged test (unit tests under `__tests__/` **and** E2E tests under `e2e/` are both scanned)
 - Fails if any tagged unit test fails
-- Checks off passing AC items in the design issue
+- Checks off passing AC items in the issue
 - Sets `needs_e2e=true` when any AC items are covered only by E2E tests — this triggers the `e2e-ac` job in `test.yml`, which runs `e2e-local` (board/csv/auth, not visual) as a blocking CI gate
 
-Tag an existing test if it already covers the criterion; write a new one only when no existing test covers it. The `feature-implement.yml` bot includes this instruction automatically when a design issue is linked.
+Tag an existing test if it already covers the criterion; write a new one only when no existing test covers it. Both `feature-implement.yml` and `report-jd-import-bug.yml` include this instruction automatically.
 
 **Never add an `[AC-N-N]` tag to a test that does not actually verify that criterion — even to make the coverage check pass.** A misassigned tag hides missing coverage and creates false confidence. The correct remedies when a criterion has no tagged test are:
 - Write a new unit test that genuinely verifies the criterion, OR
