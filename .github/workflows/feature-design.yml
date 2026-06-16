@@ -9,14 +9,20 @@ on:
         description: 'Issue number to design'
         required: true
         type: string
+  workflow_call:
+    inputs:
+      issue_number:
+        description: 'Issue number to design'
+        required: true
+        type: string
 
 jobs:
   # ── Phase 1: generate design proposal ────────────────────────────────────
   design:
-    if: "(github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'issues' && github.event.label.name == 'status: approved')"
+    if: "github.event_name == 'workflow_call' || (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'issues' && github.event.label.name == 'status: approved')"
     runs-on: ubuntu-latest
     concurrency:
-      group: feature-design-${{ github.event.issue.number || github.event.inputs.issue_number }}
+      group: feature-design-${{ github.event.issue.number || inputs.issue_number }}
       cancel-in-progress: true
     permissions:
       contents: write
@@ -31,7 +37,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
-          INPUT_ISSUE_NUMBER: ${{ github.event.inputs.issue_number }}
+          INPUT_ISSUE_NUMBER: ${{ inputs.issue_number }}
         run: |
           ISSUE_NUMBER="${EVENT_ISSUE_NUMBER:-$INPUT_ISSUE_NUMBER}"
           ISSUE_TITLE=$(gh issue view "$ISSUE_NUMBER" --json title --jq '.title')
