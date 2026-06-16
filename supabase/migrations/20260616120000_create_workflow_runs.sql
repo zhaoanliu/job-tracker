@@ -16,6 +16,14 @@ create table if not exists public.workflow_runs (
   cache_creation_tokens integer,
   output_tokens         integer,
   num_turns             integer,
+  max_turns             integer,
+  hit_max_turns         boolean generated always as (
+                          num_turns is not null
+                          and max_turns is not null
+                          and num_turns >= max_turns
+                        ) stored,
+  duration_seconds      integer,
+  exit_code             integer,
   is_error              boolean
 );
 

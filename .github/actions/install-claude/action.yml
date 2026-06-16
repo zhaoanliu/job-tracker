@@ -36,8 +36,15 @@ runs:
           [[ "$arg" == "--version" || "$arg" == "--help" ]] && exec _claude_bin "$@"
         done
         RAW_JSON=/tmp/claude_raw.json
+        MAX_TURNS_VAL="" _prev=""
+        for _arg in "$@"; do
+          [[ "$_prev" == "--max-turns" ]] && { MAX_TURNS_VAL="$_arg"; break; }
+          _prev="$_arg"
+        done
+        START_SECONDS=$SECONDS
         _claude_bin --dangerously-skip-permissions --model "${CLAUDE_MODEL}" --output-format json "$@" > "$RAW_JSON" 2>&1
         EXIT=$?
+        DURATION_SECONDS=$((SECONDS - START_SECONDS))
         { jq -re '.result // ""' "$RAW_JSON" 2>/dev/null || cat "$RAW_JSON"; }
         jq -r '"cost=$\(.total_cost_usd // 0) in=\(.usage.input_tokens // 0) cache=\(.usage.cache_read_input_tokens // 0) out=\(.usage.output_tokens // 0)"' "$RAW_JSON" >> "${GITHUB_STEP_SUMMARY:-/dev/null}" 2>/dev/null || true
         if [[ -n "${SUPABASE_LOG_URL:-}" && -n "${SUPABASE_LOG_KEY:-}" ]]; then
@@ -51,6 +58,9 @@ runs:
             --arg evt "${GITHUB_EVENT_NAME:-}" \
             --arg mdl "${CLAUDE_MODEL:-}" \
             --arg sha "${GITHUB_SHA:-}" \
+            --arg mt  "${MAX_TURNS_VAL:-}" \
+            --arg dur "${DURATION_SECONDS:-}" \
+            --arg ec  "${EXIT:-}" \
             --slurpfile raw "$RAW_JSON" \
             '{
               workflow_name:         $wf,
@@ -68,6 +78,9 @@ runs:
               cache_creation_tokens: ($raw[0].usage.cache_creation_input_tokens // null),
               output_tokens:         ($raw[0].usage.output_tokens // null),
               num_turns:             ($raw[0].num_turns // null),
+              max_turns:             ($mt | if . == "" then null else try tonumber catch null end),
+              duration_seconds:      ($dur | if . == "" then null else try tonumber catch null end),
+              exit_code:             ($ec | if . == "" then null else try tonumber catch null end),
               is_error:              ($raw[0].is_error // false)
             }' 2>/dev/null)
           if [[ -n "$PAYLOAD" ]]; then
