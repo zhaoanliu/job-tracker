@@ -58,7 +58,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
-          INPUT_ISSUE_NUMBER: ${{ github.event.inputs.issue_number }}
+          INPUT_ISSUE_NUMBER: ${{ inputs.issue_number }}
         run: |
           ISSUE_NUMBER="${EVENT_ISSUE_NUMBER:-$INPUT_ISSUE_NUMBER}"
           DESIGN_NUMBER=""
