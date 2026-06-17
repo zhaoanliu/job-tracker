@@ -78,7 +78,9 @@ jobs:
             --label "status: in progress" \
             --body "<root cause section and fix approach section>"
 
-          Parse N from the URL printed to stdout (last path segment, digits only).
+          Parse N from the GitHub URL printed to stdout (last path segment, digits only).
+          Write it immediately:
+          echo N > /tmp/issue_number.txt
 
           Then edit the issue to add the full body including acceptance criteria with real [AC-N-M] tags:
           gh issue edit N --body "<full body>"
@@ -102,8 +104,6 @@ jobs:
           - [ ] Fixture: __tests__/fixtures/<ats>-<company>-job.json — real API response
           - [ ] Manual: import $(cat /tmp/failing_url.txt)
 
-          Finally, write N to /tmp/issue_number.txt:
-          echo N > /tmp/issue_number.txt
           EOF
 
       - name: Investigate and create seed issue
@@ -114,6 +114,25 @@ jobs:
           max-turns: '20'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Recover issue number if Claude did not write file
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILING_URL: ${{ github.event.inputs.url }}
+        run: |
+          if [[ -f /tmp/issue_number.txt ]]; then exit 0; fi
+          HOSTNAME=$(printf '%s' "$FAILING_URL" | sed 's|https\?://||' | cut -d'/' -f1)
+          NUMBER=$(gh issue list \
+            --label "bug" \
+            --state open \
+            --limit 50 \
+            --json number,title \
+            --jq "[.[] | select(.title != null and (.title | contains(\"${HOSTNAME}\")))] | first | .number // empty")
+          if [[ -n "$NUMBER" && "$NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "Recovered issue #${NUMBER} from GitHub (Claude did not write file)"
+            echo "$NUMBER" > /tmp/issue_number.txt
+          fi
 
       - name: Read issue number
         id: read_issue
