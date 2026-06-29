@@ -56,7 +56,7 @@ jobs:
 
       - uses: supabase/setup-cli@v2.1.1
         with:
-          version: 2.106.0
+          version: 2.107.0
 
       - uses: ./.github/actions/supabase-start
 
