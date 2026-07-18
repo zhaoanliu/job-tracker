@@ -30,22 +30,28 @@ For the full cost analysis, routing plan, and per-run spend tracking, see
 
 ## Composite actions
 
-Reusable actions live in `.github/actions/`. Use `uses: ./.github/actions/<name>` to call them from a workflow step.
+**Generic actions are consumed from the shared library repo, pinned by exact tag:** `uses: zhaoanliu/claude-dev-automation/actions/<name>@v1.0.0`. The library is private; its Actions access policy (`access_level: user`) lets same-owner repos use it. **To change a shared action:** change it in the library, tag a new version there, then bump the pinned tag here in every workflow file (grep for `claude-dev-automation/actions`). Never reference `@main` — library development for other projects must not affect this repo.
 
-| Action | What it does |
+| Action (library @v1.0.0) | What it does |
 |---|---|
 | `run-claude` | Run `claude` with exponential-backoff retry on 529/overload; inputs: `anthropic-api-key`, `prompt-file`, `max-turns`, `max-attempts`, `extra-flags`, `output-file` |
-| `install-claude` | Install Claude Code, set `CLAUDE_MODEL` env var |
+| `install-claude` | Install Claude Code, set `CLAUDE_MODEL` env var. This repo passes `model: claude-sonnet-4-6` and `telemetry-url`/`telemetry-api-key` (Supabase) explicitly — the library defaults differ |
 | `mark-in-progress` | Add `status: in progress` label to the issue |
 | `check-existing-pr` | Find an open PR for the current issue before running Claude |
 | `detect-doc-only` | Output `skip=true` when all changed files are docs |
 | `trigger-ci-failure` | Dispatch `ci-failure` repository event on workflow failure |
+| `open-fix-pr` | Commit staged changes, push branch, create PR with risk-based auto-merge, post issue comment |
+
+Repo-specific actions still live in `.github/actions/` (`uses: ./.github/actions/<name>`):
+
+| Action (local) | What it does |
+|---|---|
 | `supabase-start` | Start local Supabase stack for E2E tests |
 | `verify-ac` | Run Playwright acceptance-criteria tests and self-heal on failure |
 
 **No duplication in workflows** — before writing a new `run:` block longer than ~10 lines, check this table. If a matching action exists, use it. If a new pattern is needed in more than one workflow, extract it to a new composite action.
 
-**The canonical Claude retry loop is `.github/scripts/run-claude-retry.sh`** — `run-claude` delegates to it, and call sites that must invoke `claude` multiple times inside a single step (`verify-ac`, `feature-implement.yml`) call the script directly through a local `run_claude()` wrapper. Never inline a copy of the retry loop; a composite action cannot be called from inside a shell loop, but the script can. Usage: `run-claude-retry.sh <prompt-file> <max-turns> [output-file] [max-attempts] [extra-flags]`; it always exits 0 — callers react to Claude's output, not the exit code.
+**The canonical Claude retry loop is `.github/scripts/run-claude-retry.sh`** — call sites that must invoke `claude` multiple times inside a single step (`verify-ac`, `feature-implement.yml`) call the script directly through a local `run_claude()` wrapper. (The library's `run-claude` action carries its own copy of the same script at the pinned tag.) Never inline a copy of the retry loop; a composite action cannot be called from inside a shell loop, but the script can. Usage: `run-claude-retry.sh <prompt-file> <max-turns> [output-file] [max-attempts] [extra-flags]`; it always exits 0 — callers react to Claude's output, not the exit code.
 
 ## Auto-fix pipeline
 
@@ -270,18 +276,7 @@ Review across these dimensions on every cycle:
 
 See `CLAUDE.md` for the general no-duplication rule. For workflow files specifically: any `run:` block longer than ~10 lines that appears (or will appear) in more than one workflow file must be extracted to `.github/actions/<name>/action.yml`. Grep other workflow files before writing any substantial `run:` block.
 
-**Existing composite actions — call these instead of re-implementing:**
-
-| Action | What it does |
-|---|---|
-| `open-fix-pr` | Commit staged changes, push branch, create PR with risk-based auto-merge, post issue comment |
-| `check-existing-pr` | Find an open PR for the current issue before running Claude (dedup guard) |
-| `install-claude` | Install Claude Code, set `CLAUDE_MODEL` env var |
-| `mark-in-progress` | Add `status: in progress` label to the issue |
-| `detect-doc-only` | Output `skip=true` when all changed files are docs (used by lint/test/e2e to short-circuit) |
-| `trigger-ci-failure` | Dispatch `ci-failure` repository event on workflow failure |
-| `supabase-start` | Start local Supabase stack for E2E tests |
-| `verify-ac` | Run Playwright acceptance-criteria tests and self-heal on failure |
+**Existing composite actions — call these instead of re-implementing.** See the "Composite actions" section above for the full list: seven generic actions come from `zhaoanliu/claude-dev-automation@v1.0.0` (run-claude, install-claude, open-fix-pr, check-existing-pr, mark-in-progress, detect-doc-only, trigger-ci-failure); `supabase-start` and `verify-ac` are local. New repo-specific patterns are extracted to `.github/actions/`; new generic patterns belong in the library (change there, tag, bump the pin here).
 
 ### `|| true` usage rules
 

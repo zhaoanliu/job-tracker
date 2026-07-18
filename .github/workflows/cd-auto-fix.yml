@@ -26,10 +26,11 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
-      - uses: ./.github/actions/install-claude
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
         with:
-          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          model: claude-sonnet-4-6
+          telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          telemetry-api-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Install dependencies
         run: npm ci
@@ -165,13 +166,13 @@ jobs:
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
-      - uses: ./.github/actions/check-existing-pr
+      - uses: zhaoanliu/claude-dev-automation/actions/check-existing-pr@v1.0.0
         if: steps.build.outputs.reproducible == 'true'
         id: pr_check
         with:
           branch-prefix: fix/cd-issue-${{ steps.issue.outputs.number }}-
 
-      - uses: ./.github/actions/mark-in-progress
+      - uses: zhaoanliu/claude-dev-automation/actions/mark-in-progress@v1.0.0
         if: steps.build.outputs.reproducible == 'true' && steps.pr_check.outputs.skip != 'true'
         with:
           issue-number: ${{ steps.issue.outputs.number }}
@@ -207,7 +208,7 @@ jobs:
 
       - name: Open fix PR
         if: steps.changes.outputs.has_changes == 'true'
-        uses: ./.github/actions/open-fix-pr
+        uses: zhaoanliu/claude-dev-automation/actions/open-fix-pr@v1.0.0
         with:
           issue-number: ${{ steps.issue.outputs.number }}
           gh-pat: ${{ secrets.GH_PAT }}

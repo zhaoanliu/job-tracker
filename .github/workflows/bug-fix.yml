@@ -19,10 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/install-claude
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
         with:
-          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          model: claude-sonnet-4-6
+          telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          telemetry-api-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Capture issue details
         id: issue
@@ -87,19 +88,19 @@ jobs:
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
-      - uses: ./.github/actions/check-existing-pr
+      - uses: zhaoanliu/claude-dev-automation/actions/check-existing-pr@v1.0.0
         id: pr_check
         with:
           branch-prefix: fix/issue-${{ steps.issue.outputs.number }}-
 
-      - uses: ./.github/actions/mark-in-progress
+      - uses: zhaoanliu/claude-dev-automation/actions/mark-in-progress@v1.0.0
         if: steps.pr_check.outputs.skip != 'true'
         with:
           issue-number: ${{ steps.issue.outputs.number }}
 
       - name: Run Claude Code
         if: steps.pr_check.outputs.skip != 'true'
-        uses: ./.github/actions/run-claude
+        uses: zhaoanliu/claude-dev-automation/actions/run-claude@v1.0.0
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           max-turns: '30'
@@ -128,7 +129,7 @@ jobs:
 
       - name: Open fix PR
         if: steps.changes.outputs.has_changes == 'true'
-        uses: ./.github/actions/open-fix-pr
+        uses: zhaoanliu/claude-dev-automation/actions/open-fix-pr@v1.0.0
         with:
           issue-number: ${{ steps.issue.outputs.number }}
           gh-pat: ${{ secrets.GH_PAT }}

@@ -32,10 +32,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/install-claude
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
         with:
-          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          model: claude-sonnet-4-6
+          telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          telemetry-api-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Resolve issue metadata
         env:
@@ -115,7 +116,7 @@ jobs:
             echo 'DESIGN_EOF'
           } >> "$GITHUB_ENV"
 
-      - uses: ./.github/actions/check-existing-pr
+      - uses: zhaoanliu/claude-dev-automation/actions/check-existing-pr@v1.0.0
         id: pr_check
         with:
           branch-prefix: feat/issue-${{ env.ISSUE_NUMBER }}-
@@ -128,7 +129,7 @@ jobs:
           gh issue comment "${ISSUE_NUMBER}" \
             --body "Claude Code is implementing this feature. A PR will be opened for review when done."
 
-      - uses: ./.github/actions/mark-in-progress
+      - uses: zhaoanliu/claude-dev-automation/actions/mark-in-progress@v1.0.0
         if: steps.pr_check.outputs.skip != 'true'
         with:
           issue-number: ${{ env.ISSUE_NUMBER }}
