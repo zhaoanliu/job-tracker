@@ -58,7 +58,7 @@ jobs:
         with:
           version: 2.108.0
 
-      - uses: ./.github/actions/supabase-start
+      - uses: zhaoanliu/claude-dev-automation/actions/supabase-start@v1.1.0
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps

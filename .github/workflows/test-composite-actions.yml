@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.1.0
         with:
           model: claude-sonnet-4-6
           telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -187,7 +187,7 @@ jobs:
           echo "PASS: non-overload failure does not retry and exits 0"
 
       - name: Composite action resolves the script via GITHUB_ACTION_PATH
-        uses: zhaoanliu/claude-dev-automation/actions/run-claude@v1.0.0
+        uses: zhaoanliu/claude-dev-automation/actions/run-claude@v1.1.0
         with:
           anthropic-api-key: dummy-key-not-used-by-stub
           prompt-file: /tmp/prompt.txt
@@ -208,7 +208,7 @@ jobs:
 
       - name: No-match case — nonexistent prefix should not set skip
         id: no_match
-        uses: zhaoanliu/claude-dev-automation/actions/check-existing-pr@v1.0.0
+        uses: zhaoanliu/claude-dev-automation/actions/check-existing-pr@v1.1.0
         with:
           branch-prefix: definitely-nonexistent-xyz-99999-
 
@@ -227,7 +227,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: zhaoanliu/claude-dev-automation/actions/mark-in-progress@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/mark-in-progress@v1.1.0
         with:
           issue-number: '0'
           labels-to-remove: |
@@ -243,7 +243,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: zhaoanliu/claude-dev-automation/actions/detect-doc-only@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/detect-doc-only@v1.1.0
         id: detect
       - name: Assert skip is not set for non-PR context
         run: |

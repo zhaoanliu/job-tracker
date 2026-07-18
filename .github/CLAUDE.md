@@ -30,9 +30,9 @@ For the full cost analysis, routing plan, and per-run spend tracking, see
 
 ## Composite actions
 
-**Generic actions are consumed from the shared library repo, pinned by exact tag:** `uses: zhaoanliu/claude-dev-automation/actions/<name>@v1.0.0`. The library is private; its Actions access policy (`access_level: user`) lets same-owner repos use it. **To change a shared action:** change it in the library, tag a new version there, then bump the pinned tag here in every workflow file (grep for `claude-dev-automation/actions`). Never reference `@main` — library development for other projects must not affect this repo.
+**Generic actions are consumed from the shared library repo, pinned by exact tag:** `uses: zhaoanliu/claude-dev-automation/actions/<name>@v1.1.0`. The library is public — it must be: this repo is public, and GitHub does not let a public repo use actions from a private one. **To change a shared action:** change it in the library, tag a new version there, then bump the pinned tag here in every workflow file (grep for `claude-dev-automation/actions`). Never reference `@main` — library development for other projects must not affect this repo.
 
-| Action (library @v1.0.0) | What it does |
+| Action (library @v1.1.0) | What it does |
 |---|---|
 | `run-claude` | Run `claude` with exponential-backoff retry on 529/overload; inputs: `anthropic-api-key`, `prompt-file`, `max-turns`, `max-attempts`, `extra-flags`, `output-file` |
 | `install-claude` | Install Claude Code, set `CLAUDE_MODEL` env var. This repo passes `model: claude-sonnet-4-6` and `telemetry-url`/`telemetry-api-key` (Supabase) explicitly — the library defaults differ |
@@ -41,13 +41,13 @@ For the full cost analysis, routing plan, and per-run spend tracking, see
 | `detect-doc-only` | Output `skip=true` when all changed files are docs |
 | `trigger-ci-failure` | Dispatch `ci-failure` repository event on workflow failure |
 | `open-fix-pr` | Commit staged changes, push branch, create PR with risk-based auto-merge, post issue comment |
+| `supabase-start` | Start local Supabase stack for E2E tests (library "Supabase stack module") |
 
 Repo-specific actions still live in `.github/actions/` (`uses: ./.github/actions/<name>`):
 
 | Action (local) | What it does |
 |---|---|
-| `supabase-start` | Start local Supabase stack for E2E tests |
-| `verify-ac` | Run Playwright acceptance-criteria tests and self-heal on failure |
+| `verify-ac` | Run Playwright acceptance-criteria tests and self-heal on failure — vendor-and-adapt by design; it encodes this repo's test environment (helpers contract, base URL, validation commands) |
 
 **No duplication in workflows** — before writing a new `run:` block longer than ~10 lines, check this table. If a matching action exists, use it. If a new pattern is needed in more than one workflow, extract it to a new composite action.
 
@@ -276,7 +276,7 @@ Review across these dimensions on every cycle:
 
 See `CLAUDE.md` for the general no-duplication rule. For workflow files specifically: any `run:` block longer than ~10 lines that appears (or will appear) in more than one workflow file must be extracted to `.github/actions/<name>/action.yml`. Grep other workflow files before writing any substantial `run:` block.
 
-**Existing composite actions — call these instead of re-implementing.** See the "Composite actions" section above for the full list: seven generic actions come from `zhaoanliu/claude-dev-automation@v1.0.0` (run-claude, install-claude, open-fix-pr, check-existing-pr, mark-in-progress, detect-doc-only, trigger-ci-failure); `supabase-start` and `verify-ac` are local. New repo-specific patterns are extracted to `.github/actions/`; new generic patterns belong in the library (change there, tag, bump the pin here).
+**Existing composite actions — call these instead of re-implementing.** See the "Composite actions" section above for the full list: eight actions come from `zhaoanliu/claude-dev-automation@v1.1.0` (run-claude, install-claude, open-fix-pr, check-existing-pr, mark-in-progress, detect-doc-only, trigger-ci-failure, supabase-start); only `verify-ac` is local. New repo-specific patterns are extracted to `.github/actions/`; new generic patterns belong in the library (change there, tag, bump the pin here).
 
 ### `|| true` usage rules
 

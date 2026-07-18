@@ -21,7 +21,7 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT }}
 
-      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.1.0
         with:
           model: claude-sonnet-4-6
           telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}

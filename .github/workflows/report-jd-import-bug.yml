@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.1.0
         with:
           model: claude-sonnet-4-6
           telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -108,7 +108,7 @@ jobs:
           EOF
 
       - name: Investigate and create seed issue
-        uses: zhaoanliu/claude-dev-automation/actions/run-claude@v1.0.0
+        uses: zhaoanliu/claude-dev-automation/actions/run-claude@v1.1.0
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt-file: '/tmp/investigate_prompt.txt'
