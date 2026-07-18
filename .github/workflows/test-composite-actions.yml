@@ -134,6 +134,70 @@ jobs:
           fi
           echo "PASS: logging correctly skipped when credentials absent"
 
+  test-run-claude-retry:
+    # Exercises .github/scripts/run-claude-retry.sh directly and through the
+    # run-claude composite action using a stubbed `claude` binary — proves the
+    # $GITHUB_ACTION_PATH/../../scripts resolution on a real runner without
+    # spending API tokens. `sleep` is stubbed so the backoff path runs instantly.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install claude/sleep stubs
+        run: |
+          mkdir -p /tmp/stub
+          cat > /tmp/stub/claude << 'EOF'
+          #!/bin/bash
+          echo "CLAUDE ARGS: $*" >> /tmp/stub_log.txt
+          N=$(cat /tmp/stub_state.txt 2>/dev/null || echo 0); N=$((N+1)); echo "$N" > /tmp/stub_state.txt
+          case "${STUB_MODE:-ok}" in
+            ok) echo "stub ok"; exit 0 ;;
+            overload_then_ok) if [[ "$N" -lt 3 ]]; then echo "Error: 529 Overloaded"; exit 1; else echo "recovered"; exit 0; fi ;;
+            hard_fail) echo "fatal"; exit 7 ;;
+          esac
+          EOF
+          cat > /tmp/stub/sleep << 'EOF'
+          #!/bin/bash
+          echo "SLEEP $1" >> /tmp/stub_log.txt
+          EOF
+          chmod +x /tmp/stub/claude /tmp/stub/sleep
+          echo "/tmp/stub" >> "$GITHUB_PATH"
+          echo "test prompt" > /tmp/prompt.txt
+
+      - name: Script direct — overload retries with exponential backoff
+        env:
+          STUB_MODE: overload_then_ok
+        run: |
+          rm -f /tmp/stub_log.txt /tmp/stub_state.txt
+          bash .github/scripts/run-claude-retry.sh /tmp/prompt.txt 5 /tmp/out.txt
+          grep -q "recovered" /tmp/out.txt || { echo "FAIL: no recovery output"; exit 1; }
+          [[ $(grep -c "^CLAUDE ARGS" /tmp/stub_log.txt) -eq 3 ]] || { echo "FAIL: expected 3 attempts"; cat /tmp/stub_log.txt; exit 1; }
+          grep -q "SLEEP 30" /tmp/stub_log.txt || { echo "FAIL: first backoff not observed"; exit 1; }
+          grep -q "SLEEP 60" /tmp/stub_log.txt || { echo "FAIL: second backoff not observed"; exit 1; }
+          echo "PASS: retry with exponential backoff"
+
+      - name: Script direct — non-overload failure exits 0 after one attempt
+        env:
+          STUB_MODE: hard_fail
+        run: |
+          rm -f /tmp/stub_log.txt /tmp/stub_state.txt
+          bash .github/scripts/run-claude-retry.sh /tmp/prompt.txt 5 /tmp/out.txt
+          [[ $(grep -c "^CLAUDE ARGS" /tmp/stub_log.txt) -eq 1 ]] || { echo "FAIL: expected 1 attempt"; cat /tmp/stub_log.txt; exit 1; }
+          echo "PASS: non-overload failure does not retry and exits 0"
+
+      - name: Composite action resolves the script via GITHUB_ACTION_PATH
+        uses: ./.github/actions/run-claude
+        with:
+          anthropic-api-key: dummy-key-not-used-by-stub
+          prompt-file: /tmp/prompt.txt
+          max-turns: '5'
+          output-file: /tmp/action_out.txt
+
+      - name: Assert action ran the stub through the script
+        run: |
+          grep -q "stub ok" /tmp/action_out.txt || { echo "FAIL: action did not produce stub output"; exit 1; }
+          echo "PASS: run-claude action delegates to run-claude-retry.sh"
+
   test-check-existing-pr:
     runs-on: ubuntu-latest
     permissions:

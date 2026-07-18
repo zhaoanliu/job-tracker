@@ -45,6 +45,8 @@ Reusable actions live in `.github/actions/`. Use `uses: ./.github/actions/<name>
 
 **No duplication in workflows** — before writing a new `run:` block longer than ~10 lines, check this table. If a matching action exists, use it. If a new pattern is needed in more than one workflow, extract it to a new composite action.
 
+**The canonical Claude retry loop is `.github/scripts/run-claude-retry.sh`** — `run-claude` delegates to it, and call sites that must invoke `claude` multiple times inside a single step (`verify-ac`, `feature-implement.yml`) call the script directly through a local `run_claude()` wrapper. Never inline a copy of the retry loop; a composite action cannot be called from inside a shell loop, but the script can. Usage: `run-claude-retry.sh <prompt-file> <max-turns> [output-file] [max-attempts] [extra-flags]`; it always exits 0 — callers react to Claude's output, not the exit code.
+
 ## Auto-fix pipeline
 
 When a Sentry alert fires:
