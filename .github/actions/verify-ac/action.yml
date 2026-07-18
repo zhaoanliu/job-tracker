@@ -79,24 +79,7 @@ runs:
         fi
 
         run_claude() {
-          local prompt_file=$1 max_turns=$2
-          local DELAY=30
-          for RETRY in 1 2 3; do
-            set +eo pipefail
-            claude --max-turns "$max_turns" \
-              -p "$(cat "$prompt_file")" 2>&1 | tee /tmp/claude_ac_output.txt
-            CLAUDE_EXIT=${PIPESTATUS[0]}
-            echo ""
-            set -eo pipefail
-            if [[ $CLAUDE_EXIT -eq 0 ]]; then return 0; fi
-            if grep -q "529\|Overloaded\|at capacity" /tmp/claude_ac_output.txt && [[ $RETRY -lt 3 ]]; then
-              echo "API overloaded (retry $RETRY/3), waiting ${DELAY}s..."
-              sleep $DELAY
-              DELAY=$((DELAY * 2))
-            else
-              return 0
-            fi
-          done
+          bash "$GITHUB_ACTION_PATH/../../scripts/run-claude-retry.sh" "$1" "$2" /tmp/claude_ac_output.txt
         }
 
         {
