@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_PAT }}
 
-      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.1.0
         with:
           model: claude-sonnet-4-6
           telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -136,20 +136,20 @@ jobs:
           Write ONLY the word "low" or "high" to /tmp/risk.txt, nothing else.
           EOF
 
-      - uses: zhaoanliu/claude-dev-automation/actions/check-existing-pr@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/check-existing-pr@v1.1.0
         if: steps.issue.outputs.skip != 'true'
         id: pr_check
         with:
           branch-prefix: fix/ci-issue-${{ steps.issue.outputs.number }}-
 
-      - uses: zhaoanliu/claude-dev-automation/actions/mark-in-progress@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/mark-in-progress@v1.1.0
         if: steps.issue.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
         with:
           issue-number: ${{ steps.issue.outputs.number }}
 
       - name: Run Claude Code
         if: steps.issue.outputs.skip != 'true' && steps.pr_check.outputs.skip != 'true'
-        uses: zhaoanliu/claude-dev-automation/actions/run-claude@v1.0.0
+        uses: zhaoanliu/claude-dev-automation/actions/run-claude@v1.1.0
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
@@ -307,7 +307,7 @@ jobs:
 
       - name: Open fix PR (main-branch CI failure)
         if: steps.fix.outputs.open_pr == 'true'
-        uses: zhaoanliu/claude-dev-automation/actions/open-fix-pr@v1.0.0
+        uses: zhaoanliu/claude-dev-automation/actions/open-fix-pr@v1.1.0
         with:
           issue-number: ${{ steps.issue.outputs.number }}
           gh-pat: ${{ secrets.GH_PAT }}

@@ -613,7 +613,7 @@ See `TODO` comments in:
 │   ├── e2e-local.yml             # Board + CSV E2E — nightly + path-triggered (supabase start)
 │   ├── lint.yml                  # ESLint + tsc + actionlint on every PR
 │   ├── migrate-validate.yml      # Validate all migrations against local Supabase stack
-│   ├── test-composite-actions.yml  # Verifies composite actions (shared ones pinned from claude-dev-automation@v1.0.0)
+│   ├── test-composite-actions.yml  # Verifies composite actions (shared ones pinned from claude-dev-automation@v1.1.0)
 │   └── test.yml                  # Vitest unit tests + coverage on every PR
 ├── .claude/commands/
 │   ├── open-issue.md             # /open-issue slash command

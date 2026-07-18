@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: zhaoanliu/claude-dev-automation/actions/detect-doc-only@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/detect-doc-only@v1.1.0
         id: detect
 
   e2e-auth:
@@ -57,7 +57,7 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-      - uses: zhaoanliu/claude-dev-automation/actions/trigger-ci-failure@v1.0.0
+      - uses: zhaoanliu/claude-dev-automation/actions/trigger-ci-failure@v1.1.0
         if: failure() && github.event_name != 'repository_dispatch'
         with:
           gh-pat: ${{ secrets.GH_PAT }}
