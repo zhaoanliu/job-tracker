@@ -15,10 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/install-claude
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
         with:
-          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          model: claude-sonnet-4-6
+          telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          telemetry-api-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Get failure logs
         id: logs
@@ -98,7 +99,7 @@ jobs:
           Bullet list — one line per file changed, explaining what was corrected and why.
           EOF
 
-      - uses: ./.github/actions/mark-in-progress
+      - uses: zhaoanliu/claude-dev-automation/actions/mark-in-progress@v1.0.0
         if: steps.logs.outputs.error_type == 'code'
         with:
           issue-number: ${{ steps.issue.outputs.number }}

@@ -12,10 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/install-claude
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
         with:
-          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          model: claude-sonnet-4-6
+          telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          telemetry-api-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Verify claude is on PATH
         run: claude --version
@@ -125,10 +126,10 @@ jobs:
           ' <<< "$PAYLOAD"
           echo "PASS: empty/absent fields produce null; non-empty exit_code parsed"
 
-      - name: Verify Supabase logging skipped when credentials absent
+      - name: Verify telemetry logging skipped when credentials absent
         run: |
-          SUPABASE_LOG_URL="" SUPABASE_LOG_KEY=""
-          if [[ -n "${SUPABASE_LOG_URL:-}" && -n "${SUPABASE_LOG_KEY:-}" ]]; then
+          CLAUDE_TELEMETRY_URL="" CLAUDE_TELEMETRY_KEY=""
+          if [[ -n "${CLAUDE_TELEMETRY_URL:-}" && -n "${CLAUDE_TELEMETRY_KEY:-}" ]]; then
             echo "FAIL: entered logging block without credentials"
             exit 1
           fi
@@ -186,7 +187,7 @@ jobs:
           echo "PASS: non-overload failure does not retry and exits 0"
 
       - name: Composite action resolves the script via GITHUB_ACTION_PATH
-        uses: ./.github/actions/run-claude
+        uses: zhaoanliu/claude-dev-automation/actions/run-claude@v1.0.0
         with:
           anthropic-api-key: dummy-key-not-used-by-stub
           prompt-file: /tmp/prompt.txt
@@ -207,7 +208,7 @@ jobs:
 
       - name: No-match case — nonexistent prefix should not set skip
         id: no_match
-        uses: ./.github/actions/check-existing-pr
+        uses: zhaoanliu/claude-dev-automation/actions/check-existing-pr@v1.0.0
         with:
           branch-prefix: definitely-nonexistent-xyz-99999-
 
@@ -226,7 +227,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: ./.github/actions/mark-in-progress
+      - uses: zhaoanliu/claude-dev-automation/actions/mark-in-progress@v1.0.0
         with:
           issue-number: '0'
           labels-to-remove: |
@@ -242,7 +243,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/detect-doc-only
+      - uses: zhaoanliu/claude-dev-automation/actions/detect-doc-only@v1.0.0
         id: detect
       - name: Assert skip is not set for non-PR context
         run: |

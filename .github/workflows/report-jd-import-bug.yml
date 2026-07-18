@@ -28,10 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/install-claude
+      - uses: zhaoanliu/claude-dev-automation/actions/install-claude@v1.0.0
         with:
-          supabase-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          supabase-service-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          model: claude-sonnet-4-6
+          telemetry-url: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          telemetry-api-key: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Write investigation prompt
         env:
@@ -107,7 +108,7 @@ jobs:
           EOF
 
       - name: Investigate and create seed issue
-        uses: ./.github/actions/run-claude
+        uses: zhaoanliu/claude-dev-automation/actions/run-claude@v1.0.0
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt-file: '/tmp/investigate_prompt.txt'

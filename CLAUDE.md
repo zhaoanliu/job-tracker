@@ -62,7 +62,7 @@ e2e/
     lint.yml         # ESLint + tsc + actionlint on every PR
     e2e.yml          # auth E2E on every PR/push (no local Supabase)
     e2e-local.yml    # board + CSV E2E — nightly cron + push to main on relevant paths (supabase start)
-  actions/           # reusable composite actions
+  actions/           # repo-specific composite actions (supabase-start, verify-ac); generic ones come from zhaoanliu/claude-dev-automation@v1.0.0
   designs/           # design proposals committed by feature-design.yml; one file per feature
 ```
 
