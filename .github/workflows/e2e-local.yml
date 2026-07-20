@@ -56,7 +56,7 @@ jobs:
 
       - uses: supabase/setup-cli@v2.1.1
         with:
-          version: 2.108.0
+          version: 2.109.1
 
       - uses: zhaoanliu/claude-dev-automation/actions/supabase-start@v1.1.0
 
