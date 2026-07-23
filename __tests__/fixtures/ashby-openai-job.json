@@ -1,0 +1,18 @@
+{
+  "jobs": [
+    {
+      "id": "ace42c6d-8663-4b30-9337-ec70cf071d73",
+      "title": "Principal Software Engineer, Infrastructure Security",
+      "teamName": "Infrastructure Security",
+      "locationName": "Remote, US",
+      "employmentType": "FullTime",
+      "descriptionHtml": "<p>OpenAI's mission is the responsible development and maintenance of advanced AI for the benefit of humanity.</p><p>The Infrastructure Security team is responsible for designing and operating security controls that protect OpenAI's systems and data at scale. We build the foundational security infrastructure that the rest of the company relies on — from network security and secrets management to identity and access control.</p><h2>About the Role</h2><p>As a Principal Software Engineer on Infrastructure Security, you will lead the technical direction of our core security infrastructure. You will partner with engineering teams across the company to design systems that are secure by default, scalable, and maintainable.</p><h2>Responsibilities</h2><ul><li>Design, implement, and operate security infrastructure systems including secrets management, PKI, and network security controls</li><li>Define technical roadmaps and drive architectural decisions for the Infrastructure Security team</li><li>Collaborate with engineering, research, and operations teams to embed security into platform foundations</li><li>Build and improve tooling that enables engineers to write secure code and operate secure services with low friction</li></ul><h2>Qualifications</h2><ul><li>10+ years of software engineering experience with significant depth in infrastructure or security engineering</li><li>Strong systems-level thinking with experience operating distributed systems in production</li><li>Track record of technical leadership on complex, cross-functional initiatives</li><li>Experience with at least two of: PKI and certificate management, secrets management (Vault, AWS Secrets Manager), network security, identity and access management</li></ul>",
+      "isListed": true,
+      "isRemote": true,
+      "publishedDate": "2025-01-15T00:00:00.000Z"
+    }
+  ],
+  "organization": {
+    "name": "OpenAI"
+  }
+}
