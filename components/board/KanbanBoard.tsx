@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import {
   DndContext,
   DragEndEvent,
@@ -30,6 +30,7 @@ import ApplicationModal from '@/components/modals/ApplicationModal'
 import Navbar from '@/components/ui/Navbar'
 import StatsBar from '@/components/ui/StatsBar'
 import FilterBar from '@/components/ui/FilterBar'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { trackEvent } from '@/lib/trackEvent'
 
@@ -39,7 +40,8 @@ interface KanbanBoardProps {
 }
 
 export default function KanbanBoard({ initialApplications, userEmail }: KanbanBoardProps) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
+  const router = useRouter()
 
   const [applications, setApplications] = useState<Application[]>(initialApplications)
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
@@ -63,6 +65,15 @@ export default function KanbanBoard({ initialApplications, userEmail }: KanbanBo
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        router.push('/login')
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [supabase, router])
 
   const activeApp = activeId ? applications.find(a => a.id === activeId) ?? null : null
 

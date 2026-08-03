@@ -22,6 +22,7 @@ Sentry.init({
     'The Internet connection appears to be offline',
     'cancelled',
     'AbortError',
+    'Invalid Refresh Token',
   ],
   beforeSend: filterHydrationEvent,
   enabled: process.env.NODE_ENV === 'production',
