@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (error) {
-    console.error('Failed to record event:', error.message, error)
+    console.error('Failed to record event:', error.message)
     return NextResponse.json({ error: 'Failed to record event' }, { status: 500 })
   }
 
