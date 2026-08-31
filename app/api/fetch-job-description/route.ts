@@ -883,6 +883,54 @@ function extractEditorContentFromRsc(rsc: string): string | null {
   return null
 }
 
+// OpenAI careers — openai.com/careers/{slug}. Next.js App Router page protected by a
+// Cloudflare managed challenge. The RSC endpoint (?_rsc=any) bypasses the challenge and
+// returns the full React component tree with T-chunk job description, og:title, meta
+// description (format: "Dept · N locations · EmploymentType"), and compensation section.
+function extractOpenAICareersFromRsc(rsc: string): string | null {
+  // Title from og:title (preferred over <title> which appends "| OpenAI")
+  const titleMatch = rsc.match(/"property":"og:title","content":"([^"]+)"/)
+  const title = titleMatch ? titleMatch[1].trim() : ''
+
+  // Meta description carries dept + location count + employment type as "Dept · N locations · Type"
+  const metaDescMatch = rsc.match(/"name":"description","content":"([^"]+)"/)
+  const metaDesc = metaDescMatch ? metaDescMatch[1] : ''
+  const parts = metaDesc.split(' · ')
+  const department = parts[0]?.trim() || ''
+  const rawEmploymentType = parts[parts.length - 1]?.trim() || ''
+  const employmentTypeMap: Record<string, string> = {
+    FullTime: 'Full-time',
+    PartTime: 'Part-time',
+    Contract: 'Contract',
+    Internship: 'Internship',
+    Temporary: 'Temporary',
+  }
+  const employmentType = employmentTypeMap[rawEmploymentType] ?? rawEmploymentType
+
+  // Compensation: {"children":"Compensation"}...{"children":"$$amount"} — RSC encodes a
+  // literal $ string as $$ to avoid collision with the $ reference prefix
+  const compensationMatch = rsc.match(/"children":"Compensation"[\s\S]{0,500}"children":"(\$\$[^"]+)"/)
+  const compensation = compensationMatch ? compensationMatch[1].replace(/^\$\$/, '$') : ''
+
+  // Job description in a T-type RSC chunk: [id]:T[hex_len],[content]
+  const tChunkMatch = rsc.match(/[0-9a-f]+:T([0-9a-f]+),/)
+  if (!tChunkMatch) return null
+  const hexLen = parseInt(tChunkMatch[1], 16)
+  const contentStart = (tChunkMatch.index ?? 0) + tChunkMatch[0].length
+  let descriptionHtml = rsc.slice(contentStart, contentStart + hexLen)
+  // Strip trailing RSC chunk header bytes (streaming artifact from Next.js RSC serialisation)
+  descriptionHtml = descriptionHtml.replace(/[0-9a-f]+:\[[\s\S]*$/, '').trim()
+
+  if (!descriptionHtml) return null
+
+  const rows: Array<[string, string]> = []
+  if (department) rows.push(['Department', department])
+  if (employmentType) rows.push(['Employment type', employmentType])
+  if (compensation) rows.push(['Compensation', compensation])
+
+  return buildMetaTable(title, rows) + descriptionHtml
+}
+
 function extractLifeAtTikTokFromPage(html: string): string | null {
   const rsc = extractRscPayloads(html)
   const description = extractEditorContentFromRsc(rsc)
@@ -950,6 +998,10 @@ export async function POST(req: NextRequest) {
     /^\/careers\/[A-Za-z0-9_-]+_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
       parsed.pathname
     )
+
+  const isOpenAIJob =
+    (parsed.hostname === 'openai.com' || parsed.hostname === 'www.openai.com') &&
+    /^\/careers\/[A-Za-z0-9-]+\/?$/.test(parsed.pathname)
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -1163,6 +1215,31 @@ export async function POST(req: NextRequest) {
       const gemHtml = await fetchGemJob(gemMatch[1], gemMatch[2], controller.signal)
       if (gemHtml !== null) return NextResponse.json({ html: gemHtml })
       // API unavailable — fall through to HTML scraping
+    }
+
+    // OpenAI careers — openai.com/careers/{slug}. Protected by Cloudflare managed challenge
+    // which blocks plain HTML fetches. The RSC endpoint (?_rsc=1) bypasses the challenge;
+    // extractOpenAICareersFromRsc parses the T-chunk description and metadata directly.
+    if (isOpenAIJob) {
+      try {
+        const rscRes = await fetch(
+          `${parsed.origin}${parsed.pathname}?_rsc=1`,
+          {
+            signal: controller.signal,
+            headers: {
+              'User-Agent': USER_AGENT,
+              Accept: 'text/x-component, */*',
+            },
+          }
+        )
+        if (rscRes.ok) {
+          const rscText = await rscRes.text()
+          const openAIHtml = extractOpenAICareersFromRsc(rscText)
+          if (openAIHtml !== null) return NextResponse.json({ html: openAIHtml })
+        }
+      } catch {
+        // RSC fetch failed — fall through to HTML scraping
+      }
     }
 
     // www.google.com/about/careers/applications/ no longer embeds job data server-side
