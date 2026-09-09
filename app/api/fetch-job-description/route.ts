@@ -505,6 +505,22 @@ function buildGemMeta(posting: Record<string, unknown>): string {
   return buildMetaTable(title, rows)
 }
 
+function buildOpenAIAshbyMeta(job: Record<string, unknown>): string {
+  const rows: Array<[string, string]> = []
+  const title = str(job.title)
+  const location = str(job.locationName)
+  const teamName = str(job.teamName)
+  const employmentTypeRaw = str(job.employmentType)
+  const employmentType = employmentTypeRaw.replace(/([a-z])([A-Z])/g, '$1 $2')
+
+  rows.push(['Company', 'OpenAI'])
+  if (teamName) rows.push(['Team', teamName])
+  if (location) rows.push(['Location', location])
+  if (employmentType) rows.push(['Employment type', employmentType])
+
+  return buildMetaTable(title, rows)
+}
+
 async function fetchGemJob(
   boardId: string,
   extId: string,
@@ -1111,6 +1127,52 @@ export async function POST(req: NextRequest) {
       const ghHtml = await fetchGreenhouseJob('databricks', databricksMatch[1], controller.signal)
       if (ghHtml !== null) return NextResponse.json({ html: ghHtml })
       // API unavailable — fall through to HTML scraping
+    }
+
+    // OpenAI careers (openai.com/careers/{slug}) — Cloudflare blocks server-side HTML fetches.
+    // The Ashby board listing API for OpenAI is public; job is matched by word-overlap between
+    // the URL slug and slugified title + location (threshold ≥70%).
+    const openAICareerMatch =
+      parsed.hostname === 'openai.com' &&
+      parsed.pathname.match(/^\/careers\/[^/]+\/?$/)
+    if (openAICareerMatch) {
+      try {
+        const boardRes = await fetch('https://api.ashbyhq.com/posting-api/job-board/openai', {
+          signal: controller.signal,
+          headers: { 'User-Agent': USER_AGENT },
+        })
+        if (boardRes.ok) {
+          const board = (await boardRes.json()) as Record<string, unknown>
+          const jobs = Array.isArray(board.jobs) ? board.jobs : []
+          const urlSlug = parsed.pathname.replace(/^\/careers\//, '').replace(/\/$/, '')
+          const slugWords = urlSlug.split('-').filter(Boolean)
+          let bestJob: Record<string, unknown> | null = null
+          let bestOverlap = 0
+          for (const jobRaw of jobs) {
+            if (jobRaw == null || typeof jobRaw !== 'object') continue
+            const job = jobRaw as Record<string, unknown>
+            const combined = (str(job.title) + ' ' + str(job.locationName))
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-|-$/g, '')
+            const combinedWords = combined.split('-').filter(Boolean)
+            const matchCount = slugWords.filter((w) => combinedWords.includes(w)).length
+            const overlap = slugWords.length > 0 ? matchCount / slugWords.length : 0
+            if (overlap > bestOverlap) {
+              bestOverlap = overlap
+              bestJob = job
+            }
+          }
+          if (bestJob !== null && bestOverlap >= 0.7) {
+            const descriptionHtml = str(bestJob.descriptionHtml)
+            if (descriptionHtml) {
+              return NextResponse.json({ html: buildOpenAIAshbyMeta(bestJob) + descriptionHtml })
+            }
+          }
+        }
+      } catch {
+        // Board API unavailable or no match — fall through to HTML scraping
+      }
     }
 
     // Ashby ATS — custom career domains (e.g. careers.confluent.io/jobs/job/{uuid}) block
