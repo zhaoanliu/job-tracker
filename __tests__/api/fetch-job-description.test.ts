@@ -19,6 +19,7 @@ const googleCareersMetaFallbackHtml = readFileSync(
 )
 import ashbyConfluentJob from '../fixtures/ashby-confluent-job.json'
 import ashbyDockerJob from '../fixtures/ashby-docker-job.json'
+import ashbyOpenAIJob from '../fixtures/ashby-openai-job.json'
 import gemAugerJob from '../fixtures/gem-auger-job.json'
 import amperityNextdataJob from '../fixtures/amperity-nextdata-job.json'
 import greenhouseDatabricksJob from '../fixtures/greenhouse-databricks-job.json'
@@ -3084,6 +3085,73 @@ describe('POST /api/fetch-job-description', () => {
       const res = await POST(makeReq({ url: SHOPIFY_URL }))
 
       expect(res.status).toBe(502)
+    })
+  })
+
+  describe('OpenAI careers (Ashby board listing)', () => {
+    const OPENAI_CAREER_URL =
+      'https://openai.com/careers/principal-software-engineer-infrastructure-security-remote-us/'
+    const OPENAI_BOARD_API = 'https://api.ashbyhq.com/posting-api/job-board/openai'
+
+    it('returns title, company, location, and non-empty description from board listing fixture [AC-721-1]', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === OPENAI_BOARD_API) return Promise.resolve(jsonResponse(ashbyOpenAIJob))
+        return Promise.resolve(htmlResponse('<html><body>fallback</body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: OPENAI_CAREER_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Principal Software Engineer')
+      expect(data.html).toContain('OpenAI')
+      expect(data.html).toContain('Remote')
+      expect(data.html).toContain('Infrastructure Security')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(OPENAI_BOARD_API, expect.anything())
+    })
+
+    it('falls back to HTML scraping when board listing API returns 404 [AC-721-2]', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === OPENAI_BOARD_API) return Promise.resolve(jsonResponse({}, 404))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: OPENAI_CAREER_URL }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledWith(OPENAI_CAREER_URL, expect.anything())
+    })
+
+    it('falls back to HTML scraping when board listing API throws a network error [AC-721-3]', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === OPENAI_BOARD_API) return Promise.reject(new Error('network error'))
+        return Promise.resolve(htmlResponse('<html><body><p>Scraped JD</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: OPENAI_CAREER_URL }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledWith(OPENAI_CAREER_URL, expect.anything())
+    })
+
+    it('does not call board listing API for non-careers openai.com paths [AC-721-4]', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Blog post</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://openai.com/blog/some-post' }))
+
+      expect(res.status).toBe(200)
+      expect(fetchMock).not.toHaveBeenCalledWith(OPENAI_BOARD_API, expect.anything())
     })
   })
 })
