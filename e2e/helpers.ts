@@ -7,7 +7,7 @@ export const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? 'eyJhbGciOiJ
 export { SUPABASE_URL }
 
 export const TEST_EMAIL = 'e2e-test@jobtracker.test'
-export const TEST_PASSWORD = 'e2eTest1234'
+export const TEST_PASSWORD = 'e2eTest1234!'
 
 // Idempotent — if user already exists (e.g. prior failed run), finds them instead.
 export async function createTestUser(): Promise<string> {
