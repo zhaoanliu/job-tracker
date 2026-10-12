@@ -3086,4 +3086,102 @@ describe('POST /api/fetch-job-description', () => {
       expect(res.status).toBe(502)
     })
   })
+
+  describe('OpenAI careers (openai.com/careers/{slug})', () => {
+    const OPENAI_URL =
+      'https://openai.com/careers/principal-software-engineer-infrastructure-security-remote-us/'
+    const OPENAI_RSC_URL =
+      'https://openai.com/careers/principal-software-engineer-infrastructure-security-remote-us/?_rsc=1'
+    const openAIRscFixture = readFileSync(
+      join(__dirname, '../fixtures/openai-careers-job.txt'),
+      'utf-8'
+    )
+
+    it('returns title, department, employment type, compensation, and description from RSC fixture', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === OPENAI_RSC_URL)
+          return Promise.resolve(htmlResponse(openAIRscFixture, { contentType: 'text/x-component' }))
+        return Promise.resolve(htmlResponse('<html><body><p>fallback</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: OPENAI_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toContain('Principal Software Engineer, Infrastructure Security')
+      expect(data.html).toContain('Security')         // department
+      expect(data.html).toContain('Full-time')        // FullTime → Full-time
+      expect(data.html).toContain('$347K')            // compensation (RSC $$ → $)
+      expect(data.html).toContain('About the Team')   // description content
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(OPENAI_RSC_URL, expect.any(Object))
+    })
+
+    it('falls back to HTML scraping when RSC has no T-chunk', async () => {
+      mockUser()
+      const noTChunk = openAIRscFixture.replace(/^5c:T[0-9a-f]+,.*$/m, '')
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === OPENAI_RSC_URL)
+          return Promise.resolve(htmlResponse(noTChunk, { contentType: 'text/x-component' }))
+        return Promise.resolve(htmlResponse('<html><body><p>Fallback content</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: OPENAI_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Fallback content</p>')
+    })
+
+    it('falls back to HTML scraping when RSC fetch returns non-2xx', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url === OPENAI_RSC_URL)
+          return Promise.resolve(htmlResponse('', { status: 503 }))
+        return Promise.resolve(htmlResponse('<html><body><p>Fallback content</p></body></html>'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: OPENAI_URL }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Fallback content</p>')
+    })
+
+    it('does not trigger OpenAI handler for non-careers openai.com path', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Other page</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://openai.com/research/gpt-4' }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.html).toBe('<p>Other page</p>')
+      // Fetches the page directly — no RSC call
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('_rsc'), expect.any(Object))
+    })
+
+    it('does not trigger OpenAI handler for openai.com/careers/ listing page', async () => {
+      mockUser()
+      const fetchMock = vi.fn().mockResolvedValue(
+        htmlResponse('<html><body><p>Careers listing</p></body></html>')
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await POST(makeReq({ url: 'https://openai.com/careers/' }))
+
+      expect(res.status).toBe(200)
+      // No RSC call — just the main page fetch
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('_rsc'), expect.any(Object))
+    })
+  })
 })
