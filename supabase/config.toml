@@ -98,7 +98,6 @@ openai_api_key = "env(OPENAI_API_KEY)"
 # are monitored, and you can view the emails that would have been sent from the web interface.
 [local_smtp]
 enabled = true
-host = "127.0.0.1"
 port = 2500
 admin_email = "admin@email.com"
 sender_name = "Admin"
