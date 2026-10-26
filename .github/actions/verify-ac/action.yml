@@ -44,7 +44,7 @@ runs:
 
     - name: Install Supabase CLI
       if: steps.ac_check.outputs.has_ac == 'true'
-      uses: supabase/setup-cli@v2.1.1
+      uses: supabase/setup-cli@v2.1.2
       with:
         version: 2.101.0
 
