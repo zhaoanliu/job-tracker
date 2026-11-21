@@ -20,11 +20,17 @@ Every schema change follows this checklist — skipping any step is what caused 
    ```
    Note: dollar-quoting requires `$$` (not bare `$`) — a single `$` causes a syntax error.
 
-3. **Update `lib/types.ts`** — add the TypeScript interface and any new enum values. New enum values also need to be added to the corresponding constant arrays in the same file.
+3. **Grant table-level privileges to the `authenticated` role.** Supabase CLI v2 does not auto-grant these during `supabase start`; without them PostgREST returns `42501 permission denied` even when an RLS policy would allow the row. Add immediately after the RLS block:
+   ```sql
+   grant select, insert, update, delete on public.<table> to authenticated;
+   ```
+   For insert-only tables (e.g. `events` where users write but never self-serve reads), use `grant insert` only. Service-role-only tables (e.g. `workflow_runs`) need no `authenticated` grant.
 
-4. **Write the feature code and tests** — the new table can be referenced in code immediately; `migrate.yml` will apply it when the PR merges.
+4. **Update `lib/types.ts`** — add the TypeScript interface and any new enum values. New enum values also need to be added to the corresponding constant arrays in the same file.
 
-5. **Merge to main** — `migrate.yml` runs automatically on every push to main, applies all pending migrations via `supabase link + supabase db push`. No manual SQL steps needed.
+5. **Write the feature code and tests** — the new table can be referenced in code immediately; `migrate.yml` will apply it when the PR merges.
+
+6. **Merge to main** — `migrate.yml` runs automatically on every push to main, applies all pending migrations via `supabase link + supabase db push`. No manual SQL steps needed.
 
 **Supabase error logging rules** (learned from this incident):
 - Always log `error.message` alongside the raw error object: `console.error('context:', error.message, error)` — a bare `console.error(error)` shows as `[object Object]` in Sentry and is impossible to diagnose.
