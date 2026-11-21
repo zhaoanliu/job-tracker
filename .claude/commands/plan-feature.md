@@ -13,4 +13,9 @@ Steps:
    - Do NOT add `user-requested` — that label is reserved for issues submitted via the in-app Feedback form.
    - Capture the issue number as `PUBLIC_N`.
 
-3. Report the URL to the user. Remind them: add `status: approved` to kick off the design phase, which will generate a structured implementation spec with a reviewable plan before implementation starts.
+3. Report the URL to the user, then explain the two-stage approval flow and tell them the **next** step is `status: approved` (not `status: auto-implement`):
+   1. Add `status: approved` to the public issue → the design phase runs and generates a structured implementation spec with a reviewable plan.
+   2. Refine that spec as needed.
+   3. Add `status: auto-implement` to the public issue → the implementation phase runs and opens a PR.
+
+   Always lead with `status: approved`. `status: auto-implement` applied first skips the design-review step entirely, so never present it as the immediate next action.
