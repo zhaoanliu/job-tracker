@@ -25,9 +25,6 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Skip session handling for the OAuth callback route so the PKCE code
-  // verifier cookie isn't cleared by signOut before the route handler can
-  // exchange the authorization code.
   if (pathname === '/auth/callback') {
     return NextResponse.next()
   }
@@ -38,9 +35,7 @@ export async function middleware(request: NextRequest) {
   let user = null
   try {
     const { data, error } = await supabase.auth.getUser()
-    if (error) {
-      await supabase.auth.signOut({ scope: 'local' })
-    } else {
+    if (!error) {
       user = data.user
     }
   } catch {
@@ -71,8 +66,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Exclude auth/callback so the PKCE code verifier cookie isn't cleared by
-    // middleware's signOut before the route handler can exchange the code.
     '/((?!_next/static|_next/image|favicon\\.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
