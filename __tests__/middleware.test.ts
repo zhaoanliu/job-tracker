@@ -67,12 +67,12 @@ describe('middleware — /auth/callback passthrough', () => {
 })
 
 describe('middleware — stale refresh token', () => {
-  it('calls signOut with scope local when getUser returns an auth error', async () => {
+  it('does not call signOut when getUser returns an auth error (preserves PKCE verifier)', async () => {
     const { signOut } = setupSupabase({
       error: { message: 'Invalid Refresh Token: Refresh Token Not Found', status: 400 },
     })
     await middleware(makeRequest('/dashboard'))
-    expect(signOut).toHaveBeenCalledWith({ scope: 'local' })
+    expect(signOut).not.toHaveBeenCalled()
   })
 
   it('redirects to /login when getUser returns an auth error on a protected route', async () => {
@@ -82,18 +82,6 @@ describe('middleware — stale refresh token', () => {
     const res = await middleware(makeRequest('/dashboard'))
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toContain('/login')
-  })
-
-  it('forwards cleared cookies to the redirect response so stale tokens are removed from the browser', async () => {
-    setupSupabase({
-      error: { message: 'Invalid Refresh Token: Refresh Token Not Found', status: 400 },
-      cookiesToClear: [
-        { name: 'sb-test-auth-token', value: '', options: { maxAge: 0, path: '/' } },
-      ],
-    })
-    const res = await middleware(makeRequest('/dashboard'))
-    const setCookies = res.headers.getSetCookie()
-    expect(setCookies.some(c => c.includes('sb-test-auth-token'))).toBe(true)
   })
 
   it('does not call signOut when getUser succeeds', async () => {
